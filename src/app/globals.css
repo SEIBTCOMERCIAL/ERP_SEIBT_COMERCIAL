@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* shadcn/ui variables — mapeados para paleta SEIBT */
+    --background: 210 20% 98%;    /* #F8FAFC */
+    --foreground: 210 11% 11%;    /* #1A1A1A */
+    --card: 0 0% 100%;            /* #FFFFFF */
+    --card-foreground: 210 11% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 11% 11%;
+    --primary: 213 47% 32%;       /* #2C4F79 navy SEIBT */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 16% 93%;     /* #E8EDF3 */
+    --secondary-foreground: 213 47% 32%;
+    --muted: 210 16% 96%;         /* #F1F5F9 */
+    --muted-foreground: 215 14% 48%;  /* #6B7B8D */
+    --accent: 210 16% 93%;
+    --accent-foreground: 213 47% 32%;
+    --destructive: 0 84% 51%;     /* #DC2626 */
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 17% 89%;        /* #E2E8F0 */
+    --input: 214 17% 89%;
+    --ring: 213 47% 45%;          /* #2074B9 blue SEIBT */
+    --radius: 0.5rem;
+
+    /* SEIBT Design Tokens */
+    --seibt-navy: #2C4F79;
+    --seibt-navy-dark: #1E3A5F;
+    --seibt-navy-light: #3A6494;
+    --seibt-blue: #2074B9;
+    --seibt-blue-light: #EBF4FB;
+    --seibt-bg: #F8FAFC;
+    --seibt-border: #E2E8F0;
+    --seibt-text: #1A1A1A;
+    --seibt-text-muted: #6B7B8D;
+
+    /* Sidebar */
+    --sidebar-bg: #2C4F79;
+    --sidebar-width: 224px;
+    --topbar-height: 56px;
+  }
+
+  .dark {
+    --background: 222 84% 5%;     /* #0A0A0A */
+    --foreground: 210 17% 98%;    /* #FAFAFA */
+    --card: 222 47% 7%;           /* #111111 */
+    --card-foreground: 210 17% 98%;
+    --popover: 222 47% 7%;
+    --popover-foreground: 210 17% 98%;
+    --primary: 213 60% 55%;       /* #3B82F6 mais brilhante no dark */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 19% 17%;
+    --secondary-foreground: 210 17% 98%;
+    --muted: 217 19% 17%;
+    --muted-foreground: 215 14% 65%;
+    --accent: 217 19% 17%;
+    --accent-foreground: 210 17% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 19% 12%;        /* #1F1F1F */
+    --input: 217 19% 12%;
+    --ring: 213 60% 55%;
+
+    --seibt-bg: #0A0A0A;
+    --seibt-border: #1F1F1F;
+    --seibt-text: #FAFAFA;
+    --seibt-text-muted: #A1A1AA;
+    --sidebar-bg: #1E3A5F;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Scrollbar customizada */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #E2E8F0 transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: #E2E8F0;
+    border-radius: 2px;
+  }
+}
