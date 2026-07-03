@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useFormState, useFormStatus } from "react-dom";
-import { Search, Eye, Pencil, Plus, Download, TrendingUp, TrendingDown, ChevronRight } from "lucide-react";
+import { Search, Eye, Pencil, Plus, Download, TrendingUp, TrendingDown, ChevronRight, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { reajustarPreco, type ReajusteFormState } from "@/app/actions/produtos";
+import { reajustarPreco, criarProduto, type ReajusteFormState, type CriarProdutoState } from "@/app/actions/produtos";
 import type { ProdutoComDetalhes, Categoriaproduto, HistoricoPreco } from "@/types/database";
 
 type SidebarSel =
@@ -42,6 +42,99 @@ function SubmitReajuste() {
     >
       {pending ? "Aplicando..." : "Confirmar reajuste"}
     </button>
+  );
+}
+
+function SubmitNovoProduto() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      style={{ padding: "10px 20px", background: "#2C4F79", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: pending ? 0.6 : 1 }}
+    >
+      {pending ? "Salvando..." : "Criar Produto"}
+    </button>
+  );
+}
+
+function NovoProdutoModal({ onClose }: { onClose: () => void }) {
+  const initialState: CriarProdutoState = {};
+  const [state, action] = useFormState<CriarProdutoState, FormData>(criarProduto, initialState);
+
+  useEffect(() => {
+    if (state.success) onClose();
+  }, [state.success, onClose]);
+
+  const TODAS_CATS: { label: string; value: string }[] = [
+    { label: "Máquina",    value: "maquina" },
+    { label: "Navalha",    value: "navalha" },
+    { label: "Peneira",    value: "peneira" },
+    { label: "Rolamento",  value: "rolamento" },
+    { label: "Parafuso",   value: "parafuso" },
+    { label: "Rotor",      value: "rotor" },
+    { label: "Inserto",    value: "inserto" },
+    { label: "Periférico", value: "periferico" },
+    { label: "Linha",      value: "linha" },
+    { label: "Outro",      value: "outro" },
+  ];
+
+  const inp = (field: string) => state.errors?.[field as keyof typeof state.errors]?.[0];
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#fff", borderRadius: 14, width: 480, maxHeight: "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px", borderBottom: "1px solid #E2E8F0" }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: "#2C4F79", margin: 0 }}>Novo Produto</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#6B7B8D" }}><X size={18} /></button>
+        </div>
+        <form action={action} style={{ padding: "22px" }}>
+          {state.message && (
+            <div style={{ background: "#FEE2E2", color: "#DC2626", padding: "10px 14px", borderRadius: 8, fontSize: 12, marginBottom: 14 }}>{state.message}</div>
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const }}>Código *</label>
+              <input name="codigo" required style={{ height: 36, border: `1px solid ${inp("codigo") ? "#DC2626" : "#E2E8F0"}`, borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none" }} />
+              {inp("codigo") && <span style={{ fontSize: 11, color: "#DC2626" }}>{inp("codigo")}</span>}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const }}>Categoria *</label>
+              <select name="categoria" required style={{ height: 36, border: `1px solid ${inp("categoria") ? "#DC2626" : "#E2E8F0"}`, borderRadius: 7, padding: "0 10px", fontSize: 13, background: "#fff", outline: "none" }}>
+                {TODAS_CATS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 14 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const }}>Descrição *</label>
+            <input name="descricao" required style={{ height: 36, border: `1px solid ${inp("descricao") ? "#DC2626" : "#E2E8F0"}`, borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none" }} />
+            {inp("descricao") && <span style={{ fontSize: 11, color: "#DC2626" }}>{inp("descricao")}</span>}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const }}>Preço (R$)</label>
+              <input name="preco_brl" type="number" step="0.01" min="0" style={{ height: 36, border: "1px solid #E2E8F0", borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none" }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const }}>IPI (%)</label>
+              <input name="ipi_pct" type="number" step="0.01" min="0" defaultValue="0" style={{ height: 36, border: "1px solid #E2E8F0", borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none" }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const }}>NCM</label>
+              <input name="ncm" style={{ height: 36, border: "1px solid #E2E8F0", borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none" }} />
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 22 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const }}>Linha (para máquinas)</label>
+            <input name="linha" placeholder="Ex: MGHS, TPS, ES75..." style={{ height: 36, border: "1px solid #E2E8F0", borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none" }} />
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <button type="button" onClick={onClose} style={{ padding: "10px 18px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#374151" }}>Cancelar</button>
+            <SubmitNovoProduto />
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
@@ -91,6 +184,7 @@ export function CatalogoProdutos({ produtos }: Props) {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<ProdutoComDetalhes | null>(null);
   const [showReajuste, setShowReajuste] = useState(false);
+  const [showNovoProduto, setShowNovoProduto] = useState(false);
 
   const filtered = useMemo(() => {
     let list = produtos;
@@ -221,6 +315,7 @@ export function CatalogoProdutos({ produtos }: Props) {
   const selSidebarKey = sel.kind === "todos" ? "todos" : sel.kind === "categoria" ? sel.value : `linha-${sel.value}`;
 
   return (
+    <>
     <div className="flex h-[calc(100vh-56px)] overflow-hidden">
       {/* Category sidebar */}
       <aside className="w-[200px] shrink-0 border-r border-[#E2E8F0] bg-white flex flex-col overflow-y-auto">
@@ -303,7 +398,7 @@ export function CatalogoProdutos({ produtos }: Props) {
               <Download className="h-3.5 w-3.5" />
               Exportar
             </button>
-            <button className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[#2C4F79] hover:bg-[#1E3A5F] text-white text-[12px] font-semibold transition-colors">
+            <button onClick={() => setShowNovoProduto(true)} className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[#2C4F79] hover:bg-[#1E3A5F] text-white text-[12px] font-semibold transition-colors">
               <Plus className="h-3.5 w-3.5" />
               Novo Produto
             </button>
@@ -504,5 +599,7 @@ export function CatalogoProdutos({ produtos }: Props) {
         )}
       </div>
     </div>
+    {showNovoProduto && <NovoProdutoModal onClose={() => setShowNovoProduto(false)} />}
+    </>
   );
 }

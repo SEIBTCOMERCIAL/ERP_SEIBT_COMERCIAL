@@ -4,6 +4,68 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 
+const criarProdutoSchema = z.object({
+  codigo:    z.string().min(1, "Código obrigatório"),
+  descricao: z.string().min(1, "Descrição obrigatória"),
+  categoria: z.enum(["maquina","navalha","peneira","rolamento","parafuso","rotor","inserto","periferico","linha","outro"]),
+  linha:     z.string().optional().nullable(),
+  preco_brl: z.coerce.number().min(0).optional().nullable(),
+  ipi_pct:   z.coerce.number().min(0).default(0),
+  ncm:       z.string().optional().nullable(),
+});
+
+export type CriarProdutoState = {
+  errors?: Partial<Record<string, string[]>>;
+  message?: string;
+  success?: boolean;
+};
+
+export async function criarProduto(
+  _prev: CriarProdutoState,
+  formData: FormData
+): Promise<CriarProdutoState> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createClient() as any;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { message: "Não autorizado" };
+
+  const raw = {
+    codigo:    formData.get("codigo"),
+    descricao: formData.get("descricao"),
+    categoria: formData.get("categoria"),
+    linha:     (formData.get("linha") as string) || null,
+    preco_brl: formData.get("preco_brl") || null,
+    ipi_pct:   formData.get("ipi_pct") || 0,
+    ncm:       (formData.get("ncm") as string) || null,
+  };
+
+  const parsed = criarProdutoSchema.safeParse(raw);
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const d = parsed.data;
+
+  const { error } = await supabase.from("produtos").insert({
+    codigo:           d.codigo,
+    descricao:        d.descricao,
+    categoria:        d.categoria,
+    linha:            d.linha || null,
+    preco_brl:        d.preco_brl ?? null,
+    ipi_pct:          d.ipi_pct,
+    ncm:              d.ncm || null,
+    ativo:            true,
+    produto_especial: false,
+    tem_variantes:    false,
+  });
+
+  if (error) return { message: "Erro ao criar produto: " + error.message };
+
+  revalidatePath("/produtos");
+  revalidatePath("/precos");
+  revalidatePath("/propostas/pecas/nova");
+
+  return { success: true };
+}
+
 const reajusteSchema = z.object({
   produto_id:   z.string().uuid(),
   variante_id:  z.string().uuid().optional().nullable(),
