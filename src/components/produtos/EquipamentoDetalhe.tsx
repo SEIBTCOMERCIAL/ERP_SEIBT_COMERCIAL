@@ -219,17 +219,17 @@ export function EquipamentoDetalhe({
         <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
           {Object.keys(specs).length === 0 ? (
             <div style={{ padding: 32, textAlign: "center", color: "#6b7b8d", fontSize: 13 }}>
-              Nenhuma especificação cadastrada.
+              Nenhuma especificação cadastrada.{isAdmin && " Use a edição abaixo para adicionar."}
             </div>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <tbody>
                 {Object.entries(specs).map(([key, value], i) => (
                   <tr key={key} style={{ background: i % 2 === 0 ? "#fff" : "#F8FAFC" }}>
-                    <td style={{ padding: "10px 18px", fontSize: 13, fontWeight: 600, color: "#374151", width: "40%", borderBottom: `1px solid ${BORDER}` }}>
-                      {key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                    <td style={{ padding: "14px 24px", fontSize: 12, fontWeight: 500, color: "#6B7B8D", width: "50%", borderBottom: `1px solid ${BORDER}`, letterSpacing: "0.03em" }}>
+                      {key}
                     </td>
-                    <td style={{ padding: "10px 18px", fontSize: 13, color: "#1a1a1a", borderBottom: `1px solid ${BORDER}` }}>
+                    <td style={{ padding: "14px 24px", fontSize: 13, fontWeight: 700, color: "#1a1a1a", borderBottom: `1px solid ${BORDER}` }}>
                       {String(value)}
                     </td>
                   </tr>

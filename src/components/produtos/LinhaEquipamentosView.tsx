@@ -123,7 +123,7 @@ function EquipamentoModal({
             {field("ncm", "NCM", { defaultValue: equip?.ncm ?? "", placeholder: "ex: 84779000" })}
           </div>
           {field("descricao", "Descrição", { required: true, defaultValue: equip?.descricao, placeholder: "ex: Moinho de Facas MGHS 1500" })}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             {field("preco_brl", "Preço moinho (R$)", { type: "number", defaultValue: equip?.preco_brl?.toString() ?? "", placeholder: "0.00" })}
             {field("preco_painel_220", "Painel 220V (R$)", { type: "number", defaultValue: equip?.preco_painel_220?.toString() ?? "", placeholder: "0.00" })}
             {field("preco_painel_380", "Painel 380V (R$)", { type: "number", defaultValue: equip?.preco_painel_380?.toString() ?? "", placeholder: "0.00" })}
