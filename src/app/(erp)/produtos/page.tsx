@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { CatalogoProdutos } from "@/components/produtos/CatalogoProdutos";
-import type { ProdutoComDetalhes } from "@/types/database";
+import { ProdutosMain } from "@/components/produtos/ProdutosMain";
 
 export const dynamic = "force-dynamic";
 
@@ -8,39 +7,47 @@ export default async function ProdutosPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient() as any;
 
-  const { data: rawProdutos } = await supabase
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: userRecord } = await supabase
+    .from("usuarios").select("perfil").eq("id", user?.id).single();
+  const isAdmin = userRecord?.perfil === "admin";
+
+  const [{ data: linhasRaw }, { data: categoriasRaw }] = await Promise.all([
+    supabase.from("linhas").select("id, nome, ordem").order("ordem"),
+    supabase.from("categorias_peca").select("id, nome, ordem").order("ordem"),
+  ]);
+
+  // Count equipamentos por linha e peças por categoria
+  const { data: equipCounts } = await supabase
     .from("produtos")
-    .select(`
-      *,
-      compatibilidades_produto(id, modelo_maquina),
-      historico_precos(id, data_reajuste, percentual_reajuste, preco_novo_brl, preco_anterior_brl, produto_id, variante_id, motivo, reajustado_por)
-    `)
+    .select("linha_id")
+    .eq("categoria", "maquina")
     .is("deleted_at", null)
-    .order("descricao");
+    .not("linha_id", "is", null);
 
-  const produtos: ProdutoComDetalhes[] = (rawProdutos ?? []).map(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (p: any) => {
-      const histSorted = (p.historico_precos ?? []).sort(
-        (a: { data_reajuste: string }, b: { data_reajuste: string }) =>
-          b.data_reajuste.localeCompare(a.data_reajuste)
-      );
-      const ultimo = histSorted[0] ?? null;
-      return {
-        ...p,
-        modelos_compat: Array.from(
-          new Set(
-            (p.compatibilidades_produto ?? [])
-              .map((c: { modelo_maquina: string | null }) => c.modelo_maquina)
-              .filter(Boolean)
-          )
-        ) as string[],
-        historico_precos: histSorted,
-        ultimo_reajuste_data: ultimo?.data_reajuste ?? null,
-        ultimo_reajuste_pct: ultimo?.percentual_reajuste ?? null,
-      };
-    }
-  );
+  const { data: pecaCounts } = await supabase
+    .from("produtos")
+    .select("categoria_peca_id")
+    .not("categoria_peca_id", "is", null)
+    .is("deleted_at", null);
 
-  return <CatalogoProdutos produtos={produtos} />;
+  const equipByLinha = (equipCounts ?? []).reduce((acc: Record<string, number>, p: { linha_id: string }) => {
+    acc[p.linha_id] = (acc[p.linha_id] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const pecasByCategoria = (pecaCounts ?? []).reduce((acc: Record<string, number>, p: { categoria_peca_id: string }) => {
+    acc[p.categoria_peca_id] = (acc[p.categoria_peca_id] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const linhas = (linhasRaw ?? []).map((l: { id: string; nome: string; ordem: number }) => ({
+    ...l, count: equipByLinha[l.id] ?? 0,
+  }));
+
+  const categorias = (categoriasRaw ?? []).map((c: { id: string; nome: string; ordem: number }) => ({
+    ...c, count: pecasByCategoria[c.id] ?? 0,
+  }));
+
+  return <ProdutosMain isAdmin={isAdmin} linhas={linhas} categorias={categorias} />;
 }
