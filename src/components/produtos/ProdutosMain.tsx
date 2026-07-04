@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition, useEffect, useRef } from "react";
+import { useTransition, useEffect, useRef } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Plus, Trash2, Cog, Package } from "lucide-react";
+import { ChevronRight, Trash2, Cog, Package } from "lucide-react";
 import {
   criarLinha, excluirLinha,
   criarCategoriaPeca, excluirCategoriaPeca,

@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect, useRef } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
-import { ChevronRight, FileImage, FileText, Upload, Trash2, X, Save } from "lucide-react";
+import { ChevronRight, FileText, Upload, Trash2, Save } from "lucide-react";
 import {
   atualizarPaineis, atualizarSpecs,
   uploadArquivoProduto, excluirArquivoProduto,
