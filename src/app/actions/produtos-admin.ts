@@ -267,3 +267,65 @@ export async function atualizarSpecs(
   revalidatePath(`/produtos/linhas/${linhaId}/${produtoId}`);
   return { success: true };
 }
+
+// ─── Duplicar equipamento ─────────────────────────────────────────────────────
+
+export async function duplicarEquipamento(
+  equipId: string,
+  linhaId: string
+): Promise<{ novoId?: string; error?: string }> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  const { data: orig, error: fetchErr } = await auth.supabase
+    .from("produtos")
+    .select("codigo, descricao, categoria, linha_id, preco_brl, preco_painel_220, preco_painel_380, ncm, ipi_pct, specs, ativo")
+    .eq("id", equipId)
+    .single();
+
+  if (fetchErr || !orig) return { error: "Equipamento não encontrado" };
+
+  const novoCodigo = `CÓPIA ${orig.codigo}`;
+  const { data: novo, error: insErr } = await auth.supabase
+    .from("produtos")
+    .insert({
+      codigo: novoCodigo,
+      descricao: orig.descricao,
+      categoria: orig.categoria,
+      linha_id: orig.linha_id,
+      preco_brl: orig.preco_brl,
+      preco_painel_220: orig.preco_painel_220,
+      preco_painel_380: orig.preco_painel_380,
+      ncm: orig.ncm,
+      ipi_pct: orig.ipi_pct ?? 0,
+      specs: orig.specs,
+      ativo: true,
+      status: "ativo",
+      tem_variantes: false,
+    })
+    .select("id")
+    .single();
+
+  if (insErr) return { error: insErr.message };
+
+  revalidatePath(`/produtos/linhas/${linhaId}`);
+  return { novoId: novo.id };
+}
+
+// ─── Status do equipamento ────────────────────────────────────────────────────
+
+export async function atualizarStatusEquipamento(
+  id: string,
+  linhaId: string,
+  status: "ativo" | "descontinuado"
+): Promise<AdminState> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const { error } = await auth.supabase.from("produtos")
+    .update({ status, atualizado_em: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath(`/produtos/linhas/${linhaId}`);
+  revalidatePath(`/produtos/linhas/${linhaId}/${id}`);
+  return { success: true };
+}
