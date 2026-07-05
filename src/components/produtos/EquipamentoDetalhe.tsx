@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
-import { ChevronRight, FileText, Upload, Trash2, Plus, Edit2, X, Save } from "lucide-react";
+import { ChevronRight, FileText, Upload, Trash2, Edit2, X, Save, Copy, Check } from "lucide-react";
 import {
   atualizarPaineis, atualizarSpecs,
   uploadArquivoProduto, excluirArquivoProduto,
@@ -20,7 +20,7 @@ const fmt = (v: number | null | undefined) =>
 
 type Tab = "specs" | "precos" | "imagens" | "desenhos";
 
-interface SpecRow { id: number; key: string; value: string }
+interface SpecCampo { id: string; nome: string; ordem: number }
 
 interface Arquivo {
   id: string;
@@ -35,6 +35,7 @@ interface Equip {
   id: string;
   codigo: string;
   descricao: string;
+  descricao_painel?: string | null;
   preco_brl: number | null;
   preco_painel_220: number | null;
   preco_painel_380: number | null;
@@ -79,16 +80,29 @@ function UploadForm({ tipo, equip, linha, onDone }: { tipo: "imagem" | "desenho"
   );
 }
 
-function specsToRows(specs: Record<string, unknown> | null): SpecRow[] {
-  if (!specs) return [];
-  return Object.entries(specs).map(([k, v], i) => ({ id: i, key: k, value: String(v) }));
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <button onClick={handleCopy}
+      style={{ display: "flex", alignItems: "center", gap: 4, border: "none", background: "none", color: copied ? "#16A34A" : BLUE, fontSize: 11, cursor: "pointer", padding: 0, fontWeight: 500 }}>
+      {copied ? <Check size={13} /> : <Copy size={13} />}
+      {copied ? "Copiado" : "Copiar"}
+    </button>
+  );
 }
 
-export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos }: {
+export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos }: {
   isAdmin: boolean;
   linha: Linha;
   equip: Equip;
   arquivos: Arquivo[];
+  specCampos: SpecCampo[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("specs");
@@ -96,10 +110,14 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos }: {
   const [showUploadImagem, setShowUploadImagem] = useState(false);
   const [showUploadDesenho, setShowUploadDesenho] = useState(false);
 
-  // ── Specs state (row-based) ──
-  const [specRows, setSpecRows] = useState<SpecRow[]>(() => specsToRows(equip.specs));
-  const [nextId, setNextId] = useState(() => specsToRows(equip.specs).length);
-  const [hoveredSpec, setHoveredSpec] = useState<number | null>(null);
+  // ── Specs state ──
+  const [specValues, setSpecValues] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    for (const campo of specCampos) {
+      init[campo.nome] = (equip.specs?.[campo.nome] as string) ?? "";
+    }
+    return init;
+  });
   const [specsMsg, setSpecsMsg] = useState("");
 
   // ── Price state ──
@@ -111,24 +129,11 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos }: {
   });
   const [precoMsg, setPrecoMsg] = useState("");
 
-  const addSpecRow = () => {
-    setSpecRows(rows => [...rows, { id: nextId, key: "", value: "" }]);
-    setNextId(n => n + 1);
-  };
-
-  const updateSpecRow = (id: number, field: "key" | "value", val: string) => {
-    setSpecRows(rows => rows.map(r => r.id === id ? { ...r, [field]: val } : r));
-  };
-
-  const removeSpecRow = (id: number) => {
-    setSpecRows(rows => rows.filter(r => r.id !== id));
-  };
-
   const handleSaveSpecs = () => {
     setSpecsMsg("");
     const obj: Record<string, string> = {};
-    for (const row of specRows) {
-      if (row.key.trim()) obj[row.key.trim()] = row.value;
+    for (const campo of specCampos) {
+      if (specValues[campo.nome]?.trim()) obj[campo.nome] = specValues[campo.nome].trim();
     }
     startTransition(async () => {
       const res = await atualizarSpecs(equip.id, linha.id, JSON.stringify(obj));
@@ -151,6 +156,12 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos }: {
     });
   };
 
+  const cancelEdit = () => {
+    setDraft({ brl: equip.preco_brl?.toString() ?? "", p220: equip.preco_painel_220?.toString() ?? "", p380: equip.preco_painel_380?.toString() ?? "" });
+    setEditingPrices(false);
+    setPrecoMsg("");
+  };
+
   const handleExcluirArquivo = (arq: Arquivo) => {
     if (!confirm(`Excluir "${arq.nome}"?`)) return;
     startTransition(async () => {
@@ -160,17 +171,8 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos }: {
     });
   };
 
-  const cancelEdit = () => {
-    setDraft({ brl: equip.preco_brl?.toString() ?? "", p220: equip.preco_painel_220?.toString() ?? "", p380: equip.preco_painel_380?.toString() ?? "" });
-    setEditingPrices(false);
-    setPrecoMsg("");
-  };
-
   const imagens = arquivos.filter(a => a.tipo === "imagem");
   const desenhos = arquivos.filter(a => a.tipo === "desenho");
-  const specs = equip.specs ?? {};
-
-  // Live totals in edit mode
   const brlVal = parseFloat(draft.brl) || 0;
   const p220Val = parseFloat(draft.p220) || 0;
   const p380Val = parseFloat(draft.p380) || 0;
@@ -206,7 +208,6 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos }: {
             <span style={{ padding: "2px 10px", background: "#F1F5F9", color: "#6b7b8d", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>DESCONTINUADO</span>
           )}
         </div>
-        <p style={{ fontSize: 14, color: "#6b7b8d", marginTop: 4 }}>{equip.descricao}</p>
       </div>
 
       {/* Tabs */}
@@ -221,78 +222,86 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos }: {
 
       {/* ── Tab: Especificações ── */}
       {tab === "specs" && (
-        <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
-          {/* Read-only view sempre visível acima */}
-          {Object.keys(specs).length === 0 && !isAdmin ? (
-            <div style={{ padding: 32, textAlign: "center", color: "#6b7b8d", fontSize: 13 }}>Nenhuma especificação cadastrada.</div>
-          ) : null}
+        <div style={{ maxWidth: 640 }}>
+          {/* Descrição do moinho — bloco com botão copiar (todos os perfis) */}
+          {equip.descricao && (
+            <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10, padding: "14px 18px", marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Descrição do moinho</span>
+                <CopyButton text={equip.descricao} />
+              </div>
+              <div style={{ fontSize: 13, color: "#1a1a1a", lineHeight: 1.55 }}>{equip.descricao}</div>
+            </div>
+          )}
 
-          {/* Admin: editor de linhas */}
+          {/* Descrição do painel — bloco com botão copiar */}
+          {equip.descricao_painel && (
+            <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10, padding: "14px 18px", marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Descrição do painel</span>
+                <CopyButton text={equip.descricao_painel} />
+              </div>
+              <div style={{ fontSize: 13, color: "#1a1a1a", lineHeight: 1.55 }}>{equip.descricao_painel}</div>
+            </div>
+          )}
+
+          {/* Especificações técnicas */}
           {isAdmin ? (
-            <div>
-              {specRows.length === 0 && (
-                <div style={{ padding: "18px 24px", fontSize: 13, color: "#6b7b8d" }}>Nenhuma especificação. Clique em &quot;Adicionar especificação&quot; para começar.</div>
-              )}
-              {specRows.map((row, i) => (
-                <div
-                  key={row.id}
-                  onMouseEnter={() => setHoveredSpec(row.id)}
-                  onMouseLeave={() => setHoveredSpec(null)}
-                  style={{ display: "grid", gridTemplateColumns: "1fr 1fr 32px", alignItems: "center", gap: 8, padding: "8px 16px", background: i % 2 === 0 ? "#fff" : BG, borderBottom: `1px solid ${BORDER}` }}
-                >
-                  <input
-                    value={row.key}
-                    onChange={e => updateSpecRow(row.id, "key", e.target.value)}
-                    placeholder="Label (ex: MOTOR (cv))"
-                    style={{ height: 32, border: `1px solid ${BORDER}`, borderRadius: 5, padding: "0 8px", fontSize: 12, outline: "none" }}
-                  />
-                  <input
-                    value={row.value}
-                    onChange={e => updateSpecRow(row.id, "value", e.target.value)}
-                    placeholder="Valor"
-                    style={{ height: 32, border: `1px solid ${BORDER}`, borderRadius: 5, padding: "0 8px", fontSize: 12, outline: "none", fontWeight: 700 }}
-                  />
-                  <button
-                    onClick={() => removeSpecRow(row.id)}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: hoveredSpec === row.id ? "#DC2626" : "transparent", display: "flex", alignItems: "center", transition: "color 0.1s" }}
-                  >
-                    <Trash2 size={14} />
-                  </button>
+            /* Admin: inputs editáveis por campo do template */
+            specCampos.length > 0 ? (
+              <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
+                <div style={{ padding: "12px 18px", borderBottom: `1px solid ${BORDER}`, background: BG }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Especificações técnicas</span>
                 </div>
-              ))}
-              <div style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", background: BG, borderTop: `1px solid ${BORDER}` }}>
-                <button
-                  onClick={addSpecRow}
-                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", background: "#EFF6FF", color: BLUE, border: `1px solid #BFDBFE`, borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-                >
-                  <Plus size={13} /> Adicionar especificação
-                </button>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  {specsMsg && <span style={{ fontSize: 12, color: specsMsg === "Salvo" ? "#16A34A" : "#DC2626" }}>{specsMsg}</span>}
-                  <button
-                    onClick={handleSaveSpecs}
-                    disabled={isPending}
-                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 16px", background: NAV, color: "#fff", border: "none", borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: isPending ? 0.6 : 1 }}
-                  >
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
+                  {specCampos.map((campo, i) => (
+                    <div key={campo.id}
+                      style={{ padding: "10px 16px", borderBottom: `1px solid ${BORDER}`, borderRight: i % 2 === 0 ? `1px solid ${BORDER}` : "none", background: Math.floor(i / 2) % 2 === 0 ? "#fff" : BG }}>
+                      <div style={{ fontSize: 11, color: "#6b7b8d", marginBottom: 4 }}>{campo.nome}</div>
+                      <input
+                        value={specValues[campo.nome] ?? ""}
+                        onChange={e => setSpecValues(v => ({ ...v, [campo.nome]: e.target.value }))}
+                        style={{ width: "100%", height: 30, border: `1px solid ${BORDER}`, borderRadius: 5, padding: "0 8px", fontSize: 13, fontWeight: 600, outline: "none", boxSizing: "border-box" as const }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ padding: "12px 18px", borderTop: `1px solid ${BORDER}`, background: BG, display: "flex", alignItems: "center", gap: 10 }}>
+                  <button onClick={handleSaveSpecs} disabled={isPending}
+                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 16px", background: NAV, color: "#fff", border: "none", borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: isPending ? 0.6 : 1 }}>
                     <Save size={13} /> Salvar especificações
                   </button>
+                  {specsMsg && <span style={{ fontSize: 12, color: specsMsg === "Salvo" ? "#16A34A" : "#DC2626" }}>{specsMsg}</span>}
                 </div>
               </div>
-            </div>
-          ) : (
-            /* Vendedor: tabela read-only */
-            Object.keys(specs).length > 0 && (
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <tbody>
-                  {Object.entries(specs).map(([key, value], i) => (
-                    <tr key={key} style={{ background: i % 2 === 0 ? "#fff" : BG }}>
-                      <td style={{ padding: "14px 24px", fontSize: 12, fontWeight: 500, color: "#6B7B8D", width: "50%", borderBottom: `1px solid ${BORDER}` }}>{key}</td>
-                      <td style={{ padding: "14px 24px", fontSize: 13, fontWeight: 700, color: "#1a1a1a", borderBottom: `1px solid ${BORDER}` }}>{String(value)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            ) : (
+              <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10, padding: "18px 18px", color: "#6b7b8d", fontSize: 13 }}>
+                Nenhum template de especificações configurado para esta linha. Configure os campos na página da linha.
+              </div>
             )
+          ) : (
+            /* Vendedor: grid read-only */
+            specCampos.length > 0 && Object.keys(equip.specs ?? {}).length > 0 ? (
+              <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
+                <div style={{ padding: "12px 18px", borderBottom: `1px solid ${BORDER}`, background: BG }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Especificações técnicas</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
+                  {specCampos.map((campo, i) => {
+                    const val = equip.specs?.[campo.nome];
+                    return (
+                      <div key={campo.id}
+                        style={{ padding: "12px 16px", borderBottom: `1px solid ${BORDER}`, borderRight: i % 2 === 0 ? `1px solid ${BORDER}` : "none", background: Math.floor(i / 2) % 2 === 0 ? "#fff" : BG }}>
+                        <div style={{ fontSize: 11, color: "#6b7b8d", marginBottom: 3 }}>{campo.nome}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a1a" }}>{val != null ? String(val) : "—"}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : !equip.descricao && !equip.descricao_painel ? (
+              <div style={{ color: "#6b7b8d", fontSize: 13 }}>Nenhuma especificação cadastrada.</div>
+            ) : null
           )}
         </div>
       )}
@@ -300,7 +309,6 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos }: {
       {/* ── Tab: Preço e painéis ── */}
       {tab === "precos" && (
         <div>
-          {/* Header linha ação */}
           {isAdmin && (
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16, gap: 8 }}>
               {!editingPrices ? (
@@ -324,7 +332,6 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos }: {
             </div>
           )}
 
-          {/* Dois cards lado a lado */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, maxWidth: 680 }}>
             {/* Card 220V */}
             <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
@@ -334,23 +341,15 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos }: {
               <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
                 <div>
                   <div style={{ fontSize: 11, color: "#6b7b8d", marginBottom: 5 }}>Moinho</div>
-                  {editingPrices
-                    ? numInp(draft.brl, v => setDraft(d => ({ ...d, brl: v })))
-                    : <div style={{ fontSize: 14, fontWeight: 600, color: "#1a1a1a" }}>{fmt(equip.preco_brl)}</div>}
+                  {editingPrices ? numInp(draft.brl, v => setDraft(d => ({ ...d, brl: v }))) : <div style={{ fontSize: 14, fontWeight: 600 }}>{fmt(equip.preco_brl)}</div>}
                 </div>
                 <div>
                   <div style={{ fontSize: 11, color: "#6b7b8d", marginBottom: 5 }}>Painel 220V</div>
-                  {editingPrices
-                    ? numInp(draft.p220, v => setDraft(d => ({ ...d, p220: v })))
-                    : <div style={{ fontSize: 14, fontWeight: 600, color: "#1a1a1a" }}>{fmt(equip.preco_painel_220)}</div>}
+                  {editingPrices ? numInp(draft.p220, v => setDraft(d => ({ ...d, p220: v }))) : <div style={{ fontSize: 14, fontWeight: 600 }}>{fmt(equip.preco_painel_220)}</div>}
                 </div>
                 <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 10 }}>
                   <div style={{ fontSize: 11, color: "#6b7b8d", marginBottom: 5 }}>Total</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: NAV }}>
-                    {editingPrices
-                      ? fmt(brlVal + p220Val)
-                      : fmt((equip.preco_brl ?? 0) + (equip.preco_painel_220 ?? 0))}
-                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: NAV }}>{editingPrices ? fmt(brlVal + p220Val) : fmt((equip.preco_brl ?? 0) + (equip.preco_painel_220 ?? 0))}</div>
                 </div>
               </div>
             </div>
@@ -363,24 +362,15 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos }: {
               <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
                 <div>
                   <div style={{ fontSize: 11, color: "#6b7b8d", marginBottom: 5 }}>Moinho</div>
-                  {/* Moinho é o mesmo valor — display-only no card 380V */}
-                  <div style={{ fontSize: 14, fontWeight: 600, color: editingPrices ? "#b0bac9" : "#1a1a1a" }}>
-                    {editingPrices ? fmt(brlVal) : fmt(equip.preco_brl)}
-                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: editingPrices ? "#b0bac9" : "#1a1a1a" }}>{editingPrices ? fmt(brlVal) : fmt(equip.preco_brl)}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 11, color: "#6b7b8d", marginBottom: 5 }}>Painel 380V</div>
-                  {editingPrices
-                    ? numInp(draft.p380, v => setDraft(d => ({ ...d, p380: v })))
-                    : <div style={{ fontSize: 14, fontWeight: 600, color: "#1a1a1a" }}>{fmt(equip.preco_painel_380)}</div>}
+                  {editingPrices ? numInp(draft.p380, v => setDraft(d => ({ ...d, p380: v }))) : <div style={{ fontSize: 14, fontWeight: 600 }}>{fmt(equip.preco_painel_380)}</div>}
                 </div>
                 <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 10 }}>
                   <div style={{ fontSize: 11, color: "#6b7b8d", marginBottom: 5 }}>Total</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: NAV }}>
-                    {editingPrices
-                      ? fmt(brlVal + p380Val)
-                      : fmt((equip.preco_brl ?? 0) + (equip.preco_painel_380 ?? 0))}
-                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: NAV }}>{editingPrices ? fmt(brlVal + p380Val) : fmt((equip.preco_brl ?? 0) + (equip.preco_painel_380 ?? 0))}</div>
                 </div>
               </div>
             </div>
@@ -391,21 +381,15 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos }: {
       {/* ── Tab: Imagens ── */}
       {tab === "imagens" && (
         <div>
-          {imagens.length === 0 && !isAdmin && (
-            <div style={{ textAlign: "center", color: "#6b7b8d", fontSize: 13, padding: 40 }}>Nenhuma imagem cadastrada.</div>
-          )}
+          {imagens.length === 0 && !isAdmin && <div style={{ textAlign: "center", color: "#6b7b8d", fontSize: 13, padding: 40 }}>Nenhuma imagem cadastrada.</div>}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginBottom: 16 }}>
             {imagens.map(arq => (
               <div key={arq.id} style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10, overflow: "hidden" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={arq.url} alt={arq.nome} style={{ width: "100%", height: 160, objectFit: "cover", display: "block" }} />
                 <div style={{ padding: "8px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: 11, color: "#6b7b8d", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{arq.nome}</span>
-                  {isAdmin && (
-                    <button onClick={() => handleExcluirArquivo(arq)} disabled={isPending}
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", padding: 2 }}>
-                      <Trash2 size={14} />
-                    </button>
-                  )}
+                  {isAdmin && <button onClick={() => handleExcluirArquivo(arq)} disabled={isPending} style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", padding: 2 }}><Trash2 size={14} /></button>}
                 </div>
               </div>
             ))}
@@ -425,9 +409,7 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos }: {
       {/* ── Tab: Desenhos técnicos ── */}
       {tab === "desenhos" && (
         <div>
-          {desenhos.length === 0 && !isAdmin && (
-            <div style={{ textAlign: "center", color: "#6b7b8d", fontSize: 13, padding: 40 }}>Nenhum desenho técnico cadastrado.</div>
-          )}
+          {desenhos.length === 0 && !isAdmin && <div style={{ textAlign: "center", color: "#6b7b8d", fontSize: 13, padding: 40 }}>Nenhum desenho técnico cadastrado.</div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
             {desenhos.map(arq => (
               <div key={arq.id} style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -437,12 +419,7 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos }: {
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <a href={arq.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: BLUE, fontWeight: 600 }}>Abrir</a>
-                  {isAdmin && (
-                    <button onClick={() => handleExcluirArquivo(arq)} disabled={isPending}
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", padding: 2 }}>
-                      <Trash2 size={14} />
-                    </button>
-                  )}
+                  {isAdmin && <button onClick={() => handleExcluirArquivo(arq)} disabled={isPending} style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", padding: 2 }}><Trash2 size={14} /></button>}
                 </div>
               </div>
             ))}

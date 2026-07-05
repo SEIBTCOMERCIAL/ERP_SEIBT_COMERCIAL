@@ -14,10 +14,10 @@ export default async function EquipamentoPage({ params }: { params: any }) {
     .from("usuarios").select("perfil").eq("id", user?.id).single();
   const isAdmin = userRecord?.perfil === "admin";
 
-  const [{ data: linha }, { data: equip }, { data: arquivos }] = await Promise.all([
+  const [{ data: linha }, { data: equip }, { data: arquivos }, { data: rawCampos }] = await Promise.all([
     supabase.from("linhas").select("id, nome").eq("id", params.id).single(),
     supabase.from("produtos")
-      .select("id, codigo, descricao, preco_brl, preco_painel_220, preco_painel_380, ncm, specs, ativo")
+      .select("id, codigo, descricao, descricao_painel, preco_brl, preco_painel_220, preco_painel_380, ncm, specs, ativo, status")
       .eq("id", params.eqId)
       .is("deleted_at", null)
       .single(),
@@ -25,16 +25,24 @@ export default async function EquipamentoPage({ params }: { params: any }) {
       .select("id, tipo, nome, url, storage_path, ordem")
       .eq("produto_id", params.eqId)
       .order("ordem"),
+    supabase
+      .from("linha_spec_campos")
+      .select("id, nome, ordem")
+      .eq("linha_id", params.id)
+      .order("ordem"),
   ]);
 
   if (!linha || !equip) notFound();
+
+  const specCampos: { id: string; nome: string; ordem: number }[] = rawCampos ?? [];
 
   return (
     <EquipamentoDetalhe
       isAdmin={isAdmin}
       linha={linha}
-      equip={equip}
+      equip={{ ...equip, status: equip.status ?? "ativo" }}
       arquivos={arquivos ?? []}
+      specCampos={specCampos}
     />
   );
 }

@@ -1,9 +1,9 @@
 "use client";
 
-import { useTransition, useEffect, useRef } from "react";
+import { useTransition, useEffect, useRef, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Trash2, Cog, Package } from "lucide-react";
+import { ChevronRight, Trash2, Cog, Package, Search } from "lucide-react";
 import {
   criarLinha, excluirLinha,
   criarCategoriaPeca, excluirCategoriaPeca,
@@ -45,6 +45,8 @@ export function ProdutosMain({
   const [isPending, startTransition] = useTransition();
   const [linhaState, linhaAction] = useFormState(criarLinha, {});
   const [catState, catAction] = useFormState(criarCategoriaPeca, {});
+  const [searchLinhas, setSearchLinhas] = useState("");
+  const [searchCats, setSearchCats] = useState("");
   const linhaInputRef = useRef<HTMLInputElement>(null);
   const catInputRef = useRef<HTMLInputElement>(null);
 
@@ -80,64 +82,84 @@ export function ProdutosMain({
     });
   };
 
+  const linhasFiltradas = linhas.filter(l =>
+    l.nome.toLowerCase().includes(searchLinhas.toLowerCase())
+  ).sort((a, b) => a.nome.localeCompare(b.nome));
+
+  const catsFiltradas = categorias.filter(c =>
+    c.nome.toLowerCase().includes(searchCats.toLowerCase())
+  ).sort((a, b) => a.nome.localeCompare(b.nome));
+
+  const inputSearch = (val: string, set: (v: string) => void, placeholder: string) => (
+    <div style={{ position: "relative", width: 240 }}>
+      <Search size={14} color="#b0bac9" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }} />
+      <input
+        value={val}
+        onChange={e => set(e.target.value)}
+        placeholder={placeholder}
+        style={{ width: "100%", height: 34, border: `1px solid ${BORDER}`, borderRadius: 7, padding: "0 10px 0 32px", fontSize: 12, outline: "none", boxSizing: "border-box" }}
+      />
+    </div>
+  );
+
   return (
     <div style={{ background: BG, minHeight: "100vh", padding: 28 }}>
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: NAV, margin: 0 }}>Produtos</h1>
-        <p style={{ fontSize: 14, color: "#6b7b8d", marginTop: 4 }}>
-          Catálogo de máquinas e peças Seibt.
-        </p>
+        <p style={{ fontSize: 14, color: "#6b7b8d", marginTop: 4 }}>Catálogo de máquinas e peças Seibt.</p>
       </div>
 
       {/* ── Linhas de Máquinas ── */}
-      <section style={{ marginBottom: 40 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-          <Cog size={18} color={NAV} />
-          <h2 style={{ fontSize: 15, fontWeight: 700, color: NAV, margin: 0 }}>Linhas de máquinas</h2>
+      <section style={{ marginBottom: 44 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Cog size={18} color={NAV} />
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: NAV, margin: 0 }}>
+              Linhas de máquinas <span style={{ fontWeight: 400, color: "#b0bac9", fontSize: 13 }}>({linhas.length})</span>
+            </h2>
+          </div>
+          {linhas.length > 4 && inputSearch(searchLinhas, setSearchLinhas, "Buscar linha...")}
         </div>
 
-        {linhas.length === 0 && (
-          <div style={{ color: "#6b7b8d", fontSize: 13, marginBottom: 12 }}>Nenhuma linha cadastrada.</div>
+        {linhasFiltradas.length === 0 && (
+          <div style={{ color: "#6b7b8d", fontSize: 13, marginBottom: 12 }}>
+            {searchLinhas ? "Nenhuma linha encontrada." : "Nenhuma linha cadastrada."}
+          </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginBottom: 16 }}>
-          {linhas.map(l => (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, marginBottom: 16 }}>
+          {linhasFiltradas.map(l => (
             <div
               key={l.id}
               style={{
-                background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12,
+                background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10,
                 overflow: "hidden", cursor: "pointer", transition: "border-color 0.15s",
               }}
               onClick={() => router.push(`/produtos/linhas/${l.id}`)}
               onMouseEnter={e => (e.currentTarget.style.borderColor = BLUE)}
               onMouseLeave={e => (e.currentTarget.style.borderColor = BORDER)}
             >
-              <div style={{ padding: "16px 18px" }}>
+              <div style={{ padding: "14px 16px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: NAV }}>{l.nome}</div>
-                    <div style={{ fontSize: 12, color: "#6b7b8d", marginTop: 3 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: NAV }}>{l.nome}</div>
+                    <div style={{ fontSize: 11, color: "#6b7b8d", marginTop: 3 }}>
                       {l.count} equipamento{l.count !== 1 ? "s" : ""}
                     </div>
                   </div>
-                  <ChevronRight size={16} color="#b0bac9" />
+                  <ChevronRight size={14} color="#b0bac9" />
                 </div>
               </div>
               {isAdmin && (
                 <div
-                  style={{ borderTop: `1px solid ${BORDER}`, padding: "8px 12px", display: "flex", justifyContent: "flex-end" }}
+                  style={{ borderTop: `1px solid ${BORDER}`, padding: "6px 10px", display: "flex", justifyContent: "flex-end" }}
                   onClick={e => { e.stopPropagation(); handleExcluirLinha(l.id, l.nome); }}
                 >
                   <button
                     disabled={isPending}
-                    style={{
-                      background: "none", border: "none", cursor: "pointer",
-                      color: "#DC2626", display: "flex", alignItems: "center", gap: 4,
-                      fontSize: 11, fontWeight: 600, padding: "2px 6px", borderRadius: 4,
-                      opacity: isPending ? 0.5 : 1,
-                    }}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "2px 4px", borderRadius: 4, opacity: isPending ? 0.5 : 1 }}
                   >
-                    <Trash2 size={13} /> Excluir
+                    <Trash2 size={12} /> Excluir
                   </button>
                 </div>
               )}
@@ -146,73 +168,75 @@ export function ProdutosMain({
         </div>
 
         {isAdmin && (
-          <form action={linhaAction} style={{ display: "flex", alignItems: "center", gap: 8, maxWidth: 360 }}>
-            <input
-              ref={linhaInputRef}
-              name="nome"
-              placeholder="Nome da nova linha (ex: BSC)"
-              style={{
-                flex: 1, height: 36, border: `1px solid ${linhaState.error ? "#DC2626" : BORDER}`,
-                borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none",
-              }}
-            />
-            <SubmitInline label="+ Linha" />
-          </form>
-        )}
-        {linhaState.error && (
-          <div style={{ fontSize: 12, color: "#DC2626", marginTop: 4 }}>{linhaState.error}</div>
+          <>
+            <form action={linhaAction} style={{ display: "flex", alignItems: "center", gap: 8, maxWidth: 360 }}>
+              <input
+                ref={linhaInputRef}
+                name="nome"
+                placeholder="Nome da nova linha (ex: BSC)"
+                style={{
+                  flex: 1, height: 34, border: `1px solid ${linhaState.error ? "#DC2626" : BORDER}`,
+                  borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none",
+                }}
+              />
+              <SubmitInline label="+ Linha" />
+            </form>
+            {linhaState.error && <div style={{ fontSize: 12, color: "#DC2626", marginTop: 4 }}>{linhaState.error}</div>}
+          </>
         )}
       </section>
 
       {/* ── Categorias de Peças ── */}
       <section>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-          <Package size={18} color={NAV} />
-          <h2 style={{ fontSize: 15, fontWeight: 700, color: NAV, margin: 0 }}>Categorias de peças</h2>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Package size={18} color={NAV} />
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: NAV, margin: 0 }}>
+              Categorias de peças <span style={{ fontWeight: 400, color: "#b0bac9", fontSize: 13 }}>({categorias.length})</span>
+            </h2>
+          </div>
+          {categorias.length > 4 && inputSearch(searchCats, setSearchCats, "Buscar categoria...")}
         </div>
 
-        {categorias.length === 0 && (
-          <div style={{ color: "#6b7b8d", fontSize: 13, marginBottom: 12 }}>Nenhuma categoria cadastrada.</div>
+        {catsFiltradas.length === 0 && (
+          <div style={{ color: "#6b7b8d", fontSize: 13, marginBottom: 12 }}>
+            {searchCats ? "Nenhuma categoria encontrada." : "Nenhuma categoria cadastrada."}
+          </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginBottom: 16 }}>
-          {categorias.map(c => (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, marginBottom: 16 }}>
+          {catsFiltradas.map(c => (
             <div
               key={c.id}
               style={{
-                background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12,
+                background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10,
                 overflow: "hidden", cursor: "pointer", transition: "border-color 0.15s",
               }}
               onClick={() => router.push(`/produtos/categorias/${c.id}`)}
               onMouseEnter={e => (e.currentTarget.style.borderColor = BLUE)}
               onMouseLeave={e => (e.currentTarget.style.borderColor = BORDER)}
             >
-              <div style={{ padding: "16px 18px" }}>
+              <div style={{ padding: "14px 16px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: NAV }}>{c.nome}</div>
-                    <div style={{ fontSize: 12, color: "#6b7b8d", marginTop: 3 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: NAV }}>{c.nome}</div>
+                    <div style={{ fontSize: 11, color: "#6b7b8d", marginTop: 3 }}>
                       {c.count} peça{c.count !== 1 ? "s" : ""}
                     </div>
                   </div>
-                  <ChevronRight size={16} color="#b0bac9" />
+                  <ChevronRight size={14} color="#b0bac9" />
                 </div>
               </div>
               {isAdmin && (
                 <div
-                  style={{ borderTop: `1px solid ${BORDER}`, padding: "8px 12px", display: "flex", justifyContent: "flex-end" }}
+                  style={{ borderTop: `1px solid ${BORDER}`, padding: "6px 10px", display: "flex", justifyContent: "flex-end" }}
                   onClick={e => { e.stopPropagation(); handleExcluirCategoria(c.id, c.nome); }}
                 >
                   <button
                     disabled={isPending}
-                    style={{
-                      background: "none", border: "none", cursor: "pointer",
-                      color: "#DC2626", display: "flex", alignItems: "center", gap: 4,
-                      fontSize: 11, fontWeight: 600, padding: "2px 6px", borderRadius: 4,
-                      opacity: isPending ? 0.5 : 1,
-                    }}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "2px 4px", borderRadius: 4, opacity: isPending ? 0.5 : 1 }}
                   >
-                    <Trash2 size={13} /> Excluir
+                    <Trash2 size={12} /> Excluir
                   </button>
                 </div>
               )}
@@ -221,21 +245,21 @@ export function ProdutosMain({
         </div>
 
         {isAdmin && (
-          <form action={catAction} style={{ display: "flex", alignItems: "center", gap: 8, maxWidth: 360 }}>
-            <input
-              ref={catInputRef}
-              name="nome"
-              placeholder="Nome da nova categoria (ex: Mancais)"
-              style={{
-                flex: 1, height: 36, border: `1px solid ${catState.error ? "#DC2626" : BORDER}`,
-                borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none",
-              }}
-            />
-            <SubmitInline label="+ Categoria" />
-          </form>
-        )}
-        {catState.error && (
-          <div style={{ fontSize: 12, color: "#DC2626", marginTop: 4 }}>{catState.error}</div>
+          <>
+            <form action={catAction} style={{ display: "flex", alignItems: "center", gap: 8, maxWidth: 360 }}>
+              <input
+                ref={catInputRef}
+                name="nome"
+                placeholder="Nome da nova categoria"
+                style={{
+                  flex: 1, height: 34, border: `1px solid ${catState.error ? "#DC2626" : BORDER}`,
+                  borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none",
+                }}
+              />
+              <SubmitInline label="+ Categoria" />
+            </form>
+            {catState.error && <div style={{ fontSize: 12, color: "#DC2626", marginTop: 4 }}>{catState.error}</div>}
+          </>
         )}
       </section>
 

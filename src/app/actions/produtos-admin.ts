@@ -82,10 +82,13 @@ export async function criarEquipamento(_prev: AdminState, formData: FormData): P
   const preco_painel_220 = parseFloat(formData.get("preco_painel_220") as string) || null;
   const preco_painel_380 = parseFloat(formData.get("preco_painel_380") as string) || null;
   const ncm = (formData.get("ncm") as string)?.trim() || null;
-  let specs: Record<string, unknown> = {};
-  try { specs = JSON.parse((formData.get("specs") as string) || "{}"); } catch { /* ignore */ }
+  const descricao_painel = (formData.get("descricao_painel") as string)?.trim() || null;
+  const specs: Record<string, string> = {};
+  Array.from(formData.entries()).forEach(([key, val]) => {
+    if (key.startsWith("spec__") && (val as string).trim()) specs[key.slice(6)] = (val as string).trim();
+  });
   const { error } = await auth.supabase.from("produtos").insert({
-    codigo, descricao, categoria: "maquina", linha_id,
+    codigo, descricao, descricao_painel, categoria: "maquina", linha_id,
     preco_brl, preco_painel_220, preco_painel_380,
     ncm, ipi_pct: 0, ativo: true, tem_variantes: false, specs,
   });
@@ -105,10 +108,13 @@ export async function editarEquipamento(_prev: AdminState, formData: FormData): 
   const preco_painel_220 = parseFloat(formData.get("preco_painel_220") as string) || null;
   const preco_painel_380 = parseFloat(formData.get("preco_painel_380") as string) || null;
   const ncm = (formData.get("ncm") as string)?.trim() || null;
-  let specs: Record<string, unknown> = {};
-  try { specs = JSON.parse((formData.get("specs") as string) || "{}"); } catch { /* ignore */ }
+  const descricao_painel = (formData.get("descricao_painel") as string)?.trim() || null;
+  const specs: Record<string, string> = {};
+  Array.from(formData.entries()).forEach(([key, val]) => {
+    if (key.startsWith("spec__") && (val as string).trim()) specs[key.slice(6)] = (val as string).trim();
+  });
   const { error } = await auth.supabase.from("produtos")
-    .update({ descricao, preco_brl, preco_painel_220, preco_painel_380, ncm, specs, atualizado_em: new Date().toISOString() })
+    .update({ descricao, descricao_painel, preco_brl, preco_painel_220, preco_painel_380, ncm, specs, atualizado_em: new Date().toISOString() })
     .eq("id", id);
   if (error) return { error: error.message };
   revalidatePath(`/produtos/linhas/${linha_id}`);
@@ -327,5 +333,35 @@ export async function atualizarStatusEquipamento(
   if (error) return { error: error.message };
   revalidatePath(`/produtos/linhas/${linhaId}`);
   revalidatePath(`/produtos/linhas/${linhaId}/${id}`);
+  return { success: true };
+}
+
+// ─── Template de specs por linha ─────────────────────────────────────────────
+
+export async function criarLinhaSpecCampo(_prev: AdminState, formData: FormData): Promise<AdminState> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const linha_id = formData.get("linha_id") as string;
+  const nome = (formData.get("nome") as string)?.trim();
+  if (!nome) return { error: "Nome do campo obrigatório" };
+  const { data: last } = await auth.supabase
+    .from("linha_spec_campos")
+    .select("ordem")
+    .eq("linha_id", linha_id)
+    .order("ordem", { ascending: false })
+    .limit(1);
+  const ordem = ((last?.[0]?.ordem ?? 0) as number) + 1;
+  const { error } = await auth.supabase.from("linha_spec_campos").insert({ linha_id, nome, ordem });
+  if (error) return { error: error.message.includes("unique") ? `Campo "${nome}" já existe nesta linha` : error.message };
+  revalidatePath(`/produtos/linhas/${linha_id}`);
+  return { success: true };
+}
+
+export async function excluirLinhaSpecCampo(id: string, linhaId: string): Promise<AdminState> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const { error } = await auth.supabase.from("linha_spec_campos").delete().eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath(`/produtos/linhas/${linhaId}`);
   return { success: true };
 }
