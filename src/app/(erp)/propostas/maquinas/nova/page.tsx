@@ -47,7 +47,8 @@ export default async function NovaPropMaquinaPage() {
   };
 
   const allProdutos: ProdutoComDetalhes[] = (rawProdutos ?? []).map(mapProduto);
-  const maquinas = allProdutos.filter((p) => p.categoria === "maquina");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const maquinas = allProdutos.filter((p) => p.categoria === "maquina" && (p as any).status !== "descontinuado");
   const pecas = allProdutos.filter((p) => p.categoria !== "maquina");
 
   const clientes = (rawClientes ?? []) as Array<{
