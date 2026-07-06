@@ -374,3 +374,96 @@ export async function excluirLinhaSpecCampo(id: string, linhaId: string): Promis
   revalidatePath(`/produtos/linhas/${linhaId}`);
   return { success: true };
 }
+
+// ─── Peças vinculadas a equipamento ──────────────────────────────────────────
+
+export async function vincularPecaEquipamento(
+  pecaId: string,
+  equipamentoId: string,
+  linhaId: string
+): Promise<AdminState> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const { error } = await auth.supabase.from("compatibilidades_equip").insert({
+    peca_id: pecaId,
+    equipamento_id: equipamentoId,
+  });
+  if (error) {
+    if (error.message.includes("unique")) return { error: "Peça já vinculada a este equipamento" };
+    return { error: error.message };
+  }
+  revalidatePath(`/produtos/linhas/${linhaId}/${equipamentoId}`);
+  return { success: true };
+}
+
+export async function desvincularPecaEquipamento(
+  vinculoId: string,
+  equipamentoId: string,
+  linhaId: string
+): Promise<AdminState> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const { error } = await auth.supabase.from("compatibilidades_equip").delete().eq("id", vinculoId);
+  if (error) return { error: error.message };
+  revalidatePath(`/produtos/linhas/${linhaId}/${equipamentoId}`);
+  return { success: true };
+}
+
+export async function criarPecaEVincular(_prev: AdminState, formData: FormData): Promise<AdminState> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const categoria_peca_id = formData.get("categoria_peca_id") as string;
+  const equipamento_id = formData.get("equipamento_id") as string;
+  const linha_id = formData.get("linha_id") as string;
+  const codigo = (formData.get("codigo") as string)?.trim();
+  const descricao = (formData.get("descricao") as string)?.trim();
+  if (!codigo || !descricao) return { error: "Código e descrição obrigatórios" };
+  const preco_brl = parseCurr(formData.get("preco_brl") as string);
+  const ipi_pct = parseFloat(formData.get("ipi_pct") as string) || 0;
+  const ncm = (formData.get("ncm") as string)?.trim() || null;
+
+  const { data: cat } = await auth.supabase.from("categorias_peca").select("nome").eq("id", categoria_peca_id).single();
+  const nomeMap: Record<string, string> = {
+    Navalhas: "navalha", Peneiras: "peneira", Rolamentos: "rolamento",
+    Parafusos: "parafuso", Rotores: "rotor", Insertos: "inserto",
+  };
+  const categoria = nomeMap[cat?.nome ?? ""] ?? "peca";
+
+  const { data: nova, error: errPeca } = await auth.supabase.from("produtos").insert({
+    codigo, descricao, categoria, categoria_peca_id,
+    preco_brl, ipi_pct, ncm, ativo: true, tem_variantes: false,
+  }).select("id").single();
+  if (errPeca) return { error: errPeca.message.includes("unique") ? `Código "${codigo}" já cadastrado` : errPeca.message };
+
+  const { error: errVinc } = await auth.supabase.from("compatibilidades_equip").insert({
+    peca_id: nova.id,
+    equipamento_id,
+  });
+  if (errVinc) return { error: errVinc.message };
+
+  revalidatePath(`/produtos/linhas/${linha_id}/${equipamento_id}`);
+  revalidatePath(`/produtos/categorias/${categoria_peca_id}`);
+  return { success: true };
+}
+
+export async function editarPecaVinculada(_prev: AdminState, formData: FormData): Promise<AdminState> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const id = formData.get("id") as string;
+  const equipamento_id = formData.get("equipamento_id") as string;
+  const linha_id = formData.get("linha_id") as string;
+  const categoria_peca_id = formData.get("categoria_peca_id") as string;
+  const codigo = (formData.get("codigo") as string)?.trim();
+  const descricao = (formData.get("descricao") as string)?.trim();
+  if (!descricao) return { error: "Descrição obrigatória" };
+  const preco_brl = parseCurr(formData.get("preco_brl") as string);
+  const ipi_pct = parseFloat(formData.get("ipi_pct") as string) || 0;
+  const ncm = (formData.get("ncm") as string)?.trim() || null;
+  const { error } = await auth.supabase.from("produtos")
+    .update({ codigo, descricao, preco_brl, ipi_pct, ncm, atualizado_em: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath(`/produtos/linhas/${linha_id}/${equipamento_id}`);
+  revalidatePath(`/produtos/categorias/${categoria_peca_id}`);
+  return { success: true };
+}

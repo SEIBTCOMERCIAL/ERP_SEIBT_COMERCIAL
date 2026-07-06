@@ -14,7 +14,15 @@ export default async function EquipamentoPage({ params }: { params: any }) {
     .from("usuarios").select("perfil").eq("id", user?.id).single();
   const isAdmin = userRecord?.perfil === "admin";
 
-  const [{ data: linha }, { data: equip }, { data: arquivos }, { data: rawCampos }] = await Promise.all([
+  const [
+    { data: linha },
+    { data: equip },
+    { data: arquivos },
+    { data: rawCampos },
+    { data: rawCategorias },
+    { data: rawVinculos },
+    { data: rawPecasCatalogo },
+  ] = await Promise.all([
     supabase.from("linhas").select("id, nome").eq("id", params.id).single(),
     supabase.from("produtos")
       .select("id, codigo, descricao, descricao_painel, potencia_motor, preco_brl, preco_painel_220, preco_painel_380, ncm, specs, ativo, status")
@@ -25,16 +33,52 @@ export default async function EquipamentoPage({ params }: { params: any }) {
       .select("id, tipo, nome, url, storage_path, ordem")
       .eq("produto_id", params.eqId)
       .order("ordem"),
-    supabase
-      .from("linha_spec_campos")
+    supabase.from("linha_spec_campos")
       .select("id, nome, ordem")
       .eq("linha_id", params.id)
       .order("ordem"),
+    supabase.from("categorias_peca")
+      .select("id, nome, ordem")
+      .order("ordem"),
+    supabase.from("compatibilidades_equip")
+      .select("id, peca:peca_id(id, codigo, descricao, preco_brl, ipi_pct, ativo, categoria_peca_id)")
+      .eq("equipamento_id", params.eqId),
+    supabase.from("produtos")
+      .select("id, codigo, descricao, preco_brl, ipi_pct, ativo, categoria_peca_id")
+      .not("categoria_peca_id", "is", null)
+      .eq("ativo", true)
+      .is("deleted_at", null)
+      .order("codigo"),
   ]);
 
   if (!linha || !equip) notFound();
 
   const specCampos: { id: string; nome: string; ordem: number }[] = rawCampos ?? [];
+  const categorias: { id: string; nome: string; ordem: number }[] = rawCategorias ?? [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vinculos = (rawVinculos ?? []).map((v: any) => ({
+    id: v.id as string,
+    peca: {
+      id: v.peca?.id as string,
+      codigo: v.peca?.codigo as string,
+      descricao: v.peca?.descricao as string,
+      preco_brl: v.peca?.preco_brl as number | null,
+      ipi_pct: (v.peca?.ipi_pct ?? 0) as number,
+      ativo: (v.peca?.ativo ?? true) as boolean,
+      categoria_peca_id: v.peca?.categoria_peca_id as string,
+    },
+  })).filter((v: { peca: { id: string } }) => !!v.peca?.id);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pecasCatalogo = (rawPecasCatalogo ?? []).map((p: any) => ({
+    id: p.id as string,
+    codigo: p.codigo as string,
+    descricao: p.descricao as string,
+    preco_brl: p.preco_brl as number | null,
+    ipi_pct: (p.ipi_pct ?? 0) as number,
+    categoria_peca_id: p.categoria_peca_id as string,
+  }));
 
   return (
     <EquipamentoDetalhe
@@ -43,6 +87,9 @@ export default async function EquipamentoPage({ params }: { params: any }) {
       equip={{ ...equip, status: equip.status ?? "ativo" }}
       arquivos={arquivos ?? []}
       specCampos={specCampos}
+      categorias={categorias}
+      vinculos={vinculos}
+      pecasCatalogo={pecasCatalogo}
     />
   );
 }
