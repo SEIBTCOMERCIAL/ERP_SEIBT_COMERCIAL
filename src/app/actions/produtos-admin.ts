@@ -481,10 +481,22 @@ export async function editarPecaVinculada(_prev: AdminState, formData: FormData)
   const ipi_pct = parseFloat(formData.get("ipi_pct") as string) || 0;
   const ncm = (formData.get("ncm") as string)?.trim() || null;
   const furo_diametro = (formData.get("furo_diametro") as string)?.trim() || null;
+  const vinculo_id = (formData.get("vinculo_id") as string)?.trim() || null;
+  const quantidade = parseInt(formData.get("quantidade") as string, 10) || 1;
+
   const { error } = await auth.supabase.from("produtos")
     .update({ codigo, descricao, preco_brl, ipi_pct, ncm, furo_diametro, atualizado_em: new Date().toISOString() })
     .eq("id", id);
   if (error) return { error: error.message };
+
+  if (vinculo_id) {
+    const { error: errQty } = await auth.supabase
+      .from("compatibilidades_equip")
+      .update({ quantidade })
+      .eq("id", vinculo_id);
+    if (errQty) return { error: errQty.message };
+  }
+
   revalidatePath(`/produtos/linhas/${linha_id}/${equipamento_id}`);
   revalidatePath(`/produtos/categorias/${categoria_peca_id}`);
   return { success: true };

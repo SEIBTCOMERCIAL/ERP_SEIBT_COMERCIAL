@@ -9,7 +9,6 @@ import {
   uploadArquivoProduto, excluirArquivoProduto,
   vincularPecaEquipamento, desvincularPecaEquipamento,
   criarPecaEVincular, editarPecaVinculada,
-  atualizarQuantidadeVinculo,
   type AdminState,
 } from "@/app/actions/produtos-admin";
 
@@ -113,31 +112,6 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function QtyCell({ vinculo, equipamentoId, linhaId, effectiveAdmin }: {
-  vinculo: VinculoPeca; equipamentoId: string; linhaId: string; effectiveAdmin: boolean;
-}) {
-  const router = useRouter();
-  const [qty, setQty] = useState(String(vinculo.quantidade ?? 1));
-  const [isPending, start] = useTransition();
-  useEffect(() => { setQty(String(vinculo.quantidade ?? 1)); }, [vinculo.quantidade]);
-  const handleBlur = () => {
-    const n = parseInt(qty, 10);
-    if (isNaN(n) || n < 1) { setQty(String(vinculo.quantidade ?? 1)); return; }
-    if (n === (vinculo.quantidade ?? 1)) return;
-    start(async () => {
-      const res = await atualizarQuantidadeVinculo(vinculo.id, n, equipamentoId, linhaId);
-      if (res.error) { alert(res.error); setQty(String(vinculo.quantidade ?? 1)); }
-      else router.refresh();
-    });
-  };
-  if (!effectiveAdmin) return <div style={{ fontSize: 12, color: "#374151", textAlign: "center" as const }}>{vinculo.quantidade ?? 1}</div>;
-  return (
-    <input type="number" min="1" value={qty}
-      onChange={e => setQty(e.target.value)}
-      onBlur={handleBlur}
-      style={{ width: 52, height: 28, border: `1px solid ${BORDER}`, borderRadius: 5, padding: "0 6px", fontSize: 12, outline: "none", textAlign: "center" as const, opacity: isPending ? 0.5 : 1 }} />
-  );
-}
 
 function PriceRow({ label, value, bold }: { label: string; value: number | null; bold?: boolean }) {
   return (
@@ -302,6 +276,7 @@ function EditarPecaModal({ vinculo, equipamentoId, linhaId, showFuro, onClose }:
         </div>
         <form action={action} style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
           <input type="hidden" name="id" value={p.id} />
+          <input type="hidden" name="vinculo_id" value={vinculo.id} />
           <input type="hidden" name="equipamento_id" value={equipamentoId} />
           <input type="hidden" name="linha_id" value={linhaId} />
           <input type="hidden" name="categoria_peca_id" value={p.categoria_peca_id} />
@@ -321,12 +296,18 @@ function EditarPecaModal({ vinculo, equipamentoId, linhaId, showFuro, onClose }:
               <input name="ipi_pct" type="number" min="0" step="0.01" defaultValue={p.ipi_pct} style={{ height: 34, border: `1px solid ${BORDER}`, borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none" }} />
             </div>
           </div>
-          {showFuro && (
+          <div style={{ display: "grid", gridTemplateColumns: showFuro ? "1fr 1fr" : "1fr", gap: 10 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const }}>Ø do furo</label>
-              <input name="furo_diametro" defaultValue={p.furo_diametro ?? ""} placeholder="ex: 2mm" style={{ height: 34, border: `1px solid ${BORDER}`, borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none" }} />
+              <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const }}>Quantidade neste equipamento</label>
+              <input name="quantidade" type="number" min="1" defaultValue={vinculo.quantidade ?? 1} style={{ height: 34, border: `1px solid ${BORDER}`, borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none" }} />
             </div>
-          )}
+            {showFuro && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const }}>Ø do furo</label>
+                <input name="furo_diametro" defaultValue={p.furo_diametro ?? ""} placeholder="ex: 2mm" style={{ height: 34, border: `1px solid ${BORDER}`, borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none" }} />
+              </div>
+            )}
+          </div>
           <div style={{ background: "#FEF9C3", border: "1px solid #FDE68A", borderRadius: 7, padding: "8px 12px", fontSize: 11, color: "#92400E" }}>
             Editar aqui atualiza o catálogo central — reflete em todos os equipamentos que usam esta peça.
           </div>
@@ -418,9 +399,7 @@ function PecaTab({ categoria, vinculos, pecasCatalogo, equipamentoId, linhaId, e
                 <div style={{ fontSize: 12, color: "#374151", textAlign: "right" as const }}>{fmt(v.peca.preco_brl)}</div>
                 <div style={{ fontSize: 12, color: "#6b7b8d", textAlign: "right" as const }}>{v.peca.ipi_pct}%</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: NAV, textAlign: "right" as const }}>{fmt(totalIpi)}</div>
-                <div style={{ display: "flex", justifyContent: "center" }}>
-                  <QtyCell vinculo={v} equipamentoId={equipamentoId} linhaId={linhaId} effectiveAdmin={effectiveAdmin} />
-                </div>
+                <div style={{ fontSize: 12, color: "#374151", textAlign: "center" as const }}>{v.quantidade ?? 1}</div>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
                   {effectiveAdmin && (
                     <>
