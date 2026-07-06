@@ -41,10 +41,10 @@ export default async function EquipamentoPage({ params }: { params: any }) {
       .select("id, nome, ordem")
       .order("ordem"),
     supabase.from("compatibilidades_equip")
-      .select("id, quantidade, peca:peca_id(id, codigo, descricao, preco_brl, ipi_pct, ativo, categoria_peca_id, furo_diametro)")
+      .select("id, quantidade, peca:peca_id(id, codigo, descricao, preco_brl, ipi_pct, ativo, categoria_peca_id, furo_diametro, observacao)")
       .eq("equipamento_id", params.eqId),
     supabase.from("produtos")
-      .select("id, codigo, descricao, preco_brl, ipi_pct, ativo, categoria_peca_id, furo_diametro")
+      .select("id, codigo, descricao, preco_brl, ipi_pct, ativo, categoria_peca_id, furo_diametro, observacao")
       .not("categoria_peca_id", "is", null)
       .eq("ativo", true)
       .is("deleted_at", null)
@@ -69,6 +69,7 @@ export default async function EquipamentoPage({ params }: { params: any }) {
       ativo: (v.peca?.ativo ?? true) as boolean,
       categoria_peca_id: v.peca?.categoria_peca_id as string,
       furo_diametro: (v.peca?.furo_diametro ?? null) as string | null,
+      observacao: (v.peca?.observacao ?? null) as string | null,
     },
   })).filter((v: { peca: { id: string } }) => !!v.peca?.id);
 
@@ -81,6 +82,7 @@ export default async function EquipamentoPage({ params }: { params: any }) {
     ipi_pct: (p.ipi_pct ?? 0) as number,
     categoria_peca_id: p.categoria_peca_id as string,
     furo_diametro: (p.furo_diametro ?? null) as string | null,
+    observacao: (p.observacao ?? null) as string | null,
   }));
 
   return (

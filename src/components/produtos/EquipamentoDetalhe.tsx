@@ -37,12 +37,12 @@ interface CategoriaPeca { id: string; nome: string; ordem: number }
 interface PecaCatalogo {
   id: string; codigo: string; descricao: string;
   preco_brl: number | null; ipi_pct: number; categoria_peca_id: string;
-  furo_diametro: string | null;
+  furo_diametro: string | null; observacao: string | null;
 }
 interface VinculoPeca {
   id: string;
   quantidade: number;
-  peca: { id: string; codigo: string; descricao: string; preco_brl: number | null; ipi_pct: number; ativo: boolean; categoria_peca_id: string; furo_diametro: string | null };
+  peca: { id: string; codigo: string; descricao: string; preco_brl: number | null; ipi_pct: number; ativo: boolean; categoria_peca_id: string; furo_diametro: string | null; observacao: string | null };
 }
 interface Arquivo {
   id: string; tipo: "imagem" | "desenho"; nome: string;
@@ -249,6 +249,11 @@ function CriarPecaModal({ categoria, equipamentoId, linhaId, onClose }: {
               </div>
             )}
           </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const }}>Observação</label>
+            <textarea name="observacao" rows={2} placeholder="Informações adicionais sobre esta peça..."
+              style={{ border: `1px solid ${BORDER}`, borderRadius: 7, padding: "8px 10px", fontSize: 13, outline: "none", resize: "vertical", fontFamily: "inherit" }} />
+          </div>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, paddingTop: 8, borderTop: `1px solid ${BORDER}` }}>
             <button type="button" onClick={onClose} style={{ padding: "8px 16px", background: BG, border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#374151" }}>Cancelar</button>
             <SubmitBtn label="Criar e vincular" />
@@ -308,6 +313,12 @@ function EditarPecaModal({ vinculo, equipamentoId, linhaId, showFuro, onClose }:
                 <input name="furo_diametro" defaultValue={p.furo_diametro ?? ""} placeholder="ex: 2mm" style={{ height: 34, border: `1px solid ${BORDER}`, borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none" }} />
               </div>
             )}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const }}>Observação</label>
+            <textarea name="observacao" rows={2} defaultValue={p.observacao ?? ""}
+              placeholder="Informações adicionais sobre esta peça..."
+              style={{ border: `1px solid ${BORDER}`, borderRadius: 7, padding: "8px 10px", fontSize: 13, outline: "none", resize: "vertical", fontFamily: "inherit" }} />
           </div>
           <div style={{ background: "#FEF9C3", border: "1px solid #FDE68A", borderRadius: 7, padding: "8px 12px", fontSize: 11, color: "#92400E" }}>
             Editar aqui atualiza o catálogo central — reflete em todos os equipamentos que usam esta peça.
@@ -393,7 +404,10 @@ function PecaTab({ categoria, vinculos, pecasCatalogo, equipamentoId, linhaId, e
                 onMouseLeave={() => setHoveredId(null)}
                 style={{ display: "grid", gridTemplateColumns: gridCols, gap: 0, padding: "10px 16px", borderBottom: i < vinculos.length - 1 ? `1px solid ${BORDER}` : "none", background: isHovered ? "#F8FAFC" : "#fff", alignItems: "center" }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: NAV }}>{v.peca.codigo}</div>
-                <div style={{ fontSize: 12, color: "#374151" }}>{v.peca.descricao}</div>
+                <div>
+                  <div style={{ fontSize: 12, color: "#374151" }}>{v.peca.descricao}</div>
+                  {v.peca.observacao && <div style={{ fontSize: 11, color: "#6b7b8d", fontStyle: "italic", marginTop: 2 }}>{v.peca.observacao}</div>}
+                </div>
                 {showFuro && (
                   <div style={{ fontSize: 12, color: "#6b7b8d", textAlign: "right" as const }}>{v.peca.furo_diametro ?? "—"}</div>
                 )}
