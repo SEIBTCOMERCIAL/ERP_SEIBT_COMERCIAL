@@ -253,12 +253,13 @@ export async function atualizarPaineis(
   linhaId: string,
   preco_brl: number | null,
   preco_painel_220: number | null,
-  preco_painel_380: number | null
+  preco_painel_380: number | null,
+  solicitar_engenharia: boolean = false
 ): Promise<AdminState> {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
   const { error } = await auth.supabase.from("produtos")
-    .update({ preco_brl, preco_painel_220, preco_painel_380, atualizado_em: new Date().toISOString() })
+    .update({ preco_brl, preco_painel_220, preco_painel_380, solicitar_engenharia, atualizado_em: new Date().toISOString() })
     .eq("id", produtoId);
   if (error) return { error: error.message };
   revalidatePath(`/produtos/linhas/${linhaId}/${produtoId}`);

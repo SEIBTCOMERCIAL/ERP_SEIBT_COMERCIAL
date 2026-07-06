@@ -54,6 +54,7 @@ interface Equip {
   preco_brl: number | null; preco_painel_220: number | null; preco_painel_380: number | null;
   ncm: string | null; specs: Record<string, unknown> | null;
   ativo: boolean; status?: "ativo" | "descontinuado";
+  solicitar_engenharia?: boolean;
 }
 interface Linha { id: string; nome: string }
 
@@ -495,6 +496,7 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
     brl: toFmt(equip.preco_brl),
     p220: toFmt(equip.preco_painel_220),
     p380: toFmt(equip.preco_painel_380),
+    solicitar: equip.solicitar_engenharia ?? false,
   });
   const [precoMsg, setPrecoMsg] = useState("");
 
@@ -512,14 +514,14 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
   const handleSavePrecos = () => {
     setPrecoMsg("");
     startTransition(async () => {
-      const res = await atualizarPaineis(equip.id, linha.id, parseCurr(draft.brl), parseCurr(draft.p220), parseCurr(draft.p380));
+      const res = await atualizarPaineis(equip.id, linha.id, parseCurr(draft.brl), parseCurr(draft.p220), parseCurr(draft.p380), draft.solicitar);
       if (res.error) setPrecoMsg(res.error);
       else { setPrecoMsg("Salvo"); setEditingPrices(false); router.refresh(); }
     });
   };
 
   const cancelEdit = () => {
-    setDraft({ brl: toFmt(equip.preco_brl), p220: toFmt(equip.preco_painel_220), p380: toFmt(equip.preco_painel_380) });
+    setDraft({ brl: toFmt(equip.preco_brl), p220: toFmt(equip.preco_painel_220), p380: toFmt(equip.preco_painel_380), solicitar: equip.solicitar_engenharia ?? false });
     setEditingPrices(false); setPrecoMsg("");
   };
 
@@ -709,27 +711,56 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
               )}
             </div>
           )}
+
           {editingPrices && (
-            <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, padding: "18px 20px", marginBottom: 16, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-              <div><div style={{ fontSize: 11, fontWeight: 600, color: "#6b7b8d", textTransform: "uppercase" as const, marginBottom: 6 }}>Moinho</div>{currInp(draft.brl, v => setDraft(d => ({ ...d, brl: v })))}</div>
-              <div><div style={{ fontSize: 11, fontWeight: 600, color: "#6b7b8d", textTransform: "uppercase" as const, marginBottom: 6 }}>Painel 220V</div>{currInp(draft.p220, v => setDraft(d => ({ ...d, p220: v })))}</div>
-              <div><div style={{ fontSize: 11, fontWeight: 600, color: "#6b7b8d", textTransform: "uppercase" as const, marginBottom: 6 }}>Painel 380V</div>{currInp(draft.p380, v => setDraft(d => ({ ...d, p380: v })))}</div>
+            <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, padding: "16px 20px", marginBottom: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+              {/* Toggle solicitar com engenharia */}
+              <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" as const }}>
+                <div onClick={() => setDraft(d => ({ ...d, solicitar: !d.solicitar }))}
+                  style={{ width: 38, height: 20, borderRadius: 10, background: draft.solicitar ? "#D97706" : "#D1D5DB", position: "relative", transition: "background 0.2s", cursor: "pointer", flexShrink: 0 }}>
+                  <div style={{ width: 16, height: 16, borderRadius: "50%", background: "#fff", position: "absolute", top: 2, left: draft.solicitar ? 20 : 2, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: draft.solicitar ? "#92400E" : "#374151" }}>
+                  Solicitar com engenharia
+                </span>
+              </label>
+              {draft.solicitar && (
+                <div style={{ padding: "8px 12px", background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 7, fontSize: 11, color: "#92400E" }}>
+                  Preço será exibido como &quot;SOLICITAR COM ENGENHARIA&quot;. Os valores abaixo ficam salvos mas não serão exibidos.
+                </div>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, opacity: draft.solicitar ? 0.4 : 1, pointerEvents: draft.solicitar ? "none" : "auto" }}>
+                <div><div style={{ fontSize: 11, fontWeight: 600, color: "#6b7b8d", textTransform: "uppercase" as const, marginBottom: 6 }}>Moinho</div>{currInp(draft.brl, v => setDraft(d => ({ ...d, brl: v })))}</div>
+                <div><div style={{ fontSize: 11, fontWeight: 600, color: "#6b7b8d", textTransform: "uppercase" as const, marginBottom: 6 }}>Painel 220V</div>{currInp(draft.p220, v => setDraft(d => ({ ...d, p220: v })))}</div>
+                <div><div style={{ fontSize: 11, fontWeight: 600, color: "#6b7b8d", textTransform: "uppercase" as const, marginBottom: 6 }}>Painel 380V</div>{currInp(draft.p380, v => setDraft(d => ({ ...d, p380: v })))}</div>
+              </div>
             </div>
           )}
-          <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
-            <div style={{ padding: "12px 18px", borderBottom: `1px solid ${BORDER}`, background: BG }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: NAV, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Resumo de preços</span>
+
+          {/* View: solicitar com engenharia */}
+          {(editingPrices ? draft.solicitar : equip.solicitar_engenharia) && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 10, marginBottom: 16 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#D97706", flexShrink: 0 }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#92400E", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Solicitar com engenharia</span>
             </div>
-            <div style={{ padding: "4px 18px" }}>
-              <PriceRow label="Moinho" value={editingPrices ? (parseCurr(draft.brl) ?? null) : equip.preco_brl} />
-              <PriceRow label="Painel 220V" value={editingPrices ? (parseCurr(draft.p220) ?? null) : equip.preco_painel_220} />
-              <PriceRow label="Painel 380V" value={editingPrices ? (parseCurr(draft.p380) ?? null) : equip.preco_painel_380} />
+          )}
+
+          {!(editingPrices ? draft.solicitar : equip.solicitar_engenharia) && (
+            <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
+              <div style={{ padding: "12px 18px", borderBottom: `1px solid ${BORDER}`, background: BG }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: NAV, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Resumo de preços</span>
+              </div>
+              <div style={{ padding: "4px 18px" }}>
+                <PriceRow label="Moinho" value={editingPrices ? (parseCurr(draft.brl) ?? null) : equip.preco_brl} />
+                <PriceRow label="Painel 220V" value={editingPrices ? (parseCurr(draft.p220) ?? null) : equip.preco_painel_220} />
+                <PriceRow label="Painel 380V" value={editingPrices ? (parseCurr(draft.p380) ?? null) : equip.preco_painel_380} />
+              </div>
+              <div style={{ borderTop: `2px solid ${BORDER}`, padding: "4px 18px" }}>
+                <PriceRow label="Total Moinho + Painel 220V" bold value={editingPrices ? (brlVal + p220Val || null) : (((equip.preco_brl ?? 0) + (equip.preco_painel_220 ?? 0)) || null)} />
+                <PriceRow label="Total Moinho + Painel 380V" bold value={editingPrices ? (brlVal + p380Val || null) : (((equip.preco_brl ?? 0) + (equip.preco_painel_380 ?? 0)) || null)} />
+              </div>
             </div>
-            <div style={{ borderTop: `2px solid ${BORDER}`, padding: "4px 18px" }}>
-              <PriceRow label="Total Moinho + Painel 220V" bold value={editingPrices ? (brlVal + p220Val || null) : (((equip.preco_brl ?? 0) + (equip.preco_painel_220 ?? 0)) || null)} />
-              <PriceRow label="Total Moinho + Painel 380V" bold value={editingPrices ? (brlVal + p380Val || null) : (((equip.preco_brl ?? 0) + (equip.preco_painel_380 ?? 0)) || null)} />
-            </div>
-          </div>
+          )}
         </div>
       )}
 
