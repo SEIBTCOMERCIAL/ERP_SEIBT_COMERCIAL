@@ -19,6 +19,7 @@ export async function criarUsuario(
   const nome = (formData.get("nome") as string)?.trim();
   const perfil = formData.get("perfil") as string;
   const podeConfigurar = formData.get("pode_configurar") === "true";
+  const paginasVisiveis = formData.getAll("paginas_visiveis").map(String);
 
   if (!email || !nome || !perfil) return { error: "Email, nome e perfil são obrigatórios." };
 
@@ -43,6 +44,7 @@ export async function criarUsuario(
     email,
     perfil,
     pode_configurar: podeConfigurar,
+    paginas_visiveis: paginasVisiveis,
     ativo: true,
   });
 
@@ -71,6 +73,7 @@ export async function atualizarUsuario(
   const perfil = formData.get("perfil") as string;
   const podeConfigurar = formData.get("pode_configurar") === "true";
   const iniciais = (formData.get("iniciais_pdf") as string)?.trim() || null;
+  const paginasVisiveis = formData.getAll("paginas_visiveis").map(String);
 
   if (!id || !nome || !perfil) return { error: "Dados inválidos." };
 
@@ -79,7 +82,7 @@ export async function atualizarUsuario(
 
   const { error } = await supabase
     .from("usuarios")
-    .update({ nome, perfil, pode_configurar: podeConfigurar, iniciais_pdf: iniciais })
+    .update({ nome, perfil, pode_configurar: podeConfigurar, iniciais_pdf: iniciais, paginas_visiveis: paginasVisiveis })
     .eq("id", id);
 
   if (error) return { error: error.message };

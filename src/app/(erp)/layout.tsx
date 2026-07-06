@@ -21,7 +21,7 @@ export default async function ErpLayout({
   // Busca dados do usuário na tabela de negócio
   const { data: usuario } = await supabase
     .from("usuarios")
-    .select("nome, email, perfil, pode_configurar, avatar_url")
+    .select("nome, email, perfil, pode_configurar, avatar_url, paginas_visiveis")
     .eq("id", user.id)
     .single();
 
@@ -32,6 +32,7 @@ export default async function ErpLayout({
     perfil: "admin" as const,
     pode_configurar: true,
     avatar_url: null,
+    paginas_visiveis: [],
   };
 
   return (

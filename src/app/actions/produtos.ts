@@ -140,7 +140,7 @@ export async function reajustarPreco(
   if (updateErr) return { message: "Erro ao atualizar preço: " + updateErr.message };
 
   revalidatePath("/produtos");
-  revalidatePath("/precos");
+  revalidatePath("/reajuste");
 
   return { success: true };
 }

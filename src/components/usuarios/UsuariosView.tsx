@@ -23,6 +23,79 @@ const PERFIS = [
   { value: "engenharia", label: "Engenharia" },
 ];
 
+const TODAS_PAGINAS = [
+  { label: "Dashboard", href: "/dashboard" },
+  { label: "Propostas", href: "/propostas" },
+  { label: "Clientes", href: "/clientes" },
+  { label: "Agenda", href: "/agenda" },
+  { label: "Leads", href: "/leads" },
+  { label: "Produtos", href: "/produtos" },
+  { label: "Reajuste de Preços", href: "/reajuste" },
+  { label: "Proposta Peças", href: "/propostas/pecas/nova" },
+  { label: "Proposta Máquina", href: "/propostas/maquinas/nova" },
+  { label: "Pedidos DEZ", href: "/pedidos/reconciliar" },
+  { label: "Metas", href: "/metas" },
+  { label: "Relatórios", href: "/relatorios" },
+  { label: "Representantes", href: "/representantes" },
+  { label: "Frete", href: "/frete" },
+  { label: "Precificação", href: "/precificacao" },
+];
+
+const PRESETS: Record<string, string[]> = {
+  admin: [],
+  vendedor_interno: ["/dashboard", "/propostas", "/clientes", "/agenda", "/leads", "/produtos", "/propostas/pecas/nova", "/propostas/maquinas/nova"],
+  representante: ["/dashboard", "/propostas", "/clientes", "/leads", "/propostas/pecas/nova", "/propostas/maquinas/nova"],
+  engenharia: ["/dashboard", "/produtos", "/precificacao"],
+};
+
+function PaginasCheckboxes({ defaultChecked }: { defaultChecked?: string[] }) {
+  const [checked, setChecked] = useState<string[]>(defaultChecked ?? []);
+  const [presetPerfil, setPresetPerfil] = useState("vendedor_interno");
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase" as const, color: "#374151", letterSpacing: "0.04em" }}>
+        Páginas visíveis <span style={{ fontWeight: 400, color: "#9ca3af", fontSize: 10 }}>(vazio = padrão do perfil)</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <select
+          value={presetPerfil}
+          onChange={(e) => setPresetPerfil(e.target.value)}
+          style={{ padding: "4px 8px", border: `1px solid ${BORDER}`, borderRadius: 4, fontSize: 11 }}
+        >
+          {PERFIS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+        </select>
+        <button type="button" onClick={() => setChecked(PRESETS[presetPerfil] ?? [])}
+          style={{ padding: "4px 10px", border: `1px solid ${BORDER}`, borderRadius: 4, fontSize: 11, cursor: "pointer", background: "#fff", fontWeight: 600 }}>
+          Pré-definir
+        </button>
+        {checked.length > 0 && (
+          <button type="button" onClick={() => setChecked([])}
+            style={{ padding: "4px 10px", border: `1px solid ${BORDER}`, borderRadius: 4, fontSize: 11, cursor: "pointer", background: "#fff", color: "#6b7b8d" }}>
+            Limpar
+          </button>
+        )}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3 }}>
+        {TODAS_PAGINAS.map((p) => (
+          <label key={p.href} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              name="paginas_visiveis"
+              value={p.href}
+              checked={checked.includes(p.href)}
+              onChange={(e) => setChecked((prev) =>
+                e.target.checked ? [...prev, p.href] : prev.filter((x) => x !== p.href)
+              )}
+            />
+            {p.label}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function perfilLabel(p: string) {
   return PERFIS.find((x) => x.value === p)?.label ?? p;
 }
@@ -127,6 +200,7 @@ function CriarForm({ onClose }: { onClose: (refresh?: boolean) => void }) {
         <input type="checkbox" name="pode_configurar" value="true" />
         Acesso às Configurações do sistema
       </label>
+      <PaginasCheckboxes />
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, paddingTop: 8 }}>
         <button
           type="button"
@@ -149,6 +223,7 @@ interface Usuario {
   pode_configurar: boolean;
   iniciais_pdf: string | null;
   ativo: boolean;
+  paginas_visiveis?: string[] | null;
 }
 
 function EditarForm({ usuario, onClose }: { usuario: Usuario; onClose: (refresh?: boolean) => void }) {
@@ -184,6 +259,7 @@ function EditarForm({ usuario, onClose }: { usuario: Usuario; onClose: (refresh?
         <input type="checkbox" name="pode_configurar" value="true" defaultChecked={usuario.pode_configurar} />
         Acesso às Configurações do sistema
       </label>
+      <PaginasCheckboxes defaultChecked={usuario.paginas_visiveis ?? []} />
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, paddingTop: 8 }}>
         <button
           type="button"

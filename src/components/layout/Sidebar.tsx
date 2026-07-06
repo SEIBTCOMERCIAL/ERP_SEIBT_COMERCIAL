@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as Icons from "lucide-react";
 import { cn } from "@/lib/utils";
-import { NAV_GROUPS } from "./nav-config";
+import { NAV_GROUPS, type NavItem } from "./nav-config";
 import type { Perfil } from "@/types/database";
 import { getInitials } from "@/lib/utils";
 
@@ -15,17 +15,25 @@ interface SidebarProps {
     perfil: Perfil;
     pode_configurar: boolean;
     avatar_url?: string | null;
+    paginas_visiveis?: string[] | null;
   };
 }
 
 export function Sidebar({ usuario }: SidebarProps) {
   const pathname = usePathname();
+  const pv = usuario.paginas_visiveis ?? [];
 
-  const visibleGroups = NAV_GROUPS.filter((group) => {
-    if (group.requiresConfig && !usuario.pode_configurar) return false;
-    if (group.visibleFor && !group.visibleFor.includes(usuario.perfil)) return false;
-    return true;
-  });
+  const visibleGroups = NAV_GROUPS
+    .filter((group) => {
+      if (group.requiresConfig && !usuario.pode_configurar) return false;
+      if (group.visibleFor && !group.visibleFor.includes(usuario.perfil)) return false;
+      if (pv.length > 0) return group.items.some((item: NavItem) => pv.includes(item.href));
+      return true;
+    })
+    .map((group) => ({
+      ...group,
+      items: pv.length > 0 ? group.items.filter((item: NavItem) => pv.includes(item.href)) : group.items,
+    }));
 
   return (
     <aside className="fixed inset-y-0 left-0 z-50 flex w-[224px] flex-col bg-[#2C4F79] dark:bg-[#1E3A5F]">

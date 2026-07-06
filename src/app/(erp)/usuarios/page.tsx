@@ -29,7 +29,7 @@ export default async function UsuariosPage() {
 
   const { data: usuarios } = await supabase
     .from("usuarios")
-    .select("id, nome, email, perfil, pode_configurar, iniciais_pdf, ativo")
+    .select("id, nome, email, perfil, pode_configurar, iniciais_pdf, ativo, paginas_visiveis")
     .order("nome");
 
   return <UsuariosView initialUsuarios={usuarios ?? []} />;
