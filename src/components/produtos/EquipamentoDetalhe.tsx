@@ -623,7 +623,7 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
                 <span style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Descrição do moinho</span>
                 <CopyButton text={equip.descricao} />
               </div>
-              <div style={{ fontSize: 13, color: "#1a1a1a", lineHeight: 1.55 }}>{equip.descricao}</div>
+              <div style={{ fontSize: 13, color: "#1a1a1a", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{equip.descricao}</div>
             </div>
           )}
           {equip.descricao_painel && (
@@ -632,7 +632,7 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
                 <span style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Descrição do painel</span>
                 <CopyButton text={equip.descricao_painel} />
               </div>
-              <div style={{ fontSize: 13, color: "#1a1a1a", lineHeight: 1.55 }}>{equip.descricao_painel}</div>
+              <div style={{ fontSize: 13, color: "#1a1a1a", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{equip.descricao_painel}</div>
             </div>
           )}
           {effectiveAdmin ? (
