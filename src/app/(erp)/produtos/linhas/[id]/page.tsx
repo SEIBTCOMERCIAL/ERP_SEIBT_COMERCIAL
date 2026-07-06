@@ -18,7 +18,7 @@ export default async function LinhaPage({ params }: { params: any }) {
     supabase.from("linhas").select("id, nome, ordem").eq("id", params.id).single(),
     supabase
       .from("produtos")
-      .select("id, codigo, descricao, preco_brl, preco_painel_220, preco_painel_380, ncm, specs, ativo, status, atualizado_em, produto_arquivos(id, tipo)")
+      .select("id, codigo, descricao, descricao_painel, potencia_motor, preco_brl, preco_painel_220, preco_painel_380, ncm, specs, ativo, status, atualizado_em, produto_arquivos(id, tipo)")
       .eq("categoria", "maquina")
       .eq("linha_id", params.id)
       .is("deleted_at", null)
@@ -37,6 +37,8 @@ export default async function LinhaPage({ params }: { params: any }) {
     id: eq.id,
     codigo: eq.codigo,
     descricao: eq.descricao,
+    descricao_painel: eq.descricao_painel ?? null,
+    potencia_motor: eq.potencia_motor ?? null,
     preco_brl: eq.preco_brl,
     preco_painel_220: eq.preco_painel_220,
     preco_painel_380: eq.preco_painel_380,

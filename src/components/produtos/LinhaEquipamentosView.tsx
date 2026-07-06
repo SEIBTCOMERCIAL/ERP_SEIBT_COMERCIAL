@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect, useRef } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Plus, Trash2, Edit2, X, Copy, Search, AlertTriangle, ArrowUpDown, Download, Settings2 } from "lucide-react";
+import { ChevronRight, Plus, Trash2, Edit2, X, Copy, Search, AlertTriangle, ArrowUpDown, Download, Settings2, Eye, EyeOff } from "lucide-react";
 import {
   criarEquipamento, editarEquipamento, excluirEquipamento,
   duplicarEquipamento, atualizarStatusEquipamento,
@@ -27,6 +27,8 @@ interface Equipamento {
   id: string;
   codigo: string;
   descricao: string;
+  descricao_painel: string | null;
+  potencia_motor: string | null;
   preco_brl: number | null;
   preco_painel_220: number | null;
   preco_painel_380: number | null;
@@ -60,6 +62,26 @@ function SubmitInline({ label }: { label: string }) {
   );
 }
 
+function CurrencyInput({ name, label, defaultValue }: { name: string; label: string; defaultValue?: number | null }) {
+  const [val, setVal] = useState(() =>
+    defaultValue != null ? defaultValue.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ""
+  );
+  const handleBlur = () => {
+    if (!val.trim()) return;
+    const clean = val.replace(/R\$\s?/g, "").replace(/\./g, "").replace(",", ".").trim();
+    const n = parseFloat(clean);
+    if (!isNaN(n)) setVal(n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const }}>{label}</label>
+      <input name={name} value={val} onChange={e => setVal(e.target.value)} onBlur={handleBlur}
+        placeholder="0,00"
+        style={{ height: 34, border: `1px solid ${BORDER}`, borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none" }} />
+    </div>
+  );
+}
+
 function EquipamentoModal({ linha, equip, specCampos, onClose }: {
   linha: Linha;
   equip?: Equipamento;
@@ -85,18 +107,9 @@ function EquipamentoModal({ linha, equip, specCampos, onClose }: {
     </div>
   );
 
-  const numInp = (name: string, label: string, def?: string | null) => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const }}>{label}</label>
-      <input name={name} type="number" min="0" step="0.01" defaultValue={def ?? ""}
-        style={{ height: 34, border: `1px solid ${BORDER}`, borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none" }} />
-    </div>
-  );
-
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 16px", overflowY: "auto" }}>
       <div style={{ background: "#fff", borderRadius: 14, width: 540, boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
-        {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px", borderBottom: `1px solid ${BORDER}` }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: NAV, margin: 0 }}>{equip ? "Editar equipamento" : "Novo equipamento"}</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#6B7B8D" }}><X size={18} /></button>
@@ -115,7 +128,7 @@ function EquipamentoModal({ linha, equip, specCampos, onClose }: {
             {inp("ncm", "NCM", { def: equip?.ncm ?? "", placeholder: "ex: 84779000" })}
           </div>
 
-          {/* Descrição (textarea) */}
+          {/* Descrição */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const }}>
               Descrição <span style={{ color: "#DC2626" }}>*</span>
@@ -126,13 +139,16 @@ function EquipamentoModal({ linha, equip, specCampos, onClose }: {
               style={{ border: `1px solid ${BORDER}`, borderRadius: 7, padding: "8px 10px", fontSize: 13, outline: "none", resize: "vertical" }} />
           </div>
 
+          {/* Potência do motor */}
+          {inp("potencia_motor", "Potência do motor", { def: equip?.potencia_motor ?? "", placeholder: "ex: 15 cv" })}
+
           {/* Preços */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            {numInp("preco_brl", "Preço moinho (R$)", equip?.preco_brl?.toString())}
-            {numInp("preco_painel_220", "Painel 220V (R$)", equip?.preco_painel_220?.toString())}
+            <CurrencyInput name="preco_brl" label="Preço moinho (R$)" defaultValue={equip?.preco_brl} />
+            <CurrencyInput name="preco_painel_220" label="Painel 220V (R$)" defaultValue={equip?.preco_painel_220} />
           </div>
           <div style={{ maxWidth: 246 }}>
-            {numInp("preco_painel_380", "Painel 380V (R$)", equip?.preco_painel_380?.toString())}
+            <CurrencyInput name="preco_painel_380" label="Painel 380V (R$)" defaultValue={equip?.preco_painel_380} />
           </div>
 
           {/* Descrição do painel */}
@@ -142,12 +158,12 @@ function EquipamentoModal({ linha, equip, specCampos, onClose }: {
               <span style={{ fontWeight: 400, color: "#b0bac9", textTransform: "none" as const }}> — usada para 220V e 380V</span>
             </label>
             <textarea name="descricao_painel" rows={2}
-              defaultValue={(equip as unknown as { descricao_painel?: string })?.descricao_painel ?? ""}
+              defaultValue={equip?.descricao_painel ?? ""}
               placeholder="Descrição do painel elétrico que vai para o orçamento..."
               style={{ border: `1px solid ${BORDER}`, borderRadius: 7, padding: "8px 10px", fontSize: 13, outline: "none", resize: "vertical" }} />
           </div>
 
-          {/* Especificações técnicas — template da linha */}
+          {/* Especificações técnicas */}
           {specCampos.length > 0 && (
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const, letterSpacing: "0.04em", marginBottom: 10 }}>
@@ -204,8 +220,10 @@ export function LinhaEquipamentosView({ isAdmin, linha, equipamentos, specCampos
   const [sortAsc, setSortAsc] = useState(true);
   const [showDesc, setShowDesc] = useState(false);
   const [showTemplate, setShowTemplate] = useState(false);
+  const [previewAsUser, setPreviewAsUser] = useState(false);
 
-  // Template spec campos management
+  const effectiveAdmin = isAdmin && !previewAsUser;
+
   const [campoState, campoAction] = useFormState(criarLinhaSpecCampo, {});
   const campoInputRef = useRef<HTMLInputElement>(null);
 
@@ -283,6 +301,14 @@ export function LinhaEquipamentosView({ isAdmin, linha, equipamentos, specCampos
         <span style={{ color: NAV, fontWeight: 600 }}>{linha.nome}</span>
       </div>
 
+      {/* Preview banner */}
+      {previewAsUser && (
+        <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 8, padding: "8px 14px", marginBottom: 16, fontSize: 12, color: "#92400E", display: "flex", alignItems: "center", gap: 8 }}>
+          <Eye size={14} />
+          Modo visualização — você está vendo como um vendedor. Edições desativadas.
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div>
@@ -293,11 +319,18 @@ export function LinhaEquipamentosView({ isAdmin, linha, equipamentos, specCampos
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {isAdmin && (
+            <button onClick={() => setPreviewAsUser(v => !v)}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 16px", background: previewAsUser ? "#FEF3C7" : "#fff", color: previewAsUser ? "#92400E" : "#374151", border: `1px solid ${previewAsUser ? "#FCD34D" : BORDER}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              {previewAsUser ? <EyeOff size={15} /> : <Eye size={15} />}
+              {previewAsUser ? "Sair do modo usuário" : "Ver como usuário"}
+            </button>
+          )}
           <a href={`/api/produtos/linhas/${linha.id}/exportar`} target="_blank"
             style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 16px", background: "#fff", color: NAV, border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none" }}>
             <Download size={15} /> Exportar .docx
           </a>
-          {isAdmin && (
+          {effectiveAdmin && (
             <button onClick={() => setModal("criar")}
               style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", background: NAV, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
               <Plus size={15} /> Novo equipamento
@@ -326,22 +359,25 @@ export function LinhaEquipamentosView({ isAdmin, linha, equipamentos, specCampos
         )}
       </div>
 
-      {/* Cards de equipamentos */}
       {equipFiltrados.length === 0 && (
         <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, padding: 40, textAlign: "center", color: "#6b7b8d" }}>
           {search ? "Nenhum equipamento encontrado." : "Nenhum equipamento cadastrado nesta linha."}
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 14 }}>
         {equipFiltrados.map(eq => {
-          const total220 = (eq.preco_brl ?? 0) + (eq.preco_painel_220 ?? 0);
-          const total380 = (eq.preco_brl ?? 0) + (eq.preco_painel_380 ?? 0);
+          const moinho = eq.preco_brl;
+          const p220 = eq.preco_painel_220;
+          const p380 = eq.preco_painel_380;
+          const total220 = (moinho ?? 0) + (p220 ?? 0);
+          const total380 = (moinho ?? 0) + (p380 ?? 0);
           const descontinuado = eq.status === "descontinuado";
           const incompleto = !eq.preco_painel_380 || !eq.specs || Object.keys(eq.specs).length === 0 || eq.imagens_count === 0;
 
           return (
             <div key={eq.id} style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden", opacity: descontinuado ? 0.65 : 1 }}>
+              {/* Card header */}
               <div style={{ padding: "14px 18px", cursor: "pointer", borderBottom: `1px solid ${BORDER}` }}
                 onClick={() => router.push(`/produtos/linhas/${linha.id}/${eq.id}`)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -349,33 +385,61 @@ export function LinhaEquipamentosView({ isAdmin, linha, equipamentos, specCampos
                     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: NAV }}>{eq.codigo}</span>
                       {descontinuado && <span style={{ padding: "1px 6px", background: "#F1F5F9", color: "#6b7b8d", borderRadius: 4, fontSize: 10, fontWeight: 700 }}>DESCONTINUADO</span>}
-                      {!descontinuado && incompleto && isAdmin && <IncompletoBadge />}
+                      {!descontinuado && incompleto && effectiveAdmin && <IncompletoBadge />}
                     </div>
-                    <div style={{ fontSize: 12, color: "#6b7b8d", lineHeight: 1.3 }}>{eq.descricao}</div>
+                    <div style={{ fontSize: 12, color: "#6b7b8d", lineHeight: 1.3 }}>
+                      {eq.potencia_motor || <span style={{ color: "#b0bac9" }}>Potência não cadastrada</span>}
+                    </div>
                   </div>
                   <ChevronRight size={15} color="#b0bac9" style={{ flexShrink: 0, marginLeft: 8 }} />
                 </div>
               </div>
 
-              <div style={{ padding: "10px 18px", display: "flex", gap: 12, borderBottom: `1px solid ${BORDER}` }}>
-                {eq.preco_painel_220 != null && (
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 10, color: "#b0bac9", fontWeight: 600, marginBottom: 2 }}>TOTAL 220V</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: NAV }}>{fmt(total220)}</div>
-                  </div>
-                )}
-                {eq.preco_painel_380 != null && (
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 10, color: "#b0bac9", fontWeight: 600, marginBottom: 2 }}>TOTAL 380V</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: NAV }}>{fmt(total380)}</div>
-                  </div>
-                )}
-                {eq.preco_painel_220 == null && eq.preco_painel_380 == null && (
+              {/* Price breakdown */}
+              <div style={{ padding: "10px 18px", borderBottom: `1px solid ${BORDER}` }}>
+                {moinho == null && p220 == null && p380 == null ? (
                   <div style={{ fontSize: 12, color: "#b0bac9" }}>Preços não cadastrados</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                    {moinho != null && (
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 11, color: "#b0bac9" }}>Moinho</span>
+                        <span style={{ fontSize: 12, fontWeight: 500, color: "#374151" }}>{fmt(moinho)}</span>
+                      </div>
+                    )}
+                    {p220 != null && (
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 11, color: "#b0bac9" }}>Painel 220V</span>
+                        <span style={{ fontSize: 12, fontWeight: 500, color: "#374151" }}>{fmt(p220)}</span>
+                      </div>
+                    )}
+                    {p380 != null && (
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 11, color: "#b0bac9" }}>Painel 380V</span>
+                        <span style={{ fontSize: 12, fontWeight: 500, color: "#374151" }}>{fmt(p380)}</span>
+                      </div>
+                    )}
+                    {(p220 != null || p380 != null) && (
+                      <div style={{ borderTop: `1px solid ${BORDER}`, marginTop: 4, paddingTop: 4, display: "flex", flexDirection: "column", gap: 3 }}>
+                        {p220 != null && (
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: "#6b7b8d" }}>TOTAL 220V</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: NAV }}>{fmt(total220)}</span>
+                          </div>
+                        )}
+                        {p380 != null && (
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: "#6b7b8d" }}>TOTAL 380V</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: NAV }}>{fmt(total380)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 
-              {isAdmin && (
+              {effectiveAdmin && (
                 <div style={{ padding: "8px 12px", display: "flex", justifyContent: "flex-end", gap: 6, flexWrap: "wrap" }}>
                   <button onClick={() => setModal({ equip: eq })} style={{ background: "none", border: "none", cursor: "pointer", color: BLUE, display: "flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600 }}>
                     <Edit2 size={12} /> Editar
@@ -396,7 +460,7 @@ export function LinhaEquipamentosView({ isAdmin, linha, equipamentos, specCampos
         })}
       </div>
 
-      {/* ── Template de especificações (admin only) ── */}
+      {/* Template de especificações (admin only — never in preview mode) */}
       {isAdmin && (
         <div style={{ marginTop: 48 }}>
           <button

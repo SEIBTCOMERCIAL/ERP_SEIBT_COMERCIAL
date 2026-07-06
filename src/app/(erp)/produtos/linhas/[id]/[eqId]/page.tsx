@@ -17,7 +17,7 @@ export default async function EquipamentoPage({ params }: { params: any }) {
   const [{ data: linha }, { data: equip }, { data: arquivos }, { data: rawCampos }] = await Promise.all([
     supabase.from("linhas").select("id, nome").eq("id", params.id).single(),
     supabase.from("produtos")
-      .select("id, codigo, descricao, descricao_painel, preco_brl, preco_painel_220, preco_painel_380, ncm, specs, ativo, status")
+      .select("id, codigo, descricao, descricao_painel, potencia_motor, preco_brl, preco_painel_220, preco_painel_380, ncm, specs, ativo, status")
       .eq("id", params.eqId)
       .is("deleted_at", null)
       .single(),

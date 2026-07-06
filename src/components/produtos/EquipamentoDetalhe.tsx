@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
-import { ChevronRight, FileText, Upload, Trash2, Edit2, X, Save, Copy, Check } from "lucide-react";
+import { ChevronRight, FileText, Upload, Trash2, Edit2, X, Save, Copy, Check, Eye, EyeOff } from "lucide-react";
 import {
   atualizarPaineis, atualizarSpecs,
   uploadArquivoProduto, excluirArquivoProduto,
@@ -17,6 +17,16 @@ const BORDER = "#E2E8F0";
 
 const fmt = (v: number | null | undefined) =>
   v != null ? v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—";
+
+const parseCurr = (s: string): number | null => {
+  if (!s || !s.trim()) return null;
+  const clean = s.replace(/R\$\s?/g, "").replace(/\./g, "").replace(",", ".").trim();
+  const n = parseFloat(clean);
+  return isNaN(n) ? null : n;
+};
+
+const toFmt = (v: number | null | undefined) =>
+  v != null ? v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "";
 
 type Tab = "specs" | "precos" | "imagens" | "desenhos";
 
@@ -36,6 +46,7 @@ interface Equip {
   codigo: string;
   descricao: string;
   descricao_painel?: string | null;
+  potencia_motor?: string | null;
   preco_brl: number | null;
   preco_painel_220: number | null;
   preco_painel_380: number | null;
@@ -97,6 +108,15 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+function PriceRow({ label, value, bold }: { label: string; value: number | null; bold?: boolean }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${BORDER}` }}>
+      <span style={{ fontSize: 13, color: bold ? "#374151" : "#6b7b8d", fontWeight: bold ? 700 : 400 }}>{label}</span>
+      <span style={{ fontSize: bold ? 15 : 13, fontWeight: bold ? 700 : 500, color: bold ? NAV : "#374151" }}>{fmt(value)}</span>
+    </div>
+  );
+}
+
 export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos }: {
   isAdmin: boolean;
   linha: Linha;
@@ -109,8 +129,10 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
   const [isPending, startTransition] = useTransition();
   const [showUploadImagem, setShowUploadImagem] = useState(false);
   const [showUploadDesenho, setShowUploadDesenho] = useState(false);
+  const [previewAsUser, setPreviewAsUser] = useState(false);
 
-  // ── Specs state ──
+  const effectiveAdmin = isAdmin && !previewAsUser;
+
   const [specValues, setSpecValues] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
     for (const campo of specCampos) {
@@ -120,12 +142,11 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
   });
   const [specsMsg, setSpecsMsg] = useState("");
 
-  // ── Price state ──
   const [editingPrices, setEditingPrices] = useState(false);
   const [draft, setDraft] = useState({
-    brl: equip.preco_brl?.toString() ?? "",
-    p220: equip.preco_painel_220?.toString() ?? "",
-    p380: equip.preco_painel_380?.toString() ?? "",
+    brl: toFmt(equip.preco_brl),
+    p220: toFmt(equip.preco_painel_220),
+    p380: toFmt(equip.preco_painel_380),
   });
   const [precoMsg, setPrecoMsg] = useState("");
 
@@ -147,9 +168,9 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
     startTransition(async () => {
       const res = await atualizarPaineis(
         equip.id, linha.id,
-        parseFloat(draft.brl) || null,
-        parseFloat(draft.p220) || null,
-        parseFloat(draft.p380) || null,
+        parseCurr(draft.brl),
+        parseCurr(draft.p220),
+        parseCurr(draft.p380),
       );
       if (res.error) setPrecoMsg(res.error);
       else { setPrecoMsg("Salvo"); setEditingPrices(false); router.refresh(); }
@@ -157,7 +178,7 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
   };
 
   const cancelEdit = () => {
-    setDraft({ brl: equip.preco_brl?.toString() ?? "", p220: equip.preco_painel_220?.toString() ?? "", p380: equip.preco_painel_380?.toString() ?? "" });
+    setDraft({ brl: toFmt(equip.preco_brl), p220: toFmt(equip.preco_painel_220), p380: toFmt(equip.preco_painel_380) });
     setEditingPrices(false);
     setPrecoMsg("");
   };
@@ -173,9 +194,10 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
 
   const imagens = arquivos.filter(a => a.tipo === "imagem");
   const desenhos = arquivos.filter(a => a.tipo === "desenho");
-  const brlVal = parseFloat(draft.brl) || 0;
-  const p220Val = parseFloat(draft.p220) || 0;
-  const p380Val = parseFloat(draft.p380) || 0;
+
+  const brlVal = parseCurr(draft.brl) ?? 0;
+  const p220Val = parseCurr(draft.p220) ?? 0;
+  const p380Val = parseCurr(draft.p380) ?? 0;
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "specs", label: "Especificações" },
@@ -184,9 +206,17 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
     { key: "desenhos", label: `Desenhos técnicos${desenhos.length ? ` (${desenhos.length})` : ""}` },
   ];
 
-  const numInp = (val: string, set: (v: string) => void) => (
-    <input type="number" min="0" step="0.01" value={val} onChange={e => set(e.target.value)}
-      style={{ width: "100%", height: 34, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "0 10px", fontSize: 13, outline: "none", boxSizing: "border-box" as const }} />
+  const currInp = (val: string, set: (v: string) => void) => (
+    <input type="text" value={val}
+      onChange={e => set(e.target.value)}
+      onBlur={() => {
+        const n = parseCurr(val);
+        if (n != null) set(toFmt(n));
+        else if (!val.trim()) set("");
+      }}
+      placeholder="0,00"
+      style={{ width: "100%", height: 34, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "0 10px", fontSize: 13, outline: "none", boxSizing: "border-box" as const }}
+    />
   );
 
   return (
@@ -200,14 +230,34 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
         <span style={{ color: NAV, fontWeight: 600 }}>{equip.codigo}</span>
       </div>
 
+      {/* Preview banner */}
+      {previewAsUser && (
+        <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 8, padding: "8px 14px", marginBottom: 16, fontSize: 12, color: "#92400E", display: "flex", alignItems: "center", gap: 8 }}>
+          <Eye size={14} />
+          Modo visualização — você está vendo como um vendedor. Edições desativadas.
+        </div>
+      )}
+
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: NAV, margin: 0 }}>{equip.codigo}</h1>
-          {equip.status === "descontinuado" && (
-            <span style={{ padding: "2px 10px", background: "#F1F5F9", color: "#6b7b8d", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>DESCONTINUADO</span>
+      <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: NAV, margin: 0 }}>{equip.codigo}</h1>
+            {equip.status === "descontinuado" && (
+              <span style={{ padding: "2px 10px", background: "#F1F5F9", color: "#6b7b8d", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>DESCONTINUADO</span>
+            )}
+          </div>
+          {equip.potencia_motor && (
+            <div style={{ fontSize: 14, color: "#6b7b8d", marginTop: 4 }}>{equip.potencia_motor}</div>
           )}
         </div>
+        {isAdmin && (
+          <button onClick={() => setPreviewAsUser(v => !v)}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", background: previewAsUser ? "#FEF3C7" : "#fff", color: previewAsUser ? "#92400E" : "#374151", border: `1px solid ${previewAsUser ? "#FCD34D" : BORDER}`, borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+            {previewAsUser ? <EyeOff size={14} /> : <Eye size={14} />}
+            {previewAsUser ? "Sair do modo usuário" : "Ver como usuário"}
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -223,7 +273,6 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
       {/* ── Tab: Especificações ── */}
       {tab === "specs" && (
         <div style={{ maxWidth: 640 }}>
-          {/* Descrição do moinho — bloco com botão copiar (todos os perfis) */}
           {equip.descricao && (
             <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10, padding: "14px 18px", marginBottom: 14 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -234,7 +283,6 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
             </div>
           )}
 
-          {/* Descrição do painel — bloco com botão copiar */}
           {equip.descricao_painel && (
             <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10, padding: "14px 18px", marginBottom: 14 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -245,9 +293,7 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
             </div>
           )}
 
-          {/* Especificações técnicas */}
-          {isAdmin ? (
-            /* Admin: inputs editáveis por campo do template */
+          {effectiveAdmin ? (
             specCampos.length > 0 ? (
               <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
                 <div style={{ padding: "12px 18px", borderBottom: `1px solid ${BORDER}`, background: BG }}>
@@ -280,7 +326,6 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
               </div>
             )
           ) : (
-            /* Vendedor: grid read-only */
             specCampos.length > 0 && Object.keys(equip.specs ?? {}).length > 0 ? (
               <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
                 <div style={{ padding: "12px 18px", borderBottom: `1px solid ${BORDER}`, background: BG }}>
@@ -308,8 +353,8 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
 
       {/* ── Tab: Preço e painéis ── */}
       {tab === "precos" && (
-        <div>
-          {isAdmin && (
+        <div style={{ maxWidth: 540 }}>
+          {effectiveAdmin && (
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16, gap: 8 }}>
               {!editingPrices ? (
                 <button onClick={() => setEditingPrices(true)}
@@ -332,47 +377,58 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
             </div>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, maxWidth: 680 }}>
-            {/* Card 220V */}
-            <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
-              <div style={{ padding: "12px 18px", borderBottom: `1px solid ${BORDER}`, background: BG }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: NAV, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Opção 220V</span>
+          {/* Edit inputs */}
+          {editingPrices && (
+            <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, padding: "18px 20px", marginBottom: 16, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7b8d", textTransform: "uppercase" as const, marginBottom: 6 }}>Moinho</div>
+                {currInp(draft.brl, v => setDraft(d => ({ ...d, brl: v })))}
               </div>
-              <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
-                <div>
-                  <div style={{ fontSize: 11, color: "#6b7b8d", marginBottom: 5 }}>Moinho</div>
-                  {editingPrices ? numInp(draft.brl, v => setDraft(d => ({ ...d, brl: v }))) : <div style={{ fontSize: 14, fontWeight: 600 }}>{fmt(equip.preco_brl)}</div>}
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: "#6b7b8d", marginBottom: 5 }}>Painel 220V</div>
-                  {editingPrices ? numInp(draft.p220, v => setDraft(d => ({ ...d, p220: v }))) : <div style={{ fontSize: 14, fontWeight: 600 }}>{fmt(equip.preco_painel_220)}</div>}
-                </div>
-                <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 10 }}>
-                  <div style={{ fontSize: 11, color: "#6b7b8d", marginBottom: 5 }}>Total</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: NAV }}>{editingPrices ? fmt(brlVal + p220Val) : fmt((equip.preco_brl ?? 0) + (equip.preco_painel_220 ?? 0))}</div>
-                </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7b8d", textTransform: "uppercase" as const, marginBottom: 6 }}>Painel 220V</div>
+                {currInp(draft.p220, v => setDraft(d => ({ ...d, p220: v })))}
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7b8d", textTransform: "uppercase" as const, marginBottom: 6 }}>Painel 380V</div>
+                {currInp(draft.p380, v => setDraft(d => ({ ...d, p380: v })))}
               </div>
             </div>
+          )}
 
-            {/* Card 380V */}
-            <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
-              <div style={{ padding: "12px 18px", borderBottom: `1px solid ${BORDER}`, background: BG }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: NAV, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Opção 380V</span>
-              </div>
-              <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
-                <div>
-                  <div style={{ fontSize: 11, color: "#6b7b8d", marginBottom: 5 }}>Moinho</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: editingPrices ? "#b0bac9" : "#1a1a1a" }}>{editingPrices ? fmt(brlVal) : fmt(equip.preco_brl)}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: "#6b7b8d", marginBottom: 5 }}>Painel 380V</div>
-                  {editingPrices ? numInp(draft.p380, v => setDraft(d => ({ ...d, p380: v }))) : <div style={{ fontSize: 14, fontWeight: 600 }}>{fmt(equip.preco_painel_380)}</div>}
-                </div>
-                <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: 10 }}>
-                  <div style={{ fontSize: 11, color: "#6b7b8d", marginBottom: 5 }}>Total</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: NAV }}>{editingPrices ? fmt(brlVal + p380Val) : fmt((equip.preco_brl ?? 0) + (equip.preco_painel_380 ?? 0))}</div>
-                </div>
-              </div>
+          {/* 5-value price summary */}
+          <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
+            <div style={{ padding: "12px 18px", borderBottom: `1px solid ${BORDER}`, background: BG }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: NAV, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Resumo de preços</span>
+            </div>
+            <div style={{ padding: "4px 18px" }}>
+              <PriceRow
+                label="Moinho"
+                value={editingPrices ? (parseCurr(draft.brl) ?? null) : equip.preco_brl}
+              />
+              <PriceRow
+                label="Painel 220V"
+                value={editingPrices ? (parseCurr(draft.p220) ?? null) : equip.preco_painel_220}
+              />
+              <PriceRow
+                label="Painel 380V"
+                value={editingPrices ? (parseCurr(draft.p380) ?? null) : equip.preco_painel_380}
+              />
+            </div>
+            <div style={{ borderTop: `2px solid ${BORDER}`, padding: "4px 18px" }}>
+              <PriceRow
+                label="Total Moinho + Painel 220V"
+                bold
+                value={editingPrices
+                  ? brlVal + p220Val || null
+                  : ((equip.preco_brl ?? 0) + (equip.preco_painel_220 ?? 0)) || null}
+              />
+              <PriceRow
+                label="Total Moinho + Painel 380V"
+                bold
+                value={editingPrices
+                  ? brlVal + p380Val || null
+                  : ((equip.preco_brl ?? 0) + (equip.preco_painel_380 ?? 0)) || null}
+              />
             </div>
           </div>
         </div>
@@ -381,7 +437,7 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
       {/* ── Tab: Imagens ── */}
       {tab === "imagens" && (
         <div>
-          {imagens.length === 0 && !isAdmin && <div style={{ textAlign: "center", color: "#6b7b8d", fontSize: 13, padding: 40 }}>Nenhuma imagem cadastrada.</div>}
+          {imagens.length === 0 && !effectiveAdmin && <div style={{ textAlign: "center", color: "#6b7b8d", fontSize: 13, padding: 40 }}>Nenhuma imagem cadastrada.</div>}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginBottom: 16 }}>
             {imagens.map(arq => (
               <div key={arq.id} style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10, overflow: "hidden" }}>
@@ -389,12 +445,12 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
                 <img src={arq.url} alt={arq.nome} style={{ width: "100%", height: 160, objectFit: "cover", display: "block" }} />
                 <div style={{ padding: "8px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: 11, color: "#6b7b8d", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{arq.nome}</span>
-                  {isAdmin && <button onClick={() => handleExcluirArquivo(arq)} disabled={isPending} style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", padding: 2 }}><Trash2 size={14} /></button>}
+                  {effectiveAdmin && <button onClick={() => handleExcluirArquivo(arq)} disabled={isPending} style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", padding: 2 }}><Trash2 size={14} /></button>}
                 </div>
               </div>
             ))}
           </div>
-          {isAdmin && (
+          {effectiveAdmin && (
             <>
               <button onClick={() => setShowUploadImagem(v => !v)}
                 style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: "#EFF6FF", color: BLUE, border: `1px solid #BFDBFE`, borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
@@ -409,7 +465,7 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
       {/* ── Tab: Desenhos técnicos ── */}
       {tab === "desenhos" && (
         <div>
-          {desenhos.length === 0 && !isAdmin && <div style={{ textAlign: "center", color: "#6b7b8d", fontSize: 13, padding: 40 }}>Nenhum desenho técnico cadastrado.</div>}
+          {desenhos.length === 0 && !effectiveAdmin && <div style={{ textAlign: "center", color: "#6b7b8d", fontSize: 13, padding: 40 }}>Nenhum desenho técnico cadastrado.</div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
             {desenhos.map(arq => (
               <div key={arq.id} style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -419,12 +475,12 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <a href={arq.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: BLUE, fontWeight: 600 }}>Abrir</a>
-                  {isAdmin && <button onClick={() => handleExcluirArquivo(arq)} disabled={isPending} style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", padding: 2 }}><Trash2 size={14} /></button>}
+                  {effectiveAdmin && <button onClick={() => handleExcluirArquivo(arq)} disabled={isPending} style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", padding: 2 }}><Trash2 size={14} /></button>}
                 </div>
               </div>
             ))}
           </div>
-          {isAdmin && (
+          {effectiveAdmin && (
             <>
               <button onClick={() => setShowUploadDesenho(v => !v)}
                 style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: "#EFF6FF", color: BLUE, border: `1px solid #BFDBFE`, borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>

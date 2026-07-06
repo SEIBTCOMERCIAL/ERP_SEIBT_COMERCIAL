@@ -71,6 +71,13 @@ export async function excluirCategoriaPeca(id: string): Promise<AdminState> {
 
 // ─── Equipamentos ─────────────────────────────────────────────────────────────
 
+function parseCurr(s: string | null | undefined): number | null {
+  if (!s || !s.trim()) return null;
+  const clean = s.replace(/R\$\s?/g, "").replace(/\./g, "").replace(",", ".").trim();
+  const n = parseFloat(clean);
+  return isNaN(n) ? null : n;
+}
+
 export async function criarEquipamento(_prev: AdminState, formData: FormData): Promise<AdminState> {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
@@ -78,17 +85,18 @@ export async function criarEquipamento(_prev: AdminState, formData: FormData): P
   const codigo = (formData.get("codigo") as string)?.trim();
   const descricao = (formData.get("descricao") as string)?.trim();
   if (!codigo || !descricao) return { error: "Código e descrição obrigatórios" };
-  const preco_brl = parseFloat(formData.get("preco_brl") as string) || null;
-  const preco_painel_220 = parseFloat(formData.get("preco_painel_220") as string) || null;
-  const preco_painel_380 = parseFloat(formData.get("preco_painel_380") as string) || null;
+  const preco_brl = parseCurr(formData.get("preco_brl") as string);
+  const preco_painel_220 = parseCurr(formData.get("preco_painel_220") as string);
+  const preco_painel_380 = parseCurr(formData.get("preco_painel_380") as string);
   const ncm = (formData.get("ncm") as string)?.trim() || null;
   const descricao_painel = (formData.get("descricao_painel") as string)?.trim() || null;
+  const potencia_motor = (formData.get("potencia_motor") as string)?.trim() || null;
   const specs: Record<string, string> = {};
   Array.from(formData.entries()).forEach(([key, val]) => {
     if (key.startsWith("spec__") && (val as string).trim()) specs[key.slice(6)] = (val as string).trim();
   });
   const { error } = await auth.supabase.from("produtos").insert({
-    codigo, descricao, descricao_painel, categoria: "maquina", linha_id,
+    codigo, descricao, descricao_painel, potencia_motor, categoria: "maquina", linha_id,
     preco_brl, preco_painel_220, preco_painel_380,
     ncm, ipi_pct: 0, ativo: true, tem_variantes: false, specs,
   });
@@ -104,17 +112,18 @@ export async function editarEquipamento(_prev: AdminState, formData: FormData): 
   const linha_id = formData.get("linha_id") as string;
   const descricao = (formData.get("descricao") as string)?.trim();
   if (!descricao) return { error: "Descrição obrigatória" };
-  const preco_brl = parseFloat(formData.get("preco_brl") as string) || null;
-  const preco_painel_220 = parseFloat(formData.get("preco_painel_220") as string) || null;
-  const preco_painel_380 = parseFloat(formData.get("preco_painel_380") as string) || null;
+  const preco_brl = parseCurr(formData.get("preco_brl") as string);
+  const preco_painel_220 = parseCurr(formData.get("preco_painel_220") as string);
+  const preco_painel_380 = parseCurr(formData.get("preco_painel_380") as string);
   const ncm = (formData.get("ncm") as string)?.trim() || null;
   const descricao_painel = (formData.get("descricao_painel") as string)?.trim() || null;
+  const potencia_motor = (formData.get("potencia_motor") as string)?.trim() || null;
   const specs: Record<string, string> = {};
   Array.from(formData.entries()).forEach(([key, val]) => {
     if (key.startsWith("spec__") && (val as string).trim()) specs[key.slice(6)] = (val as string).trim();
   });
   const { error } = await auth.supabase.from("produtos")
-    .update({ descricao, descricao_painel, preco_brl, preco_painel_220, preco_painel_380, ncm, specs, atualizado_em: new Date().toISOString() })
+    .update({ descricao, descricao_painel, potencia_motor, preco_brl, preco_painel_220, preco_painel_380, ncm, specs, atualizado_em: new Date().toISOString() })
     .eq("id", id);
   if (error) return { error: error.message };
   revalidatePath(`/produtos/linhas/${linha_id}`);
