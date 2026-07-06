@@ -9,6 +9,7 @@ import {
   uploadArquivoProduto, excluirArquivoProduto,
   vincularPecaEquipamento, desvincularPecaEquipamento,
   criarPecaEVincular, editarPecaVinculada,
+  atualizarQuantidadeVinculo,
   type AdminState,
 } from "@/app/actions/produtos-admin";
 
@@ -37,10 +38,12 @@ interface CategoriaPeca { id: string; nome: string; ordem: number }
 interface PecaCatalogo {
   id: string; codigo: string; descricao: string;
   preco_brl: number | null; ipi_pct: number; categoria_peca_id: string;
+  furo_diametro: string | null;
 }
 interface VinculoPeca {
   id: string;
-  peca: { id: string; codigo: string; descricao: string; preco_brl: number | null; ipi_pct: number; ativo: boolean; categoria_peca_id: string };
+  quantidade: number;
+  peca: { id: string; codigo: string; descricao: string; preco_brl: number | null; ipi_pct: number; ativo: boolean; categoria_peca_id: string; furo_diametro: string | null };
 }
 interface Arquivo {
   id: string; tipo: "imagem" | "desenho"; nome: string;
@@ -107,6 +110,32 @@ function CopyButton({ text }: { text: string }) {
       {copied ? <Check size={13} /> : <Copy size={13} />}
       {copied ? "Copiado" : "Copiar"}
     </button>
+  );
+}
+
+function QtyCell({ vinculo, equipamentoId, linhaId, effectiveAdmin }: {
+  vinculo: VinculoPeca; equipamentoId: string; linhaId: string; effectiveAdmin: boolean;
+}) {
+  const router = useRouter();
+  const [qty, setQty] = useState(String(vinculo.quantidade ?? 1));
+  const [isPending, start] = useTransition();
+  useEffect(() => { setQty(String(vinculo.quantidade ?? 1)); }, [vinculo.quantidade]);
+  const handleBlur = () => {
+    const n = parseInt(qty, 10);
+    if (isNaN(n) || n < 1) { setQty(String(vinculo.quantidade ?? 1)); return; }
+    if (n === (vinculo.quantidade ?? 1)) return;
+    start(async () => {
+      const res = await atualizarQuantidadeVinculo(vinculo.id, n, equipamentoId, linhaId);
+      if (res.error) { alert(res.error); setQty(String(vinculo.quantidade ?? 1)); }
+      else router.refresh();
+    });
+  };
+  if (!effectiveAdmin) return <div style={{ fontSize: 12, color: "#374151", textAlign: "center" as const }}>{vinculo.quantidade ?? 1}</div>;
+  return (
+    <input type="number" min="1" value={qty}
+      onChange={e => setQty(e.target.value)}
+      onBlur={handleBlur}
+      style={{ width: 52, height: 28, border: `1px solid ${BORDER}`, borderRadius: 5, padding: "0 6px", fontSize: 12, outline: "none", textAlign: "center" as const, opacity: isPending ? 0.5 : 1 }} />
   );
 }
 
@@ -198,6 +227,7 @@ function CriarPecaModal({ categoria, equipamentoId, linhaId, onClose }: {
   useEffect(() => {
     if (state.success) { router.refresh(); onClose(); }
   }, [state.success, router, onClose]);
+  const showFuro = categoria.nome.toLowerCase().includes("peneira");
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1100, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "60px 16px" }}>
@@ -232,6 +262,18 @@ function CriarPecaModal({ categoria, equipamentoId, linhaId, onClose }: {
               <input name="ipi_pct" type="number" min="0" step="0.01" defaultValue="0" style={{ height: 34, border: `1px solid ${BORDER}`, borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none" }} />
             </div>
           </div>
+          <div style={{ display: "grid", gridTemplateColumns: showFuro ? "1fr 1fr" : "1fr", gap: 10 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const }}>Quantidade neste equipamento</label>
+              <input name="quantidade" type="number" min="1" defaultValue="1" style={{ height: 34, border: `1px solid ${BORDER}`, borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none" }} />
+            </div>
+            {showFuro && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const }}>Ø do furo</label>
+                <input name="furo_diametro" placeholder="ex: 2mm" style={{ height: 34, border: `1px solid ${BORDER}`, borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none" }} />
+              </div>
+            )}
+          </div>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, paddingTop: 8, borderTop: `1px solid ${BORDER}` }}>
             <button type="button" onClick={onClose} style={{ padding: "8px 16px", background: BG, border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#374151" }}>Cancelar</button>
             <SubmitBtn label="Criar e vincular" />
@@ -242,8 +284,8 @@ function CriarPecaModal({ categoria, equipamentoId, linhaId, onClose }: {
   );
 }
 
-function EditarPecaModal({ vinculo, equipamentoId, linhaId, onClose }: {
-  vinculo: VinculoPeca; equipamentoId: string; linhaId: string; onClose: () => void;
+function EditarPecaModal({ vinculo, equipamentoId, linhaId, showFuro, onClose }: {
+  vinculo: VinculoPeca; equipamentoId: string; linhaId: string; showFuro: boolean; onClose: () => void;
 }) {
   const router = useRouter();
   const [state, action] = useFormState<AdminState, FormData>(editarPecaVinculada, {});
@@ -279,6 +321,12 @@ function EditarPecaModal({ vinculo, equipamentoId, linhaId, onClose }: {
               <input name="ipi_pct" type="number" min="0" step="0.01" defaultValue={p.ipi_pct} style={{ height: 34, border: `1px solid ${BORDER}`, borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none" }} />
             </div>
           </div>
+          {showFuro && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const }}>Ø do furo</label>
+              <input name="furo_diametro" defaultValue={p.furo_diametro ?? ""} placeholder="ex: 2mm" style={{ height: 34, border: `1px solid ${BORDER}`, borderRadius: 7, padding: "0 10px", fontSize: 13, outline: "none" }} />
+            </div>
+          )}
           <div style={{ background: "#FEF9C3", border: "1px solid #FDE68A", borderRadius: 7, padding: "8px 12px", fontSize: 11, color: "#92400E" }}>
             Editar aqui atualiza o catálogo central — reflete em todos os equipamentos que usam esta peça.
           </div>
@@ -309,6 +357,8 @@ function PecaTab({ categoria, vinculos, pecasCatalogo, equipamentoId, linhaId, e
   const [modal, setModal] = useState<PecaModal>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
+  const showFuro = categoria.nome.toLowerCase().includes("peneira");
+
   const jaVinculadasIds = new Set(vinculos.map(v => v.peca.id));
   const disponiveis = pecasCatalogo.filter(p =>
     p.categoria_peca_id === categoria.id && !jaVinculadasIds.has(p.id)
@@ -331,18 +381,25 @@ function PecaTab({ categoria, vinculos, pecasCatalogo, equipamentoId, linhaId, e
     });
   };
 
+  const gridCols = showFuro
+    ? "120px 1fr 80px 110px 60px 120px 64px 44px"
+    : "120px 1fr 110px 60px 120px 64px 44px";
+
+  const headers = showFuro
+    ? ["Código", "Descrição", "Ø Furo", "Preço", "IPI", "Total c/ IPI", "QTD", ""]
+    : ["Código", "Descrição", "Preço", "IPI", "Total c/ IPI", "QTD", ""];
+
   return (
-    <div style={{ maxWidth: 720 }}>
+    <div style={{ maxWidth: 860 }}>
       {vinculos.length === 0 ? (
         <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10, padding: "28px 20px", textAlign: "center", color: "#6b7b8d", fontSize: 13, marginBottom: 16 }}>
           Nenhuma peça de {categoria.nome} vinculada a este equipamento.
         </div>
       ) : (
         <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden", marginBottom: 16 }}>
-          {/* Table header */}
-          <div style={{ display: "grid", gridTemplateColumns: "120px 1fr 110px 60px 120px 44px", gap: 0, padding: "8px 16px", borderBottom: `1px solid ${BORDER}`, background: BG }}>
-            {["Código", "Descrição", "Preço", "IPI", "Total c/ IPI", ""].map((h, i) => (
-              <div key={i} style={{ fontSize: 10, fontWeight: 700, color: "#6B7B8D", textTransform: "uppercase" as const, textAlign: i >= 2 ? "right" : "left" as const }}>{h}</div>
+          <div style={{ display: "grid", gridTemplateColumns: gridCols, gap: 0, padding: "8px 16px", borderBottom: `1px solid ${BORDER}`, background: BG }}>
+            {headers.map((h, i) => (
+              <div key={i} style={{ fontSize: 10, fontWeight: 700, color: "#6B7B8D", textTransform: "uppercase" as const, textAlign: i >= (showFuro ? 2 : 2) && i < headers.length - 1 ? "right" : "left" as const }}>{h}</div>
             ))}
           </div>
           {vinculos.map((v, i) => {
@@ -352,12 +409,18 @@ function PecaTab({ categoria, vinculos, pecasCatalogo, equipamentoId, linhaId, e
               <div key={v.id}
                 onMouseEnter={() => setHoveredId(v.id)}
                 onMouseLeave={() => setHoveredId(null)}
-                style={{ display: "grid", gridTemplateColumns: "120px 1fr 110px 60px 120px 44px", gap: 0, padding: "10px 16px", borderBottom: i < vinculos.length - 1 ? `1px solid ${BORDER}` : "none", background: isHovered ? "#F8FAFC" : "#fff", alignItems: "center" }}>
+                style={{ display: "grid", gridTemplateColumns: gridCols, gap: 0, padding: "10px 16px", borderBottom: i < vinculos.length - 1 ? `1px solid ${BORDER}` : "none", background: isHovered ? "#F8FAFC" : "#fff", alignItems: "center" }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: NAV }}>{v.peca.codigo}</div>
                 <div style={{ fontSize: 12, color: "#374151" }}>{v.peca.descricao}</div>
+                {showFuro && (
+                  <div style={{ fontSize: 12, color: "#6b7b8d", textAlign: "right" as const }}>{v.peca.furo_diametro ?? "—"}</div>
+                )}
                 <div style={{ fontSize: 12, color: "#374151", textAlign: "right" as const }}>{fmt(v.peca.preco_brl)}</div>
                 <div style={{ fontSize: 12, color: "#6b7b8d", textAlign: "right" as const }}>{v.peca.ipi_pct}%</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: NAV, textAlign: "right" as const }}>{fmt(totalIpi)}</div>
+                <div style={{ display: "flex", justifyContent: "center" }}>
+                  <QtyCell vinculo={v} equipamentoId={equipamentoId} linhaId={linhaId} effectiveAdmin={effectiveAdmin} />
+                </div>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
                   {effectiveAdmin && (
                     <>
@@ -412,6 +475,7 @@ function PecaTab({ categoria, vinculos, pecasCatalogo, equipamentoId, linhaId, e
           vinculo={modal.editando}
           equipamentoId={equipamentoId}
           linhaId={linhaId}
+          showFuro={showFuro}
           onClose={() => setModal(null)}
         />
       )}

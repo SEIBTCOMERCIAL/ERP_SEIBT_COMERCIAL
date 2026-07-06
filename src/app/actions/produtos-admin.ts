@@ -429,20 +429,41 @@ export async function criarPecaEVincular(_prev: AdminState, formData: FormData):
   };
   const categoria = nomeMap[cat?.nome ?? ""] ?? "peca";
 
+  const furo_diametro = (formData.get("furo_diametro") as string)?.trim() || null;
+  const quantidade = parseInt(formData.get("quantidade") as string, 10) || 1;
+
   const { data: nova, error: errPeca } = await auth.supabase.from("produtos").insert({
     codigo, descricao, categoria, categoria_peca_id,
-    preco_brl, ipi_pct, ncm, ativo: true, tem_variantes: false,
+    preco_brl, ipi_pct, ncm, furo_diametro, ativo: true, tem_variantes: false,
   }).select("id").single();
   if (errPeca) return { error: errPeca.message.includes("unique") ? `Código "${codigo}" já cadastrado` : errPeca.message };
 
   const { error: errVinc } = await auth.supabase.from("compatibilidades_equip").insert({
     peca_id: nova.id,
     equipamento_id,
+    quantidade,
   });
   if (errVinc) return { error: errVinc.message };
 
   revalidatePath(`/produtos/linhas/${linha_id}/${equipamento_id}`);
   revalidatePath(`/produtos/categorias/${categoria_peca_id}`);
+  return { success: true };
+}
+
+export async function atualizarQuantidadeVinculo(
+  vinculoId: string,
+  quantidade: number,
+  equipamentoId: string,
+  linhaId: string
+): Promise<AdminState> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const { error } = await auth.supabase
+    .from("compatibilidades_equip")
+    .update({ quantidade })
+    .eq("id", vinculoId);
+  if (error) return { error: error.message };
+  revalidatePath(`/produtos/linhas/${linhaId}/${equipamentoId}`);
   return { success: true };
 }
 
@@ -459,8 +480,9 @@ export async function editarPecaVinculada(_prev: AdminState, formData: FormData)
   const preco_brl = parseCurr(formData.get("preco_brl") as string);
   const ipi_pct = parseFloat(formData.get("ipi_pct") as string) || 0;
   const ncm = (formData.get("ncm") as string)?.trim() || null;
+  const furo_diametro = (formData.get("furo_diametro") as string)?.trim() || null;
   const { error } = await auth.supabase.from("produtos")
-    .update({ codigo, descricao, preco_brl, ipi_pct, ncm, atualizado_em: new Date().toISOString() })
+    .update({ codigo, descricao, preco_brl, ipi_pct, ncm, furo_diametro, atualizado_em: new Date().toISOString() })
     .eq("id", id);
   if (error) return { error: error.message };
   revalidatePath(`/produtos/linhas/${linha_id}/${equipamento_id}`);
