@@ -32,3 +32,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel
+
+# Dados exportados do catálogo (grandes, regeráveis via scripts/exportar-catalogo.mjs)
+export-catalogo/
