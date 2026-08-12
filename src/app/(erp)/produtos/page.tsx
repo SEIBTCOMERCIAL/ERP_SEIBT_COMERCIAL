@@ -13,7 +13,8 @@ export default async function ProdutosPage() {
   const isAdmin = userRecord?.perfil === "admin";
 
   const { data: linhasRaw } = await supabase
-    .from("linhas").select("id, nome, ordem").order("ordem");
+    .from("linhas").select("id, nome, ordem, grupo, grupo_ordem")
+    .order("grupo_ordem").order("ordem");
 
   const { data: equipCounts } = await supabase
     .from("produtos")
@@ -27,9 +28,11 @@ export default async function ProdutosPage() {
     return acc;
   }, {});
 
-  const linhas = (linhasRaw ?? []).map((l: { id: string; nome: string; ordem: number }) => ({
-    ...l, count: equipByLinha[l.id] ?? 0,
-  }));
+  const linhas = (linhasRaw ?? []).map(
+    (l: { id: string; nome: string; ordem: number; grupo: string | null; grupo_ordem: number | null }) => ({
+      ...l, count: equipByLinha[l.id] ?? 0,
+    })
+  );
 
   return <ProdutosMain isAdmin={isAdmin} linhas={linhas} />;
 }

@@ -13,7 +13,31 @@ const BLUE = "#2074B9";
 const BG = "#F8FAFC";
 const BORDER = "#E2E8F0";
 
-interface LinhaItem { id: string; nome: string; ordem: number; count: number }
+interface LinhaItem {
+  id: string; nome: string; ordem: number; count: number;
+  grupo?: string | null; grupo_ordem?: number | null;
+}
+
+const SEM_FAMILIA = "Sem família";
+
+interface Familia { nome: string; ordem: number; linhas: LinhaItem[]; total: number }
+
+/** Agrupa as linhas por família, preservando a ordem vinda do banco. */
+function agruparPorFamilia(linhas: LinhaItem[]): Familia[] {
+  const mapa = new Map<string, Familia>();
+  for (const l of linhas) {
+    const nome = l.grupo ?? SEM_FAMILIA;
+    if (!mapa.has(nome)) {
+      mapa.set(nome, { nome, ordem: l.grupo ? l.grupo_ordem ?? 99 : 999, linhas: [], total: 0 });
+    }
+    const g = mapa.get(nome)!;
+    g.linhas.push(l);
+    g.total += l.count;
+  }
+  return Array.from(mapa.values())
+    .map((g) => ({ ...g, linhas: [...g.linhas].sort((a, b) => b.count - a.count || a.nome.localeCompare(b.nome)) }))
+    .sort((a, b) => a.ordem - b.ordem);
+}
 
 function SubmitInline({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -49,6 +73,9 @@ export function ProdutosMain({ isAdmin, linhas }: { isAdmin: boolean; linhas: Li
     .filter(l => l.nome.toLowerCase().includes(searchLinhas.toLowerCase()))
     .sort((a, b) => a.nome.localeCompare(b.nome));
 
+  const familias = agruparPorFamilia(linhasFiltradas);
+  const totalMaquinas = linhas.reduce((s, l) => s + l.count, 0);
+
   return (
     <div style={{ background: BG, minHeight: "100vh", padding: 28 }}>
       <div style={{ marginBottom: 28 }}>
@@ -62,7 +89,10 @@ export function ProdutosMain({ isAdmin, linhas }: { isAdmin: boolean; linhas: Li
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <Cog size={18} color={NAV} />
             <h2 style={{ fontSize: 15, fontWeight: 700, color: NAV, margin: 0 }}>
-              Linhas de máquinas <span style={{ fontWeight: 400, color: "#b0bac9", fontSize: 13 }}>({linhas.length})</span>
+              Linhas de máquinas{" "}
+              <span style={{ fontWeight: 400, color: "#b0bac9", fontSize: 13 }}>
+                ({linhas.length} linhas · {totalMaquinas} máquinas)
+              </span>
             </h2>
           </div>
           {linhas.length > 4 && (
@@ -80,34 +110,48 @@ export function ProdutosMain({ isAdmin, linhas }: { isAdmin: boolean; linhas: Li
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, marginBottom: 16 }}>
-          {linhasFiltradas.map(l => (
-            <div key={l.id}
-              style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10, overflow: "hidden", cursor: "pointer", transition: "border-color 0.15s" }}
-              onClick={() => router.push(`/produtos/linhas/${l.id}`)}
-              onMouseEnter={e => (e.currentTarget.style.borderColor = BLUE)}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = BORDER)}>
-              <div style={{ padding: "14px 16px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: NAV }}>{l.nome}</div>
-                    <div style={{ fontSize: 11, color: "#6b7b8d", marginTop: 3 }}>{l.count} equipamento{l.count !== 1 ? "s" : ""}</div>
-                  </div>
-                  <ChevronRight size={14} color="#b0bac9" />
-                </div>
-              </div>
-              {isAdmin && (
-                <div style={{ borderTop: `1px solid ${BORDER}`, padding: "6px 10px", display: "flex", justifyContent: "flex-end" }}
-                  onClick={e => { e.stopPropagation(); handleExcluirLinha(l.id, l.nome); }}>
-                  <button disabled={isPending}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "2px 4px", borderRadius: 4, opacity: isPending ? 0.5 : 1 }}>
-                    <Trash2 size={12} /> Excluir
-                  </button>
-                </div>
-              )}
+        {familias.map(fam => (
+          <div key={fam.nome} style={{ marginBottom: 22 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: NAV, textTransform: "uppercase" as const, letterSpacing: "0.08em", whiteSpace: "nowrap" as const }}>
+                {fam.nome}
+              </span>
+              <span style={{ fontSize: 11, color: "#b0bac9", whiteSpace: "nowrap" as const }}>
+                {fam.linhas.length} linha{fam.linhas.length !== 1 ? "s" : ""} · {fam.total} máquina{fam.total !== 1 ? "s" : ""}
+              </span>
+              <div style={{ flex: 1, height: 1, background: BORDER }} />
             </div>
-          ))}
-        </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
+              {fam.linhas.map(l => (
+                <div key={l.id}
+                  style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10, overflow: "hidden", cursor: "pointer", transition: "border-color 0.15s" }}
+                  onClick={() => router.push(`/produtos/linhas/${l.id}`)}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = BLUE)}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = BORDER)}>
+                  <div style={{ padding: "14px 16px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: NAV }}>{l.nome}</div>
+                        <div style={{ fontSize: 11, color: "#6b7b8d", marginTop: 3 }}>{l.count} equipamento{l.count !== 1 ? "s" : ""}</div>
+                      </div>
+                      <ChevronRight size={14} color="#b0bac9" />
+                    </div>
+                  </div>
+                  {isAdmin && (
+                    <div style={{ borderTop: `1px solid ${BORDER}`, padding: "6px 10px", display: "flex", justifyContent: "flex-end" }}
+                      onClick={e => { e.stopPropagation(); handleExcluirLinha(l.id, l.nome); }}>
+                      <button disabled={isPending}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "2px 4px", borderRadius: 4, opacity: isPending ? 0.5 : 1 }}>
+                        <Trash2 size={12} /> Excluir
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
 
         {isAdmin && (
           <>
