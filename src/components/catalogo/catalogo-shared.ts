@@ -1,4 +1,4 @@
-import type { SpecCampo } from "@/lib/catalogo/dados";
+import type { SpecCampo } from "@/lib/catalogo/tipos";
 
 /**
  * CSS do visual aprovado (folha A4, 4 máquinas por página). Usado tanto na

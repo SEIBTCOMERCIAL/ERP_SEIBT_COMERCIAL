@@ -3,8 +3,8 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { ChevronLeft, ImageOff } from "lucide-react";
-import type { CatalogoLinha, MaquinaCatalogo } from "@/lib/catalogo/dados";
-import { paginarMaquinas } from "@/lib/catalogo/dados";
+import type { CatalogoLinha, MaquinaCatalogo } from "@/lib/catalogo/tipos";
+import { paginarMaquinas } from "@/lib/catalogo/tipos";
 import { definirFotoCapaProduto } from "@/app/actions/catalogo";
 import { CatalogoPaginaA4 } from "./CatalogoPaginaA4";
 import { CATALOGO_CSS } from "./catalogo-shared";

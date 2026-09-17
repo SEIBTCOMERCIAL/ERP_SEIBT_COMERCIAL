@@ -1,4 +1,4 @@
-import type { MaquinaCatalogo, SpecCampo } from "@/lib/catalogo/dados";
+import type { MaquinaCatalogo, SpecCampo } from "@/lib/catalogo/tipos";
 import { formatBRL, formatTotalComPainel, dividirEmColunas } from "./catalogo-shared";
 
 interface CatalogoPaginaA4Props {

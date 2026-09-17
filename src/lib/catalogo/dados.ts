@@ -1,34 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
+import type { CatalogoLinha, MaquinaCatalogo, SpecCampo } from "./tipos";
 
-export interface SpecCampo {
-  id: string;
-  nome: string;
-  ordem: number;
-}
-
-export interface ImagemProduto {
-  id: string;
-  url: string;
-  nome: string;
-}
-
-export interface MaquinaCatalogo {
-  id: string;
-  codigo: string;
-  potenciaMotor: string | null;
-  precoMaquina: number | null;
-  precoPainel220: number | null;
-  precoPainel380: number | null;
-  specs: Record<string, string>;
-  fotoUrl: string | null;
-  imagensDisponiveis: ImagemProduto[];
-}
-
-export interface CatalogoLinha {
-  linha: { id: string; nome: string };
-  specCampos: SpecCampo[];
-  maquinas: MaquinaCatalogo[];
-}
+export type { SpecCampo, ImagemProduto, MaquinaCatalogo, CatalogoLinha } from "./tipos";
+export { paginarMaquinas } from "./tipos";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseAny = any;
@@ -38,6 +12,10 @@ type SupabaseAny = any;
  * pronta pra virar página de catálogo: máquinas ativas, preços, specs e fotos
  * já cadastradas. Aceita um client opcional para reaproveitar em contextos
  * que já têm um (ex.: a rota de geração de PDF).
+ *
+ * Só pode ser chamado a partir de código de servidor (Server Component,
+ * Server Action ou rota de API) — nunca de um componente de cliente, porque
+ * usa `createClient()` (cookies de login), que só existe no servidor.
  */
 export async function carregarCatalogoLinha(
   linhaId: string,
@@ -83,13 +61,4 @@ export async function carregarCatalogoLinha(
   const specCampos: SpecCampo[] = rawCampos ?? [];
 
   return { linha, specCampos, maquinas };
-}
-
-/** Regra do visual aprovado: 4 máquinas por folha A4. */
-export function paginarMaquinas<T>(maquinas: T[], porPagina = 4): T[][] {
-  const paginas: T[][] = [];
-  for (let i = 0; i < maquinas.length; i += porPagina) {
-    paginas.push(maquinas.slice(i, i + porPagina));
-  }
-  return paginas;
 }
