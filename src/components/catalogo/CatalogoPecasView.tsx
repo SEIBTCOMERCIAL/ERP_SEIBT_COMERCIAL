@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { ChevronLeft, Printer } from "lucide-react";
-import type { PecaCatalogo } from "@/lib/catalogo/tipos";
-import { CATALOGO_CSS, formatBRL, formatPercent } from "./catalogo-shared";
+import type { JogoNavalhas, PecaCatalogo } from "@/lib/catalogo/tipos";
+import { CATALOGO_CSS, combinarIpi, formatBRL, formatPercent } from "./catalogo-shared";
 import { archivo, ibmPlexSans } from "./catalogo-fonts";
 
 const NAV = "#2C4F79";
@@ -11,12 +11,12 @@ const BG = "#F8FAFC";
 const BORDER = "#E2E8F0";
 
 interface CatalogoPecasViewProps {
-  navalhas: PecaCatalogo[];
+  jogosNavalhas: JogoNavalhas[];
   peneiras: PecaCatalogo[];
 }
 
-export function CatalogoPecasView({ navalhas, peneiras }: CatalogoPecasViewProps) {
-  const total = navalhas.length + peneiras.length;
+export function CatalogoPecasView({ jogosNavalhas, peneiras }: CatalogoPecasViewProps) {
+  const total = jogosNavalhas.length + peneiras.length;
 
   return (
     <div className={`${archivo.variable} ${ibmPlexSans.variable} catalogo-fundo`} style={{ minHeight: "100vh", background: BG }}>
@@ -28,7 +28,7 @@ export function CatalogoPecasView({ navalhas, peneiras }: CatalogoPecasViewProps
         </Link>
         <span style={{ color: BORDER }}>/</span>
         <span style={{ fontWeight: 700, color: NAV, fontSize: 14 }}>Navalhas e Peneiras</span>
-        <span style={{ fontSize: 12, color: "#6b7b8d" }}>{total} itens</span>
+        <span style={{ fontSize: 12, color: "#6b7b8d" }}>{jogosNavalhas.length} jogos de navalhas · {peneiras.length} peneiras</span>
         {total > 0 && (
           <button
             onClick={() => window.print()}
@@ -49,7 +49,7 @@ export function CatalogoPecasView({ navalhas, peneiras }: CatalogoPecasViewProps
             <span className="catalogo-badge-linha">Navalhas e Peneiras</span>
           </div>
 
-          <TabelaPecas titulo="Navalhas" itens={navalhas} />
+          <TabelaJogosNavalhas jogos={jogosNavalhas} />
           <TabelaPecas titulo="Peneiras" itens={peneiras} />
 
           {total === 0 && (
@@ -58,6 +58,43 @@ export function CatalogoPecasView({ navalhas, peneiras }: CatalogoPecasViewProps
         </div>
       </div>
     </div>
+  );
+}
+
+function TabelaJogosNavalhas({ jogos }: { jogos: JogoNavalhas[] }) {
+  if (jogos.length === 0) return null;
+  return (
+    <table className="tabela-pecas">
+      <caption>Navalhas — jogo completo por modelo ({jogos.length})</caption>
+      <thead>
+        <tr>
+          <th>Modelo</th>
+          <th>Código Fixa</th>
+          <th className="num">Qtd. Fixa</th>
+          <th className="num">Valor unitário</th>
+          <th>Código Rotora</th>
+          <th className="num">Qtd. Rotora</th>
+          <th className="num">Valor unitário</th>
+          <th className="num">IPI</th>
+          <th className="num">Valor total com IPI</th>
+        </tr>
+      </thead>
+      <tbody>
+        {jogos.map((j) => (
+          <tr key={j.chave}>
+            <td>{j.modelo}</td>
+            <td>{j.codigoFixa ?? "—"}</td>
+            <td className="num">{j.qtdFixa ?? "—"}</td>
+            <td className="num valor">{formatBRL(j.precoFixa)}</td>
+            <td>{j.codigoRotora ?? "—"}</td>
+            <td className="num">{j.qtdRotora ?? "—"}</td>
+            <td className="num valor">{formatBRL(j.precoRotora)}</td>
+            <td className="num">{combinarIpi(j.ipiFixa, j.ipiRotora)}</td>
+            <td className="num valor">{formatBRL(j.valorTotalComIpi)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 

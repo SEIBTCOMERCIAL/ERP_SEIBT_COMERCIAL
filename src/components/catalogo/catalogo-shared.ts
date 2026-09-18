@@ -88,6 +88,15 @@ export function formatPercent(v: number | null | undefined): string {
   return `${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 }
 
+/** "5,20%" ou, se as duas peças tiverem IPI diferente, "5,20% / 3,25%". */
+export function combinarIpi(ipiFixa: number | null, ipiRotora: number | null): string {
+  if (ipiFixa == null && ipiRotora == null) return "—";
+  if (ipiFixa == null) return `${ipiRotora}%`;
+  if (ipiRotora == null) return `${ipiFixa}%`;
+  if (ipiFixa === ipiRotora) return `${ipiFixa}%`;
+  return `${ipiFixa}% / ${ipiRotora}%`;
+}
+
 /** Soma preço da máquina + painel; "—" se algum dos dois não estiver cadastrado. */
 export function formatTotalComPainel(
   precoMaquina: number | null,

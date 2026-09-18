@@ -38,6 +38,22 @@ export interface PecaCatalogo {
   ipiPct: number | null;
 }
 
+/** Um "jogo de navalhas" (fixa + rotora) de um modelo de máquina, com
+ * quantidade de cada uma e o valor total já com IPI. */
+export interface JogoNavalhas {
+  chave: string;
+  modelo: string;
+  codigoFixa: string | null;
+  qtdFixa: number | null;
+  precoFixa: number | null;
+  ipiFixa: number | null;
+  codigoRotora: string | null;
+  qtdRotora: number | null;
+  precoRotora: number | null;
+  ipiRotora: number | null;
+  valorTotalComIpi: number | null;
+}
+
 /**
  * Regra do visual aprovado: 4 máquinas por folha A4. Fica separado de
  * dados.ts (que busca no banco) porque este arquivo também é usado por

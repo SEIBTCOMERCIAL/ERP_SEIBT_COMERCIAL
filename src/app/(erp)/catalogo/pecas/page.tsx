@@ -1,10 +1,17 @@
-import { carregarPecasCatalogo } from "@/lib/catalogo/dados";
+import { createClient } from "@/lib/supabase/server";
+import { carregarJogosNavalhas, carregarPecasCatalogo } from "@/lib/catalogo/dados";
 import { CatalogoPecasView } from "@/components/catalogo/CatalogoPecasView";
 
 export const dynamic = "force-dynamic";
 
 export default async function CatalogoPecasPage() {
-  const { navalhas, peneiras } = await carregarPecasCatalogo();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createClient() as any;
 
-  return <CatalogoPecasView navalhas={navalhas} peneiras={peneiras} />;
+  const [jogosNavalhas, { peneiras }] = await Promise.all([
+    carregarJogosNavalhas(supabase),
+    carregarPecasCatalogo(supabase),
+  ]);
+
+  return <CatalogoPecasView jogosNavalhas={jogosNavalhas} peneiras={peneiras} />;
 }
