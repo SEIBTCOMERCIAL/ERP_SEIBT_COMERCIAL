@@ -28,7 +28,7 @@ export function CatalogoPaginaA4({ linhaId, linhaNome, maquinas, specCampos, num
           <span className="nome">SEIBT</span>
           <span className="tagline">Soluções para a Indústria do Plástico</span>
         </div>
-        <span className="catalogo-badge-linha">Linha {linhaNome}</span>
+        <span className="catalogo-badge-linha">{linhaNome}</span>
       </div>
 
       <div className="catalogo-blocos">
@@ -38,7 +38,7 @@ export function CatalogoPaginaA4({ linhaId, linhaNome, maquinas, specCampos, num
       </div>
 
       <div className="catalogo-footer">
-        <span>Linha {linhaNome} · Catálogo de Preços 2026</span>
+        <span>{linhaNome} · Catálogo de Preços 2026</span>
         <span>www.seibt.com.br · pág. {numeroPagina}</span>
       </div>
     </div>

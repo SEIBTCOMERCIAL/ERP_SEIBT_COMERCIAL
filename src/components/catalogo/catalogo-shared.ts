@@ -27,7 +27,7 @@ export const CATALOGO_CSS = `
   .modelo { font-family: var(--font-archivo), sans-serif; font-weight: 800; font-size: 14.5px; white-space: nowrap; }
   .motor { background: #E8ECF1; color: #2E3B4E; font-weight: 700; font-size: 9px; padding: 2px 7px; border-radius: 4px; white-space: nowrap; }
   .maqrow { background: #F4F5F7; border-radius: 5px; padding: 4px 8px; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
-  .maqrow .lbl { font-size: 8px; letter-spacing: 0.3px; text-transform: uppercase; color: #6B7280; }
+  .maqrow .lbl { font-size: 8px; letter-spacing: 0.3px; text-transform: uppercase; color: #4B5563; }
   .maqrow .val { font-family: var(--font-archivo), sans-serif; font-weight: 800; font-size: 11.5px; white-space: nowrap; }
   .pricerow { display: flex; gap: 6px; }
   .pbox { flex: 1; background: #2E3B4E; border-radius: 5px; padding: 4px 8px; color: #fff; }
@@ -44,12 +44,13 @@ export const CATALOGO_CSS = `
 
   .tabela-pecas { width: 100%; border-collapse: collapse; font-family: var(--font-ibm-plex-sans), sans-serif; font-size: 12px; }
   .tabela-pecas caption { text-align: left; font-family: var(--font-archivo), sans-serif; font-weight: 800; font-size: 15px; color: #2E3B4E; padding: 18px 0 8px; }
-  .tabela-pecas thead th { text-align: left; font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; color: #6B7280; border-bottom: 2px solid #2E3B4E; padding: 6px 8px; }
+  .tabela-pecas thead th { text-align: left; font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; color: #4B5563; border-bottom: 2px solid #2E3B4E; padding: 6px 8px; }
   .tabela-pecas th.num, .tabela-pecas td.num { text-align: right; }
   .tabela-pecas td { padding: 5px 8px; border-bottom: 1px solid #ECEDEF; }
   .tabela-pecas td.valor { font-family: var(--font-archivo), sans-serif; font-weight: 700; white-space: nowrap; }
 
   @media print {
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
     .catalogo-no-print { display: none !important; }
     html, body, .catalogo-fundo { background: #fff !important; height: auto !important; min-height: 0 !important; }
     .catalogo-paginas { display: block !important; padding: 0 !important; gap: 0 !important; }
@@ -58,6 +59,17 @@ export const CATALOGO_CSS = `
     .catalogo-a4 { break-inside: avoid; page-break-inside: avoid; }
     .tabela-pecas thead { display: table-header-group; }
     .tabela-pecas tr { break-inside: avoid; page-break-inside: avoid; }
+
+    /* Caixas de preço e a etiqueta da linha usam fundo escuro sólido, que
+       impressoras de escritório às vezes não reproduzem bem (sai fraco ou
+       nem sai) — no impresso/PDF, viram borda + letra escura, que funciona
+       em qualquer impressora, até preto e branco. Na tela continuam com o
+       fundo escuro normal. */
+    .pbox { background: #fff !important; border: 1.5px solid #2E3B4E !important; color: #1C2430 !important; }
+    .pbox .lbl { color: #2E3B4E !important; opacity: 1 !important; }
+    .pbox .val { color: #1C2430 !important; }
+    .pbox .sub { color: #4B5563 !important; opacity: 1 !important; }
+    .catalogo-badge-linha { background: #fff !important; border: 1.5px solid #2E3B4E !important; color: #2E3B4E !important; }
   }
   @page { size: A4; margin: 0; }
   .catalogo-folha-pecas { width: 794px; box-sizing: border-box; padding: 40px; background: #fff; }

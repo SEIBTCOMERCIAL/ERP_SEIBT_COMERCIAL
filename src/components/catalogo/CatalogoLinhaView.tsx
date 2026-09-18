@@ -33,7 +33,7 @@ export function CatalogoLinhaView({ isAdmin, dados }: CatalogoLinhaViewProps) {
           <ChevronLeft size={16} /> Catálogo
         </Link>
         <span style={{ color: BORDER }}>/</span>
-        <span style={{ fontWeight: 700, color: NAV, fontSize: 14 }}>Linha {linha.nome}</span>
+        <span style={{ fontWeight: 700, color: NAV, fontSize: 14 }}>{linha.nome}</span>
         {isAdmin ? (
           <span style={{ marginLeft: 12, fontSize: 12, color: "#6b7b8d" }}>Clique numa foto pra trocar</span>
         ) : (
