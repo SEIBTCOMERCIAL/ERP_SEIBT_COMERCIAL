@@ -77,3 +77,31 @@ export async function carregarCatalogoLinha(
 
   return { linha, specCampos, maquinas };
 }
+
+/**
+ * Todas as linhas que têm pelo menos uma máquina ativa, cada uma já com
+ * seus dados completos (mesma função de busca de cima) — usado na visão
+ * "Catálogo completo", com todas as linhas juntas.
+ */
+export async function carregarCatalogoCompleto(
+  supabaseClient?: SupabaseAny
+): Promise<CatalogoLinha[]> {
+  const supabase: SupabaseAny = supabaseClient ?? createClient();
+
+  const { data: linhasComMaquina } = await supabase
+    .from("produtos")
+    .select("linha_id")
+    .eq("categoria", "maquina")
+    .eq("status", "ativo")
+    .is("deleted_at", null)
+    .not("linha_id", "is", null);
+
+  const linhaIdsRaw: string[] = (linhasComMaquina ?? []).map((p: SupabaseAny) => p.linha_id as string);
+  const linhaIds = Array.from(new Set(linhaIdsRaw));
+
+  const resultados = await Promise.all(linhaIds.map((id) => carregarCatalogoLinha(id, supabase)));
+
+  return resultados
+    .filter((r): r is CatalogoLinha => r !== null && r.maquinas.length > 0)
+    .sort((a, b) => a.linha.nome.localeCompare(b.linha.nome));
+}

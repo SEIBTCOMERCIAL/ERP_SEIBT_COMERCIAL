@@ -36,11 +36,19 @@ export function CatalogoIndex({ linhas }: { linhas: LinhaItem[] }) {
 
   return (
     <div style={{ background: BG, minHeight: "100vh", padding: 28 }}>
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: NAV, margin: 0 }}>Catálogo</h1>
-        <p style={{ fontSize: 14, color: "#6b7b8d", marginTop: 4 }}>
-          Escolha uma linha para ver a prévia de impressão e gerar o PDF do catálogo.
-        </p>
+      <div style={{ marginBottom: 28, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: NAV, margin: 0 }}>Catálogo</h1>
+          <p style={{ fontSize: 14, color: "#6b7b8d", marginTop: 4 }}>
+            Escolha uma linha para ver a prévia de impressão e gerar o PDF do catálogo.
+          </p>
+        </div>
+        <Link
+          href="/catalogo/completo"
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 18px", background: NAV, color: "#fff", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}
+        >
+          <BookOpen size={15} /> Ver catálogo completo
+        </Link>
       </div>
 
       {familias.length === 0 ? (

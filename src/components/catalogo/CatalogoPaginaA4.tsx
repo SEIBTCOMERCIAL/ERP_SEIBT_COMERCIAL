@@ -3,12 +3,13 @@ import type { MaquinaCatalogo, SpecCampo } from "@/lib/catalogo/tipos";
 import { formatBRL, formatTotalComPainel, dividirEmColunas } from "./catalogo-shared";
 
 interface CatalogoPaginaA4Props {
+  linhaId: string;
   linhaNome: string;
   maquinas: MaquinaCatalogo[];
   specCampos: SpecCampo[];
   numeroPagina: number;
   /** Só usado na prévia em tela do Administrador — nunca no PDF. */
-  onEditarFoto?: (maquina: MaquinaCatalogo) => void;
+  onEditarFoto?: (maquina: MaquinaCatalogo, linhaId: string) => void;
 }
 
 /**
@@ -19,7 +20,7 @@ interface CatalogoPaginaA4Props {
  * `onEditarFoto` é a única exceção: quando não é passado (caso do PDF), a
  * página fica exatamente igual, sem nenhum comportamento clicável.
  */
-export function CatalogoPaginaA4({ linhaNome, maquinas, specCampos, numeroPagina, onEditarFoto }: CatalogoPaginaA4Props) {
+export function CatalogoPaginaA4({ linhaId, linhaNome, maquinas, specCampos, numeroPagina, onEditarFoto }: CatalogoPaginaA4Props) {
   return (
     <div className="catalogo-a4">
       <div className="catalogo-header">
@@ -32,7 +33,7 @@ export function CatalogoPaginaA4({ linhaNome, maquinas, specCampos, numeroPagina
 
       <div className="catalogo-blocos">
         {maquinas.map((maquina) => (
-          <MaquinaBloco key={maquina.id} maquina={maquina} specCampos={specCampos} onEditarFoto={onEditarFoto} />
+          <MaquinaBloco key={maquina.id} maquina={maquina} specCampos={specCampos} linhaId={linhaId} onEditarFoto={onEditarFoto} />
         ))}
       </div>
 
@@ -47,11 +48,13 @@ export function CatalogoPaginaA4({ linhaNome, maquinas, specCampos, numeroPagina
 function MaquinaBloco({
   maquina,
   specCampos,
+  linhaId,
   onEditarFoto,
 }: {
   maquina: MaquinaCatalogo;
   specCampos: SpecCampo[];
-  onEditarFoto?: (maquina: MaquinaCatalogo) => void;
+  linhaId: string;
+  onEditarFoto?: (maquina: MaquinaCatalogo, linhaId: string) => void;
 }) {
   const colunas = dividirEmColunas(specCampos, 3);
   const editavel = Boolean(onEditarFoto);
@@ -61,7 +64,7 @@ function MaquinaBloco({
       <div className="toprow">
         <div
           className={`photo${editavel ? " editavel" : ""}`}
-          onClick={editavel ? () => onEditarFoto!(maquina) : undefined}
+          onClick={editavel ? () => onEditarFoto!(maquina, linhaId) : undefined}
           title={editavel ? "Clique para trocar a foto" : undefined}
         >
           {maquina.fotoUrl ? (
