@@ -150,11 +150,11 @@ function extrairModeloNavalha(descricao: string): string {
 
 /**
  * Jogos de navalhas (fixa + rotora) por modelo de máquina — pra página de
- * impressão do catálogo. A quantidade de cada tipo vem das especificações
- * técnicas da própria máquina ("Navalhas fixas"/"Navalhas rotativas"), e as
- * navalhas vinculadas vêm de compatibilidades_equip (a mesma aba "Navalhas"
- * que aparece no cadastro do equipamento). Máquinas "irmãs" (mesmo jogo de
- * navalhas, motor diferente) viram uma linha só.
+ * impressão do catálogo. A quantidade de cada tipo vem do próprio vínculo
+ * em compatibilidades_equip (campo "quantidade" — a mesma "Quantidade neste
+ * equipamento" editável na aba "Navalhas" do cadastro do equipamento), não
+ * das especificações técnicas. Máquinas "irmãs" (mesmo jogo de navalhas,
+ * motor diferente) viram uma linha só.
  */
 export async function carregarJogosNavalhas(
   supabaseClient?: SupabaseAny
@@ -164,8 +164,9 @@ export async function carregarJogosNavalhas(
   const { data: rawMaquinas } = await supabase
     .from("produtos")
     .select(
-      `id, codigo, specs,
+      `id, codigo,
        compatibilidades_equip!compatibilidades_equip_equipamento_id_fkey(
+         quantidade,
          peca:produtos!compatibilidades_equip_peca_id_fkey(id, codigo, descricao, preco_brl, ipi_pct, categoria)
        )`
     )
@@ -177,17 +178,16 @@ export async function carregarJogosNavalhas(
 
   for (const maquina of rawMaquinas ?? []) {
     const vinculos = (maquina.compatibilidades_equip ?? []) as SupabaseAny[];
-    const navalhas = vinculos
-      .map((v) => v.peca)
-      .filter((p: SupabaseAny) => p && p.categoria === "navalha");
+    const navalhas = vinculos.filter((v) => v.peca && v.peca.categoria === "navalha");
 
-    const fixa = navalhas.find((p: SupabaseAny) => /^NAVALHA\s+FIXA\s+/i.test(p.descricao));
-    const rotora = navalhas.find((p: SupabaseAny) => /^NAVALHA\s+ROT(ORA|ATIVA)\s+/i.test(p.descricao));
-    if (!fixa && !rotora) continue;
+    const vFixa = navalhas.find((v) => /^NAVALHA\s+FIXA\s+/i.test(v.peca.descricao));
+    const vRotora = navalhas.find((v) => /^NAVALHA\s+ROT(ORA|ATIVA)\s+/i.test(v.peca.descricao));
+    if (!vFixa && !vRotora) continue;
 
-    const specs = (maquina.specs ?? {}) as Record<string, string>;
-    const qtdFixa = fixa ? parseInt(specs["NAVALHAS FIXAS (un.)"] ?? "", 10) || null : null;
-    const qtdRotora = rotora ? parseInt(specs["NAVALHAS ROTATIVAS (un.)"] ?? "", 10) || null : null;
+    const fixa = vFixa?.peca ?? null;
+    const rotora = vRotora?.peca ?? null;
+    const qtdFixa = vFixa ? vFixa.quantidade ?? 1 : null;
+    const qtdRotora = vRotora ? vRotora.quantidade ?? 1 : null;
 
     const chave = `${fixa?.id ?? "-"}|${rotora?.id ?? "-"}|${qtdFixa ?? "-"}|${qtdRotora ?? "-"}`;
     if (porChave.has(chave)) continue;

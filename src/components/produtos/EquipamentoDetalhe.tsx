@@ -396,7 +396,7 @@ function PecaTab({ categoria, vinculos, pecasCatalogo, equipamentoId, linhaId, e
             ))}
           </div>
           {vinculos.map((v, i) => {
-            const totalIpi = v.peca.preco_brl != null ? v.peca.preco_brl * (1 + v.peca.ipi_pct / 100) : null;
+            const totalIpi = v.peca.preco_brl != null ? v.peca.preco_brl * (1 + v.peca.ipi_pct / 100) * (v.quantidade ?? 1) : null;
             const isHovered = hoveredId === v.id;
             return (
               <div key={v.id}
