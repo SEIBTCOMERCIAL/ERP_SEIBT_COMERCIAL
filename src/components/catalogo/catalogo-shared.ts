@@ -44,9 +44,11 @@ export const CATALOGO_CSS = `
 
   @media print {
     .catalogo-no-print { display: none !important; }
-    body, .catalogo-fundo { background: #fff !important; }
-    .catalogo-page-wrap { box-shadow: none !important; break-after: page; page-break-after: always; }
+    html, body, .catalogo-fundo { background: #fff !important; height: auto !important; min-height: 0 !important; }
+    .catalogo-paginas { display: block !important; padding: 0 !important; gap: 0 !important; }
+    .catalogo-page-wrap { box-shadow: none !important; break-after: page; page-break-after: always; break-inside: avoid; page-break-inside: avoid; }
     .catalogo-page-wrap:last-child { break-after: auto; page-break-after: auto; }
+    .catalogo-a4 { break-inside: avoid; page-break-inside: avoid; }
   }
   @page { size: A4; margin: 0; }
 `;

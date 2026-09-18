@@ -56,7 +56,7 @@ export function CatalogoLinhaView({ isAdmin, dados }: CatalogoLinhaViewProps) {
           Nenhuma máquina ativa cadastrada nesta linha ainda.
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 32, padding: "32px 16px" }}>
+        <div className="catalogo-paginas" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 32, padding: "32px 16px" }}>
           {paginas.map((maquinasDaPagina, i) => (
             <div key={i} className="catalogo-page-wrap" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.12)" }}>
               <CatalogoPaginaA4
