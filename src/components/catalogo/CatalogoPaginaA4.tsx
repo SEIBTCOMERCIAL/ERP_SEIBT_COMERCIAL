@@ -1,3 +1,4 @@
+import { Camera } from "lucide-react";
 import type { MaquinaCatalogo, SpecCampo } from "@/lib/catalogo/tipos";
 import { formatBRL, formatTotalComPainel, dividirEmColunas } from "./catalogo-shared";
 
@@ -6,6 +7,8 @@ interface CatalogoPaginaA4Props {
   maquinas: MaquinaCatalogo[];
   specCampos: SpecCampo[];
   numeroPagina: number;
+  /** Só usado na prévia em tela do Administrador — nunca no PDF. */
+  onEditarFoto?: (maquina: MaquinaCatalogo) => void;
 }
 
 /**
@@ -13,8 +16,10 @@ interface CatalogoPaginaA4Props {
  * foto, preço e tabela de especificações técnicas. Componente puro — sem
  * hooks, sem client-side — pra poder ser usado tanto na prévia em tela quanto,
  * mais adiante, na geração do PDF (renderizado pro mesmo HTML nos dois casos).
+ * `onEditarFoto` é a única exceção: quando não é passado (caso do PDF), a
+ * página fica exatamente igual, sem nenhum comportamento clicável.
  */
-export function CatalogoPaginaA4({ linhaNome, maquinas, specCampos, numeroPagina }: CatalogoPaginaA4Props) {
+export function CatalogoPaginaA4({ linhaNome, maquinas, specCampos, numeroPagina, onEditarFoto }: CatalogoPaginaA4Props) {
   return (
     <div className="catalogo-a4">
       <div className="catalogo-header">
@@ -27,7 +32,7 @@ export function CatalogoPaginaA4({ linhaNome, maquinas, specCampos, numeroPagina
 
       <div className="catalogo-blocos">
         {maquinas.map((maquina) => (
-          <MaquinaBloco key={maquina.id} maquina={maquina} specCampos={specCampos} />
+          <MaquinaBloco key={maquina.id} maquina={maquina} specCampos={specCampos} onEditarFoto={onEditarFoto} />
         ))}
       </div>
 
@@ -39,18 +44,36 @@ export function CatalogoPaginaA4({ linhaNome, maquinas, specCampos, numeroPagina
   );
 }
 
-function MaquinaBloco({ maquina, specCampos }: { maquina: MaquinaCatalogo; specCampos: SpecCampo[] }) {
+function MaquinaBloco({
+  maquina,
+  specCampos,
+  onEditarFoto,
+}: {
+  maquina: MaquinaCatalogo;
+  specCampos: SpecCampo[];
+  onEditarFoto?: (maquina: MaquinaCatalogo) => void;
+}) {
   const colunas = dividirEmColunas(specCampos, 3);
+  const editavel = Boolean(onEditarFoto);
 
   return (
     <div className="blk">
       <div className="toprow">
-        <div className="photo">
+        <div
+          className={`photo${editavel ? " editavel" : ""}`}
+          onClick={editavel ? () => onEditarFoto!(maquina) : undefined}
+          title={editavel ? "Clique para trocar a foto" : undefined}
+        >
           {maquina.fotoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={maquina.fotoUrl} alt={maquina.codigo} />
           ) : (
             <span className="sem-foto">Sem foto selecionada</span>
+          )}
+          {editavel && (
+            <div className="foto-overlay catalogo-no-print">
+              <Camera size={16} color="#fff" />
+            </div>
           )}
         </div>
         <div className="info">

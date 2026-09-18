@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, ImageOff, Printer, Upload } from "lucide-react";
+import { ChevronLeft, ImageOff, Printer, Upload, X } from "lucide-react";
 import type { CatalogoLinha, MaquinaCatalogo } from "@/lib/catalogo/tipos";
 import { paginarMaquinas } from "@/lib/catalogo/tipos";
 import { definirFotoCapaProduto } from "@/app/actions/catalogo";
@@ -24,6 +24,7 @@ interface CatalogoLinhaViewProps {
 export function CatalogoLinhaView({ isAdmin, dados }: CatalogoLinhaViewProps) {
   const { linha, specCampos, maquinas } = dados;
   const paginas = paginarMaquinas(maquinas, 4);
+  const [editando, setEditando] = useState<MaquinaCatalogo | null>(null);
 
   return (
     <div className={`${archivo.variable} ${ibmPlexSans.variable} catalogo-fundo`} style={{ minHeight: "100vh", background: BG }}>
@@ -35,7 +36,9 @@ export function CatalogoLinhaView({ isAdmin, dados }: CatalogoLinhaViewProps) {
         </Link>
         <span style={{ color: BORDER }}>/</span>
         <span style={{ fontWeight: 700, color: NAV, fontSize: 14 }}>Linha {linha.nome}</span>
-        {!isAdmin && (
+        {isAdmin ? (
+          <span style={{ marginLeft: 12, fontSize: 12, color: "#6b7b8d" }}>Clique numa foto pra trocar</span>
+        ) : (
           <span style={{ marginLeft: 12, fontSize: 12, color: "#6b7b8d" }}>Modo visualização — só o Administrador edita as fotos do catálogo</span>
         )}
         {maquinas.length > 0 && (
@@ -55,29 +58,39 @@ export function CatalogoLinhaView({ isAdmin, dados }: CatalogoLinhaViewProps) {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 32, padding: "32px 16px" }}>
           {paginas.map((maquinasDaPagina, i) => (
-            <div key={i} className="catalogo-page-wrap" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, boxShadow: "0 2px 12px rgba(0,0,0,0.12)" }}>
+            <div key={i} className="catalogo-page-wrap" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.12)" }}>
               <CatalogoPaginaA4
                 linhaNome={linha.nome}
                 maquinas={maquinasDaPagina}
                 specCampos={specCampos}
                 numeroPagina={i + 1}
+                onEditarFoto={isAdmin ? (m) => setEditando(m) : undefined}
               />
-              {isAdmin && (
-                <div className="catalogo-no-print" style={{ width: 794, display: "flex", flexWrap: "wrap", gap: 10, background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 8, padding: 12 }}>
-                  {maquinasDaPagina.map((m) => (
-                    <FotoPicker key={m.id} maquina={m} linhaId={linha.id} />
-                  ))}
-                </div>
-              )}
             </div>
           ))}
         </div>
+      )}
+
+      {editando && (
+        <FotoEditorModal
+          maquina={editando}
+          linhaId={linha.id}
+          onClose={() => setEditando(null)}
+        />
       )}
     </div>
   );
 }
 
-function FotoPicker({ maquina, linhaId }: { maquina: MaquinaCatalogo; linhaId: string }) {
+function FotoEditorModal({
+  maquina,
+  linhaId,
+  onClose,
+}: {
+  maquina: MaquinaCatalogo;
+  linhaId: string;
+  onClose: () => void;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [msg, setMsg] = useState("");
@@ -87,8 +100,11 @@ function FotoPicker({ maquina, linhaId }: { maquina: MaquinaCatalogo; linhaId: s
     setMsg("");
     startTransition(async () => {
       const res = await definirFotoCapaProduto(maquina.id, linhaId, url || null);
-      setMsg(res.error ? res.error : "Salvo");
-      if (!res.error) setTimeout(() => setMsg(""), 2000);
+      if (res.error) setMsg(res.error);
+      else {
+        router.refresh();
+        onClose();
+      }
     });
   };
 
@@ -104,54 +120,76 @@ function FotoPicker({ maquina, linhaId }: { maquina: MaquinaCatalogo; linhaId: s
       const res = await uploadArquivoProduto({}, formData);
       if (res.error) {
         setMsg(res.error);
-      } else {
-        setMsg("Foto adicionada");
-        router.refresh();
-        setTimeout(() => setMsg(""), 2500);
+        if (fileRef.current) fileRef.current.value = "";
+        return;
       }
-      if (fileRef.current) fileRef.current.value = "";
+      router.refresh();
+      onClose();
     });
   };
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "6px 10px" }}>
-      <div style={{ width: 32, height: 32, borderRadius: 4, background: BG, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
-        {maquina.fotoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={maquina.fotoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-        ) : (
-          <ImageOff size={14} color="#B0BAC9" />
-        )}
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: NAV }}>{maquina.codigo}</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          {maquina.imagensDisponiveis.length > 0 && (
+    <div
+      className="catalogo-no-print"
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(28,36,48,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: "#fff", borderRadius: 12, padding: 20, width: 340, display: "flex", flexDirection: "column", gap: 14 }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: NAV }}>{maquina.codigo}</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7b8d" }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <div style={{ width: "100%", height: 140, borderRadius: 8, background: BG, border: `1px solid ${BORDER}`, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+          {maquina.fotoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={maquina.fotoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+          ) : (
+            <ImageOff size={28} color="#B0BAC9" />
+          )}
+        </div>
+
+        {maquina.imagensDisponiveis.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#6b7b8d", textTransform: "uppercase" }}>Fotos já cadastradas</span>
             <select
               defaultValue={maquina.fotoUrl ?? ""}
               disabled={isPending}
               onChange={(e) => handleChange(e.target.value)}
-              style={{ fontSize: 11, border: `1px solid ${BORDER}`, borderRadius: 4, padding: "2px 4px", maxWidth: 160 }}
+              style={{ fontSize: 13, border: `1px solid ${BORDER}`, borderRadius: 6, padding: "8px 10px" }}
             >
               <option value="">Sem foto</option>
               {maquina.imagensDisponiveis.map((img) => (
                 <option key={img.id} value={img.url}>{img.nome}</option>
               ))}
             </select>
-          )}
-          <label style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, color: NAV, cursor: isPending ? "default" : "pointer", opacity: isPending ? 0.5 : 1 }}>
-            <Upload size={11} /> {maquina.imagensDisponiveis.length === 0 ? "Adicionar foto" : "Nova"}
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              disabled={isPending}
-              onChange={(e) => handleUpload(e.target.files?.[0])}
-              style={{ display: "none" }}
-            />
-          </label>
-        </div>
-        {msg && <span style={{ fontSize: 10, color: msg.includes("adicionada") || msg === "Salvo" ? "#16A34A" : "#DC2626" }}>{msg}</span>}
+          </div>
+        )}
+
+        <label
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            padding: "10px 14px", background: isPending ? "#94A3B8" : NAV, color: "#fff",
+            borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: isPending ? "default" : "pointer",
+          }}
+        >
+          <Upload size={14} /> Subir foto nova
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            disabled={isPending}
+            onChange={(e) => handleUpload(e.target.files?.[0])}
+            style={{ display: "none" }}
+          />
+        </label>
+
+        {msg && <span style={{ fontSize: 12, color: "#DC2626" }}>{msg}</span>}
       </div>
     </div>
   );

@@ -19,6 +19,9 @@ export const CATALOGO_CSS = `
   .photo { width: 108px; height: 80px; flex-shrink: 0; background: #F7F8F9; border: 1px solid #EEF0F2; border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
   .photo img { width: 100%; height: 100%; object-fit: contain; padding: 5px; box-sizing: border-box; }
   .photo .sem-foto { font-size: 8px; color: #B0BAC9; text-align: center; padding: 0 6px; }
+  .photo.editavel { position: relative; cursor: pointer; }
+  .foto-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(28,36,48,0.6); opacity: 0; transition: opacity 0.15s; }
+  .photo.editavel:hover .foto-overlay { opacity: 1; }
   .info { flex-grow: 1; display: flex; flex-direction: column; gap: 4px; justify-content: center; }
   .titlerow { display: flex; justify-content: space-between; align-items: baseline; }
   .modelo { font-family: var(--font-archivo), sans-serif; font-weight: 800; font-size: 14.5px; white-space: nowrap; }

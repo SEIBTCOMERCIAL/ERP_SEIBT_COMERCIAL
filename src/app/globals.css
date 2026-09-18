@@ -82,6 +82,17 @@
   }
 }
 
+/* Ao imprimir qualquer tela do ERP, o menu lateral e a barra de topo não
+   devem sair na impressão — só o conteúdo da página. */
+@media print {
+  aside, header {
+    display: none !important;
+  }
+  .ml-\[224px\] {
+    margin-left: 0 !important;
+  }
+}
+
 /* Scrollbar customizada */
 @layer utilities {
   .scrollbar-thin {
