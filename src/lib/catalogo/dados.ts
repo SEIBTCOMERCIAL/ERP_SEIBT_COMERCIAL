@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
-import type { CatalogoLinha, MaquinaCatalogo, SpecCampo } from "./tipos";
+import type { CatalogoLinha, MaquinaCatalogo, PecaCatalogo, SpecCampo } from "./tipos";
 
-export type { SpecCampo, ImagemProduto, MaquinaCatalogo, CatalogoLinha } from "./tipos";
+export type { SpecCampo, ImagemProduto, MaquinaCatalogo, CatalogoLinha, PecaCatalogo } from "./tipos";
 export { paginarMaquinas } from "./tipos";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -104,4 +104,43 @@ export async function carregarCatalogoCompleto(
   return resultados
     .filter((r): r is CatalogoLinha => r !== null && r.maquinas.length > 0)
     .sort((a, b) => a.linha.nome.localeCompare(b.linha.nome));
+}
+
+/**
+ * Navalhas e peneiras ativas, pra página de lista de preços de peças
+ * (código, descrição, valor unitário, IPI) — layout diferente do das
+ * máquinas: sem foto, sem tabela técnica, é uma lista de preços mesmo.
+ */
+export async function carregarPecasCatalogo(
+  supabaseClient?: SupabaseAny
+): Promise<{ navalhas: PecaCatalogo[]; peneiras: PecaCatalogo[] }> {
+  const supabase: SupabaseAny = supabaseClient ?? createClient();
+
+  const mapear = (rows: SupabaseAny[]): PecaCatalogo[] =>
+    (rows ?? []).map((p: SupabaseAny) => ({
+      id: p.id,
+      codigo: p.codigo,
+      descricao: p.descricao,
+      precoUnitario: p.preco_brl,
+      ipiPct: p.ipi_pct,
+    }));
+
+  const [{ data: rawNavalhas }, { data: rawPeneiras }] = await Promise.all([
+    supabase
+      .from("produtos")
+      .select("id, codigo, descricao, preco_brl, ipi_pct")
+      .eq("categoria", "navalha")
+      .eq("status", "ativo")
+      .is("deleted_at", null)
+      .order("descricao"),
+    supabase
+      .from("produtos")
+      .select("id, codigo, descricao, preco_brl, ipi_pct")
+      .eq("categoria", "peneira")
+      .eq("status", "ativo")
+      .is("deleted_at", null)
+      .order("descricao"),
+  ]);
+
+  return { navalhas: mapear(rawNavalhas ?? []), peneiras: mapear(rawPeneiras ?? []) };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, ChevronRight } from "lucide-react";
+import { BookOpen, ChevronRight, Scissors } from "lucide-react";
 
 const NAV = "#2C4F79";
 const BG = "#F8FAFC";
@@ -43,12 +43,20 @@ export function CatalogoIndex({ linhas }: { linhas: LinhaItem[] }) {
             Escolha uma linha para ver a prévia de impressão e gerar o PDF do catálogo.
           </p>
         </div>
-        <Link
-          href="/catalogo/completo"
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 18px", background: NAV, color: "#fff", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}
-        >
-          <BookOpen size={15} /> Ver catálogo completo
-        </Link>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Link
+            href="/catalogo/pecas"
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 18px", background: "#fff", border: `1px solid ${BORDER}`, color: NAV, borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}
+          >
+            <Scissors size={15} /> Navalhas e Peneiras
+          </Link>
+          <Link
+            href="/catalogo/completo"
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 18px", background: NAV, color: "#fff", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}
+          >
+            <BookOpen size={15} /> Ver catálogo completo
+          </Link>
+        </div>
       </div>
 
       {familias.length === 0 ? (

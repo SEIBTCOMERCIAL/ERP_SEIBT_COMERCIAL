@@ -42,6 +42,13 @@ export const CATALOGO_CSS = `
   .specrow span:last-child { font-weight: 600; }
   .catalogo-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #E2E5EA; font-size: 10px; color: #9CA3AF; }
 
+  .tabela-pecas { width: 100%; border-collapse: collapse; font-family: var(--font-ibm-plex-sans), sans-serif; font-size: 12px; }
+  .tabela-pecas caption { text-align: left; font-family: var(--font-archivo), sans-serif; font-weight: 800; font-size: 15px; color: #2E3B4E; padding: 18px 0 8px; }
+  .tabela-pecas thead th { text-align: left; font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; color: #6B7280; border-bottom: 2px solid #2E3B4E; padding: 6px 8px; }
+  .tabela-pecas th.num, .tabela-pecas td.num { text-align: right; }
+  .tabela-pecas td { padding: 5px 8px; border-bottom: 1px solid #ECEDEF; }
+  .tabela-pecas td.valor { font-family: var(--font-archivo), sans-serif; font-weight: 700; white-space: nowrap; }
+
   @media print {
     .catalogo-no-print { display: none !important; }
     html, body, .catalogo-fundo { background: #fff !important; height: auto !important; min-height: 0 !important; }
@@ -49,8 +56,11 @@ export const CATALOGO_CSS = `
     .catalogo-page-wrap { box-shadow: none !important; break-after: page; page-break-after: always; break-inside: avoid; page-break-inside: avoid; }
     .catalogo-page-wrap:last-child { break-after: auto; page-break-after: auto; }
     .catalogo-a4 { break-inside: avoid; page-break-inside: avoid; }
+    .tabela-pecas thead { display: table-header-group; }
+    .tabela-pecas tr { break-inside: avoid; page-break-inside: avoid; }
   }
   @page { size: A4; margin: 0; }
+  .catalogo-folha-pecas { width: 794px; box-sizing: border-box; padding: 40px; background: #fff; }
 `;
 
 /** "R$ 1.234,56" com espaço não-quebrável — sem isso o "R$" quebra de linha
@@ -58,6 +68,12 @@ export const CATALOGO_CSS = `
 export function formatBRL(v: number | null | undefined): string {
   if (v == null) return "—";
   return `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** "5,20%" — "—" se não tiver valor cadastrado. */
+export function formatPercent(v: number | null | undefined): string {
+  if (v == null) return "—";
+  return `${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 }
 
 /** Soma preço da máquina + painel; "—" se algum dos dois não estiver cadastrado. */

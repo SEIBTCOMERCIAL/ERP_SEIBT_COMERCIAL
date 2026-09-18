@@ -28,6 +28,14 @@ export interface CatalogoLinha {
   maquinas: MaquinaCatalogo[];
 }
 
+export interface PecaCatalogo {
+  id: string;
+  codigo: string;
+  descricao: string;
+  precoUnitario: number | null;
+  ipiPct: number | null;
+}
+
 /**
  * Regra do visual aprovado: 4 máquinas por folha A4. Fica separado de
  * dados.ts (que busca no banco) porque este arquivo também é usado por
