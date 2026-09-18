@@ -22,8 +22,10 @@ export interface MaquinaCatalogo {
   imagensDisponiveis: ImagemProduto[];
 }
 
+export type ModoCatalogo = "completo" | "lista";
+
 export interface CatalogoLinha {
-  linha: { id: string; nome: string };
+  linha: { id: string; nome: string; ordem: number; modoCatalogo: ModoCatalogo };
   specCampos: SpecCampo[];
   maquinas: MaquinaCatalogo[];
 }

@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { CatalogoLinha, MaquinaCatalogo, PecaCatalogo, SpecCampo } from "./tipos";
 
-export type { SpecCampo, ImagemProduto, MaquinaCatalogo, CatalogoLinha, PecaCatalogo } from "./tipos";
+export type { SpecCampo, ImagemProduto, MaquinaCatalogo, CatalogoLinha, PecaCatalogo, ModoCatalogo } from "./tipos";
 export { paginarMaquinas } from "./tipos";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -34,8 +34,8 @@ export async function carregarCatalogoLinha(
 ): Promise<CatalogoLinha | null> {
   const supabase: SupabaseAny = supabaseClient ?? createClient();
 
-  const [{ data: linha }, { data: rawMaquinas }, { data: rawCampos }] = await Promise.all([
-    supabase.from("linhas").select("id, nome").eq("id", linhaId).single(),
+  const [{ data: rawLinha }, { data: rawMaquinas }, { data: rawCampos }] = await Promise.all([
+    supabase.from("linhas").select("id, nome, ordem, modo_catalogo").eq("id", linhaId).single(),
     supabase
       .from("produtos")
       .select(
@@ -52,7 +52,14 @@ export async function carregarCatalogoLinha(
       .order("ordem"),
   ]);
 
-  if (!linha) return null;
+  if (!rawLinha) return null;
+
+  const linha = {
+    id: rawLinha.id,
+    nome: rawLinha.nome,
+    ordem: rawLinha.ordem ?? 0,
+    modoCatalogo: (rawLinha.modo_catalogo ?? "completo") as "completo" | "lista",
+  };
 
   const maquinas: MaquinaCatalogo[] = (rawMaquinas ?? [])
     .map((p: SupabaseAny) => ({

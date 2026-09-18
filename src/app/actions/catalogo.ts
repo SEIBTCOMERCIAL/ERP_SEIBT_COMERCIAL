@@ -16,6 +16,27 @@ async function requireAdmin(): Promise<{ supabase: any } | { error: string }> {
   return { supabase };
 }
 
+/** Define se uma linha aparece no Catálogo completo/impresso em formato
+ * completo (foto + preço + especificações) ou lista compacta. */
+export async function definirModoCatalogoLinha(
+  linhaId: string,
+  modo: "completo" | "lista"
+): Promise<CatalogoActionState> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  const { error } = await auth.supabase
+    .from("linhas")
+    .update({ modo_catalogo: modo })
+    .eq("id", linhaId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/catalogo");
+  revalidatePath(`/catalogo/${linhaId}`);
+  revalidatePath("/catalogo/completo");
+  return { success: true };
+}
+
 /** Define qual foto já cadastrada do equipamento aparece no catálogo. */
 export async function definirFotoCapaProduto(
   produtoId: string,

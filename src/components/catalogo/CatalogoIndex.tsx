@@ -1,7 +1,10 @@
 "use client";
 
+import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { BookOpen, ChevronRight, Scissors } from "lucide-react";
+import { definirModoCatalogoLinha } from "@/app/actions/catalogo";
 
 const NAV = "#2C4F79";
 const BG = "#F8FAFC";
@@ -14,6 +17,7 @@ interface LinhaItem {
   ordem: number;
   grupo?: string | null;
   grupo_ordem?: number | null;
+  modoCatalogo: "completo" | "lista";
   count: number;
 }
 
@@ -31,7 +35,7 @@ function agruparPorFamilia(linhas: LinhaItem[]): Familia[] {
     .sort((a, b) => a.ordem - b.ordem);
 }
 
-export function CatalogoIndex({ linhas }: { linhas: LinhaItem[] }) {
+export function CatalogoIndex({ isAdmin, linhas }: { isAdmin: boolean; linhas: LinhaItem[] }) {
   const familias = agruparPorFamilia(linhas);
 
   return (
@@ -73,27 +77,49 @@ export function CatalogoIndex({ linhas }: { linhas: LinhaItem[] }) {
             )}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
               {familia.linhas.map((linha) => (
-                <Link
-                  key={linha.id}
-                  href={`/catalogo/${linha.id}`}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 12, padding: "16px 18px",
-                    background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10, textDecoration: "none",
-                  }}
-                >
-                  <div style={{ width: 36, height: 36, borderRadius: 8, background: "#E8ECF1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <BookOpen size={18} color={NAV} />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "#1C2430" }}>{linha.nome}</div>
-                    <div style={{ fontSize: 12, color: "#6b7b8d" }}>{linha.count} {linha.count === 1 ? "máquina" : "máquinas"}</div>
-                  </div>
-                  <ChevronRight size={16} color="#B0BAC9" />
-                </Link>
+                <LinhaCard key={linha.id} linha={linha} isAdmin={isAdmin} />
               ))}
             </div>
           </section>
         ))
+      )}
+    </div>
+  );
+}
+
+function LinhaCard({ linha, isAdmin }: { linha: LinhaItem; isAdmin: boolean }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  const handleModoChange = (modo: "completo" | "lista") => {
+    startTransition(async () => {
+      await definirModoCatalogoLinha(linha.id, modo);
+      router.refresh();
+    });
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "16px 18px", background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10 }}>
+      <Link href={`/catalogo/${linha.id}`} style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none" }}>
+        <div style={{ width: 36, height: 36, borderRadius: 8, background: "#E8ECF1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <BookOpen size={18} color={NAV} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#1C2430" }}>{linha.nome}</div>
+          <div style={{ fontSize: 12, color: "#6b7b8d" }}>{linha.count} {linha.count === 1 ? "máquina" : "máquinas"}</div>
+        </div>
+        <ChevronRight size={16} color="#B0BAC9" />
+      </Link>
+      {isAdmin && (
+        <select
+          value={linha.modoCatalogo}
+          disabled={isPending}
+          onChange={(e) => handleModoChange(e.target.value as "completo" | "lista")}
+          style={{ fontSize: 11, border: `1px solid ${BORDER}`, borderRadius: 5, padding: "4px 6px", color: "#6b7b8d" }}
+        >
+          <option value="completo">Catálogo completo: página com foto/specs</option>
+          <option value="lista">Catálogo completo: lista compacta</option>
+        </select>
       )}
     </div>
   );
