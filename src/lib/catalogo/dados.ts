@@ -8,6 +8,17 @@ export { paginarMaquinas } from "./tipos";
 type SupabaseAny = any;
 
 /**
+ * Pega o número do modelo pra ordenar do menor pro maior equipamento
+ * (ex.: "MGHS 1200 BSC" depois de "MGHS 200 BSC" — em ordem alfabética de
+ * texto "1200" viria antes de "200", o que fica errado). Sem número no
+ * código (ex.: "TESTE"), joga pro final da lista.
+ */
+function tamanhoModelo(codigo: string): number {
+  const match = codigo.match(/\d+/);
+  return match ? parseInt(match[0], 10) : Number.MAX_SAFE_INTEGER;
+}
+
+/**
  * Busca única (tela e PDF chamam a mesma função) com os dados de uma linha
  * pronta pra virar página de catálogo: máquinas ativas, preços, specs e fotos
  * já cadastradas. Aceita um client opcional para reaproveitar em contextos
@@ -33,8 +44,7 @@ export async function carregarCatalogoLinha(
       .eq("categoria", "maquina")
       .eq("linha_id", linhaId)
       .eq("status", "ativo")
-      .is("deleted_at", null)
-      .order("codigo"),
+      .is("deleted_at", null),
     supabase
       .from("linha_spec_campos")
       .select("id, nome, ordem")
@@ -44,19 +54,24 @@ export async function carregarCatalogoLinha(
 
   if (!linha) return null;
 
-  const maquinas: MaquinaCatalogo[] = (rawMaquinas ?? []).map((p: SupabaseAny) => ({
-    id: p.id,
-    codigo: p.codigo,
-    potenciaMotor: p.potencia_motor ?? null,
-    precoMaquina: p.preco_brl,
-    precoPainel220: p.preco_painel_220,
-    precoPainel380: p.preco_painel_380,
-    specs: (p.specs ?? {}) as Record<string, string>,
-    fotoUrl: p.foto_url ?? null,
-    imagensDisponiveis: (p.produto_arquivos ?? [])
-      .filter((a: SupabaseAny) => a.tipo === "imagem")
-      .map((a: SupabaseAny) => ({ id: a.id, url: a.url, nome: a.nome })),
-  }));
+  const maquinas: MaquinaCatalogo[] = (rawMaquinas ?? [])
+    .map((p: SupabaseAny) => ({
+      id: p.id,
+      codigo: p.codigo,
+      potenciaMotor: p.potencia_motor ?? null,
+      precoMaquina: p.preco_brl,
+      precoPainel220: p.preco_painel_220,
+      precoPainel380: p.preco_painel_380,
+      specs: (p.specs ?? {}) as Record<string, string>,
+      fotoUrl: p.foto_url ?? null,
+      imagensDisponiveis: (p.produto_arquivos ?? [])
+        .filter((a: SupabaseAny) => a.tipo === "imagem")
+        .map((a: SupabaseAny) => ({ id: a.id, url: a.url, nome: a.nome })),
+    }))
+    .sort((a: MaquinaCatalogo, b: MaquinaCatalogo) => {
+      const diff = tamanhoModelo(a.codigo) - tamanhoModelo(b.codigo);
+      return diff !== 0 ? diff : a.codigo.localeCompare(b.codigo);
+    });
 
   const specCampos: SpecCampo[] = rawCampos ?? [];
 
