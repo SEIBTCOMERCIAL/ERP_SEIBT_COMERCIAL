@@ -7,10 +7,10 @@ import type { SpecCampo } from "@/lib/catalogo/tipos";
  * possam ficar diferentes com o tempo.
  */
 export const CATALOGO_CSS = `
-  .catalogo-a4 { width: 794px; height: 1123px; box-sizing: border-box; padding: 40px; display: flex; flex-direction: column; gap: 12px; background: #F4F5F7; font-family: 'IBM Plex Sans', sans-serif; color: #1C2430; }
+  .catalogo-a4 { width: 794px; height: 1123px; box-sizing: border-box; padding: 40px; display: flex; flex-direction: column; gap: 12px; background: #F4F5F7; font-family: var(--font-ibm-plex-sans), sans-serif; color: #1C2430; }
   .catalogo-header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #2E3B4E; padding-bottom: 10px; }
   .catalogo-brand { display: flex; flex-direction: column; gap: 2px; }
-  .catalogo-brand .nome { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 24px; color: #2E3B4E; letter-spacing: 0.5px; }
+  .catalogo-brand .nome { font-family: var(--font-archivo), sans-serif; font-weight: 800; font-size: 24px; color: #2E3B4E; letter-spacing: 0.5px; }
   .catalogo-brand .tagline { font-size: 9px; letter-spacing: 1.4px; text-transform: uppercase; color: #6B7280; }
   .catalogo-badge-linha { background: #2E3B4E; color: #fff; font-size: 10.5px; font-weight: 700; letter-spacing: 1px; padding: 5px 13px; border-radius: 999px; text-transform: uppercase; white-space: nowrap; }
   .catalogo-blocos { display: flex; flex-direction: column; gap: 10px; flex-grow: 1; }
@@ -21,15 +21,15 @@ export const CATALOGO_CSS = `
   .photo .sem-foto { font-size: 8px; color: #B0BAC9; text-align: center; padding: 0 6px; }
   .info { flex-grow: 1; display: flex; flex-direction: column; gap: 4px; justify-content: center; }
   .titlerow { display: flex; justify-content: space-between; align-items: baseline; }
-  .modelo { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 14.5px; white-space: nowrap; }
+  .modelo { font-family: var(--font-archivo), sans-serif; font-weight: 800; font-size: 14.5px; white-space: nowrap; }
   .motor { background: #E8ECF1; color: #2E3B4E; font-weight: 700; font-size: 9px; padding: 2px 7px; border-radius: 4px; white-space: nowrap; }
   .maqrow { background: #F4F5F7; border-radius: 5px; padding: 4px 8px; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
   .maqrow .lbl { font-size: 8px; letter-spacing: 0.3px; text-transform: uppercase; color: #6B7280; }
-  .maqrow .val { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 11.5px; white-space: nowrap; }
+  .maqrow .val { font-family: var(--font-archivo), sans-serif; font-weight: 800; font-size: 11.5px; white-space: nowrap; }
   .pricerow { display: flex; gap: 6px; }
   .pbox { flex: 1; background: #2E3B4E; border-radius: 5px; padding: 4px 8px; color: #fff; }
   .pbox .lbl { font-size: 8px; letter-spacing: 0.3px; text-transform: uppercase; opacity: 0.75; }
-  .pbox .val { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 11.5px; white-space: nowrap; }
+  .pbox .val { font-family: var(--font-archivo), sans-serif; font-weight: 800; font-size: 11.5px; white-space: nowrap; }
   .pbox .sub { font-size: 7.6px; opacity: 0.8; white-space: nowrap; }
   .spectitle { font-size: 8.5px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: #2E3B4E; border-bottom: 1.5px solid #2E3B4E; padding-bottom: 3px; }
   .spectitle.vazio { color: #B0BAC9; border-bottom-color: #ECEDEF; }
@@ -38,6 +38,14 @@ export const CATALOGO_CSS = `
   .specrow span:first-child { color: #1C2430; }
   .specrow span:last-child { font-weight: 600; }
   .catalogo-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #E2E5EA; font-size: 10px; color: #9CA3AF; }
+
+  @media print {
+    .catalogo-no-print { display: none !important; }
+    body, .catalogo-fundo { background: #fff !important; }
+    .catalogo-page-wrap { box-shadow: none !important; break-after: page; page-break-after: always; }
+    .catalogo-page-wrap:last-child { break-after: auto; page-break-after: auto; }
+  }
+  @page { size: A4; margin: 0; }
 `;
 
 /** "R$ 1.234,56" com espaço não-quebrável — sem isso o "R$" quebra de linha
