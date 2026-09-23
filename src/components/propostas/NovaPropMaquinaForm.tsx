@@ -52,6 +52,24 @@ const CHECKLIST_SELECTS = [
   { name: "voltagem", label: "Voltagem", options: ["380V 60Hz", "220V 60Hz", "440V 60Hz", "Outro"] },
 ];
 
+type OpcaoPainel = "sem" | "220" | "380";
+
+const OPCOES_PAINEL: { valor: OpcaoPainel; label: string }[] = [
+  { valor: "sem", label: "Sem painel" },
+  { valor: "220", label: "Com painel 220V" },
+  { valor: "380", label: "Com painel 380V" },
+];
+
+/** Preço do painel na voltagem pedida; null quando não há preço cadastrado. */
+function precoPainel(m: ProdutoComDetalhes, voltagem: "220" | "380"): number | null {
+  const p = voltagem === "220" ? m.preco_painel_220 : m.preco_painel_380;
+  return p != null && p > 0 ? p : null;
+}
+
+function temPainel(m: ProdutoComDetalhes): boolean {
+  return precoPainel(m, "220") != null || precoPainel(m, "380") != null;
+}
+
 export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -72,6 +90,8 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
   // Step 3 — máquina selecionada
   const [maquinaId, setMaquinaId] = useState<string | null>(null);
   const [maquinaSearch, setMaquinaSearch] = useState("");
+  // null = vendedor ainda não escolheu (obrigatório escolher para avançar)
+  const [painel, setPainel] = useState<OpcaoPainel | null>(null);
 
   // Step 4 — itens adicionais (peças)
   const [cart, setCart] = useState<CartItemInput[]>([]);
@@ -106,6 +126,13 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
 
   const maquinaSel = maquinas.find((m) => m.id === maquinaId);
 
+  const selecionarMaquina = (m: ProdutoComDetalhes) => {
+    if (m.id === maquinaId) return;
+    setMaquinaId(m.id);
+    // Modelo sem preço de painel cadastrado: a única opção possível é "sem painel".
+    setPainel(temPainel(m) ? null : "sem");
+  };
+
   const addToCart = (prod: ProdutoComDetalhes) => {
     setCart((prev) => {
       const existing = prev.find((i) => i.produto_id === prod.id);
@@ -134,7 +161,17 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
   const descMaquina = maquinaSel?.descricao?.trim() ?? "";
   const descRepete = !descMaquina || (maquinaSel?.codigo ?? "").toLowerCase().includes(descMaquina.toLowerCase());
 
-  // build full cart (máquina + peças)
+  // Painel escolhido entra como item próprio, logo abaixo da máquina.
+  const precoPainelSel = maquinaSel && (painel === "220" || painel === "380") ? precoPainel(maquinaSel, painel) : null;
+  const itemPainel: CartItemInput | null = maquinaSel && precoPainelSel != null ? {
+    produto_id: maquinaSel.id, variante_id: null,
+    codigo: `${maquinaSel.codigo} — PAINEL ${painel}V`,
+    descricao: `Painel elétrico NR-12 — ${painel}V`,
+    observacao: maquinaSel.descricao_painel?.trim() || null,
+    preco_unitario: precoPainelSel, ipi_pct: maquinaSel.ipi_pct, quantidade: 1,
+  } : null;
+
+  // build full cart (máquina + painel + peças)
   const allCartItems: CartItemInput[] = [
     ...(maquinaSel ? [{
       produto_id: maquinaSel.id, variante_id: null,
@@ -142,6 +179,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
       observacao: descRepete ? null : descMaquina,
       preco_unitario: maquinaSel.preco_brl ?? 0, ipi_pct: maquinaSel.ipi_pct, quantidade: 1,
     }] : []),
+    ...(itemPainel ? [itemPainel] : []),
     ...cart,
   ];
 
@@ -151,6 +189,10 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
   const handleFinalizar = () => {
     if (!clienteId || !maquinaId || allCartItems.length === 0) {
       setError("Selecione cliente, máquina e ao menos um item.");
+      return;
+    }
+    if (!painel) {
+      setError("Escolha se a máquina vai com painel (220V ou 380V) ou sem painel.");
       return;
     }
     setError(null);
@@ -227,6 +269,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
                   if (step === 1 && !clienteId) { setError("Selecione um cliente."); return; }
                   if (step === 2 && !checklistCompleto) { setError("Preencha todos os campos do checklist."); return; }
                   if (step === 3 && !maquinaId) { setError("Selecione uma máquina."); return; }
+                  if (step === 3 && !painel) { setError("Escolha se a máquina vai com painel (220V ou 380V) ou sem painel."); return; }
                   setError(null); setStep((s) => s + 1);
                 }}
                 style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", background: NAV, color: "#fff", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
@@ -341,19 +384,20 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
                 {maquinasFiltradas.map((m) => {
                   const specs = m.specs as Record<string, string | number> | null;
+                  const selecionada = maquinaId === m.id;
                   return (
                     <div
                       key={m.id}
-                      onClick={() => setMaquinaId(m.id)}
+                      onClick={() => selecionarMaquina(m)}
                       style={{
-                        border: `2px solid ${maquinaId === m.id ? BLUE : BORDER}`,
+                        border: `2px solid ${selecionada ? BLUE : BORDER}`,
                         borderRadius: 10, padding: "14px 16px", cursor: "pointer",
-                        background: maquinaId === m.id ? "#eff6ff" : "#fff",
+                        background: selecionada ? "#eff6ff" : "#fff",
                       }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
                         <span style={{ background: "#dbeafe", color: "#1d4ed8", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4 }}>{m.linha ?? "—"}</span>
-                        {maquinaId === m.id && <Check size={16} color="#2074B9" />}
+                        {selecionada && <Check size={16} color="#2074B9" />}
                       </div>
                       <div style={{ fontWeight: 700, fontSize: 15, color: "#1a1a1a", marginBottom: 4 }}>{tituloComSeparador(m.codigo)}</div>
                       {specs && (
@@ -363,7 +407,69 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
                           {specs.tensao && <span>{String(specs.tensao)}</span>}
                         </div>
                       )}
-                      <div style={{ fontWeight: 700, fontSize: 16, color: NAV }}>{formatCurrency(m.preco_brl ?? 0)}</div>
+                      <div style={{ fontWeight: 700, fontSize: 16, color: NAV }}>
+                        {formatCurrency(m.preco_brl ?? 0)}
+                        <span style={{ fontSize: 11, fontWeight: 500, color: "#6b7b8d", marginLeft: 6 }}>sem painel</span>
+                      </div>
+
+                      {/* Escolha do painel — aparece no card da máquina selecionada */}
+                      {selecionada && (
+                        <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 12, paddingTop: 10, borderTop: "1px dashed #93c5fd", cursor: "default" }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>
+                            Painel elétrico NR-12 <span style={{ color: "#dc2626" }}>*</span>
+                          </div>
+                          {temPainel(m) ? (
+                            <>
+                              <div style={{ fontSize: 11, color: "#6b7b8d", margin: "2px 0 8px" }}>
+                                Voltagem informada no checklist: {checklist.voltagem || "—"}
+                              </div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                {OPCOES_PAINEL.map((op) => {
+                                  const preco = op.valor === "sem" ? null : precoPainel(m, op.valor);
+                                  const indisponivel = op.valor !== "sem" && preco == null;
+                                  const ativo = painel === op.valor;
+                                  return (
+                                    <button
+                                      key={op.valor}
+                                      type="button"
+                                      disabled={indisponivel}
+                                      onClick={() => { setPainel(op.valor); setError(null); }}
+                                      style={{
+                                        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                                        padding: "7px 10px", borderRadius: 6, fontSize: 12.5, textAlign: "left",
+                                        border: `1.5px solid ${ativo ? BLUE : BORDER}`,
+                                        background: indisponivel ? BG : "#fff",
+                                        color: indisponivel ? "#9ca3af" : "#1a1a1a",
+                                        fontWeight: ativo ? 700 : 500,
+                                        cursor: indisponivel ? "not-allowed" : "pointer",
+                                      }}
+                                    >
+                                      <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                                        <span style={{
+                                          width: 14, height: 14, borderRadius: "50%", flexShrink: 0,
+                                          border: `2px solid ${ativo ? BLUE : "#cbd5e1"}`,
+                                          background: ativo ? BLUE : "#fff",
+                                          boxShadow: ativo ? "inset 0 0 0 2px #fff" : "none",
+                                        }} />
+                                        {op.label}
+                                      </span>
+                                      {op.valor !== "sem" && (
+                                        <span style={{ whiteSpace: "nowrap", fontWeight: 700, color: indisponivel ? "#9ca3af" : NAV }}>
+                                          {preco != null ? `+ ${formatCurrency(preco)}` : "sem preço"}
+                                        </span>
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          ) : (
+                            <div style={{ fontSize: 12, color: "#6b7b8d", marginTop: 4 }}>
+                              Este modelo não tem preço de painel cadastrado — segue sem painel.
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -552,6 +658,18 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
               <div style={{ fontSize: 11, fontWeight: 600, color: "#1d4ed8", textTransform: "uppercase" as const, marginBottom: 2 }}>Máquina</div>
               <div style={{ fontSize: 13, fontWeight: 600, color: "#1e3a5f" }}>{tituloComSeparador(maquinaSel.codigo)}</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: NAV, marginTop: 4 }}>{formatCurrency(maquinaSel.preco_brl ?? 0)}</div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 8, paddingTop: 8, borderTop: "1px solid #bfdbfe", fontSize: 12 }}>
+                {painel === null ? (
+                  <span style={{ color: "#b45309", fontWeight: 600 }}>Painel: escolher (com ou sem)</span>
+                ) : itemPainel ? (
+                  <>
+                    <span style={{ color: "#1e3a5f", fontWeight: 600 }}>Painel NR-12 {painel}V</span>
+                    <span style={{ fontWeight: 700, color: NAV }}>{formatCurrency(itemPainel.preco_unitario)}</span>
+                  </>
+                ) : (
+                  <span style={{ color: "#6b7b8d" }}>Sem painel</span>
+                )}
+              </div>
             </div>
           )}
 

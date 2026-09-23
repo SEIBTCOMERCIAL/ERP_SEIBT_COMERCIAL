@@ -73,6 +73,9 @@ export interface Produto {
   linha: string | null;
   preco_brl: number | null;
   preco_usd: number | null;
+  preco_painel_220?: number | null;
+  preco_painel_380?: number | null;
+  descricao_painel?: string | null;
   ipi_pct: number;
   ncm: string | null;
   produto_especial: boolean;
