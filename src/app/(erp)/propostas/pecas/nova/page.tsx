@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { buscarTodos } from "@/lib/supabase/buscar-todos";
 import { NovaPropPecasForm } from "@/components/propostas/NovaPropPecasForm";
 import type { ProdutoComDetalhes } from "@/types/database";
 
@@ -10,7 +11,7 @@ export default async function NovaPropostaPecasPage() {
 
   const [
     { data: rawClientes },
-    { data: rawProdutos },
+    rawProdutos,
     { data: taxaData },
   ] = await Promise.all([
     supabase
@@ -20,7 +21,7 @@ export default async function NovaPropostaPecasPage() {
       .neq("status", "inativo")
       .order("razao_social"),
 
-    supabase
+    buscarTodos((de, ate) => supabase
       .from("produtos")
       .select(`
         *,
@@ -29,7 +30,9 @@ export default async function NovaPropostaPecasPage() {
       `)
       .is("deleted_at", null)
       .eq("ativo", true)
-      .order("descricao"),
+      .order("descricao")
+      .order("id")
+      .range(de, ate)),
 
     supabase
       .from("taxas_cambio")

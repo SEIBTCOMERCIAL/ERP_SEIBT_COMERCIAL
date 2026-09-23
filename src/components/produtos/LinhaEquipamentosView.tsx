@@ -9,6 +9,7 @@ import {
   MoreVertical, PauseCircle, PlayCircle, CalendarDays, Cog, ImageOff, Camera,
 } from "lucide-react";
 import { FotoEditorModal } from "@/components/catalogo/FotoEditorModal";
+import { tituloComSeparador } from "@/lib/produto-titulo";
 import {
   criarEquipamento, editarEquipamento, excluirEquipamento,
   duplicarEquipamento, atualizarStatusEquipamento,
@@ -216,14 +217,6 @@ function listarPendencias(eq: Equipamento): string[] {
   if (!eq.specs || Object.keys(eq.specs).length === 0) pendencias.push("especificações técnicas");
   if (eq.imagens_count === 0) pendencias.push("imagem");
   return pendencias;
-}
-
-// Só na exibição do título: "MGHS 1300 A2 200 CV" → "MGHS 1300 A2 / 200 CV"
-// ("BOMBA ÁGUA 15M³ — 1,5 CV" → "BOMBA ÁGUA 15M³ / 1,5 CV"). O código salvo não muda.
-function tituloComSeparador(nome: string): string {
-  const potencia = /\s[—–-]\s*(\d+(?:[.,]\d+)?\s*CV\b)/i;
-  if (potencia.test(nome)) return nome.replace(potencia, " / $1");
-  return nome.replace(/(?<!\/)\s+(\d+(?:[.,]\d+)?\s*CV\b)/i, " / $1");
 }
 
 function juntarLista(itens: string[]): string {

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { buscarTodos } from "@/lib/supabase/buscar-todos";
 import { NovaPropMaquinaForm } from "@/components/propostas/NovaPropMaquinaForm";
 import type { ProdutoComDetalhes } from "@/types/database";
 
@@ -8,7 +9,7 @@ export default async function NovaPropMaquinaPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient() as any;
 
-  const [{ data: rawClientes }, { data: rawProdutos }] = await Promise.all([
+  const [{ data: rawClientes }, rawProdutos] = await Promise.all([
     supabase
       .from("clientes")
       .select("id, razao_social, nome_fantasia, cidade, estado")
@@ -16,12 +17,14 @@ export default async function NovaPropMaquinaPage() {
       .neq("status", "inativo")
       .order("razao_social"),
 
-    supabase
+    buscarTodos((de, ate) => supabase
       .from("produtos")
       .select("*, compatibilidades_produto(id, modelo_maquina), historico_precos(id, data_reajuste, percentual_reajuste, preco_novo_brl, preco_anterior_brl, produto_id, variante_id, motivo, reajustado_por)")
       .is("deleted_at", null)
       .eq("ativo", true)
-      .order("descricao"),
+      .order("codigo")
+      .order("id")
+      .range(de, ate)),
   ]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

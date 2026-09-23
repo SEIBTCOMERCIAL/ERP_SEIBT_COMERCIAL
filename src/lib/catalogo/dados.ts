@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { tamanhoModelo } from "@/lib/produto-titulo";
 import type { CatalogoLinha, JogoNavalhas, MaquinaCatalogo, PecaCatalogo, SpecCampo } from "./tipos";
 
 export type { SpecCampo, ImagemProduto, MaquinaCatalogo, CatalogoLinha, PecaCatalogo, JogoNavalhas, ModoCatalogo } from "./tipos";
@@ -7,16 +8,6 @@ export { paginarMaquinas } from "./tipos";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseAny = any;
 
-/**
- * Pega o número do modelo pra ordenar do menor pro maior equipamento
- * (ex.: "MGHS 1200 BSC" depois de "MGHS 200 BSC" — em ordem alfabética de
- * texto "1200" viria antes de "200", o que fica errado). Sem número no
- * código (ex.: "TESTE"), joga pro final da lista.
- */
-function tamanhoModelo(codigo: string): number {
-  const match = codigo.match(/\d+/);
-  return match ? parseInt(match[0], 10) : Number.MAX_SAFE_INTEGER;
-}
 
 /**
  * Busca única (tela e PDF chamam a mesma função) com os dados de uma linha

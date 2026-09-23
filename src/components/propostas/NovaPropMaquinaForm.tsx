@@ -8,6 +8,7 @@ import {
 import { useRouter } from "next/navigation";
 import type { ProdutoComDetalhes } from "@/types/database";
 import { formatCurrency } from "@/lib/utils";
+import { compararPorTamanho, tituloComSeparador } from "@/lib/produto-titulo";
 import { criarPropostaPecas, type CartItemInput } from "@/app/actions/propostas-pecas";
 
 interface ClienteSimples {
@@ -91,10 +92,12 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
     );
   });
 
-  const maquinasFiltradas = maquinas.filter((m) => {
-    const q = maquinaSearch.toLowerCase();
-    return m.descricao.toLowerCase().includes(q) || m.linha?.toLowerCase().includes(q);
-  });
+  const maquinasFiltradas = maquinas
+    .filter((m) => {
+      const q = maquinaSearch.toLowerCase();
+      return m.codigo.toLowerCase().includes(q) || m.descricao.toLowerCase().includes(q) || m.linha?.toLowerCase().includes(q);
+    })
+    .sort((a, b) => compararPorTamanho(a.codigo, b.codigo));
 
   const pecasFiltradas = pecas.filter((p) => {
     const q = pecaSearch.toLowerCase();
@@ -326,7 +329,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
               <div style={{ fontSize: 13, color: "#6b7b8d", marginBottom: 16 }}>Escolha o modelo principal desta proposta.</div>
               <input
                 value={maquinaSearch} onChange={(e) => setMaquinaSearch(e.target.value)}
-                placeholder="Buscar por modelo ou linha..."
+                placeholder="Buscar por modelo (ex.: MGHS 300 A2) ou linha..."
                 style={{ width: "100%", padding: "10px 14px", border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 14, marginBottom: 12 }}
               />
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
@@ -346,7 +349,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
                         <span style={{ background: "#dbeafe", color: "#1d4ed8", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4 }}>{m.linha ?? "—"}</span>
                         {maquinaId === m.id && <Check size={16} color="#2074B9" />}
                       </div>
-                      <div style={{ fontWeight: 700, fontSize: 15, color: "#1a1a1a", marginBottom: 4 }}>{m.descricao}</div>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: "#1a1a1a", marginBottom: 4 }}>{tituloComSeparador(m.codigo)}</div>
                       {specs && (
                         <div style={{ fontSize: 11, color: "#6b7b8d", marginBottom: 8 }}>
                           {specs.potencia_cv && <span style={{ marginRight: 8 }}>{String(specs.potencia_cv)} CV</span>}
@@ -536,7 +539,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
           {maquinaSel && (
             <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "10px 12px", marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: "#1d4ed8", textTransform: "uppercase" as const, marginBottom: 2 }}>Máquina</div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#1e3a5f" }}>{maquinaSel.descricao}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#1e3a5f" }}>{tituloComSeparador(maquinaSel.codigo)}</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: NAV, marginTop: 4 }}>{formatCurrency(maquinaSel.preco_brl ?? 0)}</div>
             </div>
           )}
