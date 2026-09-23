@@ -60,6 +60,12 @@ export interface JogoNavalhas {
  * componentes que rodam no navegador — nada aqui pode depender de nada
  * que só existe no servidor.
  */
+/** 4 máquinas por folha (visual aprovado). Linhas com tabela técnica maior que
+ * 5 linhas (mais de 15 campos, ex.: LR/LRX/RCX) não cabem 4 na folha A4 — usam 3. */
+export function maquinasPorPagina(qtdCamposTecnicos: number): number {
+  return Math.ceil(qtdCamposTecnicos / 3) > 5 ? 3 : 4;
+}
+
 export function paginarMaquinas<T>(maquinas: T[], porPagina = 4): T[][] {
   const paginas: T[][] = [];
   for (let i = 0; i < maquinas.length; i += porPagina) {

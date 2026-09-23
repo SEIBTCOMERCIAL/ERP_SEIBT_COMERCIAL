@@ -5,7 +5,7 @@ import { useFormState, useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import { ChevronRight, FileText, Upload, Trash2, Edit2, X, Save, Copy, Check, Eye, EyeOff, Link, Plus, Search } from "lucide-react";
 import {
-  atualizarPaineis, atualizarSpecs,
+  atualizarPaineis, atualizarSpecs, atualizarDescricoes,
   uploadArquivoProduto, excluirArquivoProduto,
   vincularPecaEquipamento, desvincularPecaEquipamento,
   criarPecaEVincular, editarPecaVinculada,
@@ -374,13 +374,14 @@ function PecaTab({ categoria, vinculos, pecasCatalogo, equipamentoId, linhaId, e
     });
   };
 
+  // Ordem da leitura: preço unitário × Qtd, + IPI = Total c/ IPI
   const gridCols = showFuro
-    ? "120px 1fr 80px 110px 60px 120px 64px 44px"
-    : "120px 1fr 110px 60px 120px 64px 44px";
+    ? "120px 1fr 80px 110px 56px 60px 120px 44px"
+    : "120px 1fr 110px 56px 60px 120px 44px";
 
   const headers = showFuro
-    ? ["Código", "Descrição", "Ø Furo", "Preço", "IPI", "Total c/ IPI", "QTD", ""]
-    : ["Código", "Descrição", "Preço", "IPI", "Total c/ IPI", "QTD", ""];
+    ? ["Código", "Descrição", "Ø Furo", "Preço unit.", "Qtd", "IPI", "Total c/ IPI", ""]
+    : ["Código", "Descrição", "Preço unit.", "Qtd", "IPI", "Total c/ IPI", ""];
 
   return (
     <div style={{ maxWidth: 860 }}>
@@ -412,9 +413,9 @@ function PecaTab({ categoria, vinculos, pecasCatalogo, equipamentoId, linhaId, e
                   <div style={{ fontSize: 12, color: "#6b7b8d", textAlign: "right" as const }}>{v.peca.furo_diametro ?? "—"}</div>
                 )}
                 <div style={{ fontSize: 12, color: "#374151", textAlign: "right" as const }}>{fmt(v.peca.preco_brl)}</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", textAlign: "right" as const }}>{v.quantidade ?? 1}</div>
                 <div style={{ fontSize: 12, color: "#6b7b8d", textAlign: "right" as const }}>{v.peca.ipi_pct}%</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: NAV, textAlign: "right" as const }}>{fmt(totalIpi)}</div>
-                <div style={{ fontSize: 12, color: "#374151", textAlign: "center" as const }}>{v.quantidade ?? 1}</div>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
                   {effectiveAdmin && (
                     <>
@@ -505,6 +506,10 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
   });
   const [specsMsg, setSpecsMsg] = useState("");
 
+  const [descDraft, setDescDraft] = useState(equip.descricao ?? "");
+  const [descPainelDraft, setDescPainelDraft] = useState(equip.descricao_painel ?? "");
+  const [descMsg, setDescMsg] = useState("");
+
   const [editingPrices, setEditingPrices] = useState(false);
   const [draft, setDraft] = useState({
     brl: toFmt(equip.preco_brl),
@@ -522,6 +527,15 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
       const res = await atualizarSpecs(equip.id, linha.id, JSON.stringify(obj));
       if (res.error) setSpecsMsg(res.error);
       else { setSpecsMsg("Salvo"); router.refresh(); }
+    });
+  };
+
+  const handleSaveDescricoes = () => {
+    setDescMsg("");
+    startTransition(async () => {
+      const res = await atualizarDescricoes(equip.id, linha.id, descDraft, descPainelDraft);
+      if (res.error) setDescMsg(res.error);
+      else { setDescMsg("Salvo"); router.refresh(); }
     });
   };
 
@@ -571,6 +585,7 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
 
   const staticTabs = [
     { key: "specs", label: "Especificações" },
+    { key: "descricao", label: "Descrição do moinho" },
     { key: "precos", label: "Preço e painéis" },
     { key: "imagens", label: `Imagens${imagens.length ? ` (${imagens.length})` : ""}` },
     { key: "desenhos", label: `Desenhos${desenhos.length ? ` (${desenhos.length})` : ""}` },
@@ -631,29 +646,12 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
       {/* ── Especificações ── */}
       {tab === "specs" && (
         <div style={{ maxWidth: 640 }}>
-          {equip.descricao && (
-            <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10, padding: "14px 18px", marginBottom: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Descrição do moinho</span>
-                <CopyButton text={equip.descricao} />
-              </div>
-              <div style={{ fontSize: 13, color: "#1a1a1a", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{equip.descricao}</div>
-            </div>
-          )}
-          {equip.descricao_painel && (
-            <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10, padding: "14px 18px", marginBottom: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Descrição do painel</span>
-                <CopyButton text={equip.descricao_painel} />
-              </div>
-              <div style={{ fontSize: 13, color: "#1a1a1a", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{equip.descricao_painel}</div>
-            </div>
-          )}
           {effectiveAdmin ? (
             specCampos.length > 0 ? (
               <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
                 <div style={{ padding: "12px 18px", borderBottom: `1px solid ${BORDER}`, background: BG }}>
                   <span style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Especificações técnicas</span>
+                  <span style={{ fontSize: 11, color: "#94A3B8", marginLeft: 8 }}>— aparecem no catálogo impresso</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
                   {specCampos.map((campo, i) => (
@@ -695,9 +693,74 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
                   })}
                 </div>
               </div>
-            ) : !equip.descricao && !equip.descricao_painel ? (
+            ) : (
               <div style={{ color: "#6b7b8d", fontSize: 13 }}>Nenhuma especificação cadastrada.</div>
-            ) : null
+            )
+          )}
+        </div>
+      )}
+
+      {/* ── Descrição do moinho (texto de orçamento) ── */}
+      {tab === "descricao" && (
+        <div style={{ maxWidth: 760, display: "flex", flexDirection: "column", gap: 14 }}>
+          {effectiveAdmin ? (
+            <>
+              <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
+                <div style={{ padding: "12px 18px", borderBottom: `1px solid ${BORDER}`, background: BG, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                  <span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Descrição do moinho</span>
+                    <span style={{ fontSize: 11, color: "#94A3B8", marginLeft: 8 }}>— texto completo usado nos orçamentos</span>
+                  </span>
+                  {descDraft.trim() && <CopyButton text={descDraft} />}
+                </div>
+                <textarea value={descDraft} onChange={e => setDescDraft(e.target.value)} rows={12}
+                  placeholder="Descrição completa do moinho que vai para o orçamento..."
+                  style={{ width: "100%", border: "none", padding: "14px 18px", fontSize: 13, lineHeight: 1.55, outline: "none", resize: "vertical", boxSizing: "border-box" as const, fontFamily: "inherit" }} />
+              </div>
+              <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
+                <div style={{ padding: "12px 18px", borderBottom: `1px solid ${BORDER}`, background: BG, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                  <span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Descrição do painel</span>
+                    <span style={{ fontSize: 11, color: "#94A3B8", marginLeft: 8 }}>— usada no orçamento para 220V e 380V</span>
+                  </span>
+                  {descPainelDraft.trim() && <CopyButton text={descPainelDraft} />}
+                </div>
+                <textarea value={descPainelDraft} onChange={e => setDescPainelDraft(e.target.value)} rows={5}
+                  placeholder="Descrição do painel elétrico que vai para o orçamento..."
+                  style={{ width: "100%", border: "none", padding: "14px 18px", fontSize: 13, lineHeight: 1.55, outline: "none", resize: "vertical", boxSizing: "border-box" as const, fontFamily: "inherit" }} />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <button onClick={handleSaveDescricoes} disabled={isPending}
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", background: NAV, color: "#fff", border: "none", borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: isPending ? 0.6 : 1 }}>
+                  <Save size={13} /> Salvar descrições
+                </button>
+                {descMsg && <span style={{ fontSize: 12, color: descMsg === "Salvo" ? "#16A34A" : "#DC2626" }}>{descMsg}</span>}
+              </div>
+            </>
+          ) : (
+            <>
+              {equip.descricao && (
+                <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10, padding: "14px 18px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Descrição do moinho</span>
+                    <CopyButton text={equip.descricao} />
+                  </div>
+                  <div style={{ fontSize: 13, color: "#1a1a1a", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{equip.descricao}</div>
+                </div>
+              )}
+              {equip.descricao_painel && (
+                <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10, padding: "14px 18px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Descrição do painel</span>
+                    <CopyButton text={equip.descricao_painel} />
+                  </div>
+                  <div style={{ fontSize: 13, color: "#1a1a1a", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{equip.descricao_painel}</div>
+                </div>
+              )}
+              {!equip.descricao && !equip.descricao_painel && (
+                <div style={{ color: "#6b7b8d", fontSize: 13 }}>Nenhuma descrição cadastrada.</div>
+              )}
+            </>
           )}
         </div>
       )}

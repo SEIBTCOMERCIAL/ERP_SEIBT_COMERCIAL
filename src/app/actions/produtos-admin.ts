@@ -284,6 +284,25 @@ export async function atualizarSpecs(
   return { success: true };
 }
 
+export async function atualizarDescricoes(
+  produtoId: string,
+  linhaId: string,
+  descricao: string,
+  descricaoPainel: string
+): Promise<AdminState> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const desc = descricao.trim();
+  if (!desc) return { error: "Descrição obrigatória" };
+  const { error } = await auth.supabase.from("produtos")
+    .update({ descricao: desc, descricao_painel: descricaoPainel.trim() || null, atualizado_em: new Date().toISOString() })
+    .eq("id", produtoId);
+  if (error) return { error: error.message };
+  revalidatePath(`/produtos/linhas/${linhaId}/${produtoId}`);
+  revalidatePath(`/produtos/linhas/${linhaId}`);
+  return { success: true };
+}
+
 // ─── Duplicar equipamento ─────────────────────────────────────────────────────
 
 export async function duplicarEquipamento(

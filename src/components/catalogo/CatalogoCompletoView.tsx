@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, Printer } from "lucide-react";
 import type { CatalogoLinha, MaquinaCatalogo, SpecCampo } from "@/lib/catalogo/tipos";
-import { paginarMaquinas } from "@/lib/catalogo/tipos";
+import { maquinasPorPagina, paginarMaquinas } from "@/lib/catalogo/tipos";
 import { CatalogoPaginaA4 } from "./CatalogoPaginaA4";
 import { FotoEditorModal } from "./FotoEditorModal";
 import { CATALOGO_CSS, formatBRL, formatTotalComPainel } from "./catalogo-shared";
@@ -38,7 +38,7 @@ export function CatalogoCompletoView({ isAdmin, linhas }: CatalogoCompletoViewPr
     .sort((a, b) => a.linha.nome.localeCompare(b.linha.nome));
 
   const todasPaginas: PaginaComLinha[] = completos.flatMap(({ linha, specCampos, maquinas }) =>
-    paginarMaquinas(maquinas, 4).map((maquinasDaPagina) => ({
+    paginarMaquinas(maquinas, maquinasPorPagina(specCampos.length)).map((maquinasDaPagina) => ({
       linhaId: linha.id,
       linhaNome: linha.nome,
       specCampos,

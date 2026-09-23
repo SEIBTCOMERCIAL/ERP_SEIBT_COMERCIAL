@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, Printer } from "lucide-react";
 import type { CatalogoLinha, MaquinaCatalogo } from "@/lib/catalogo/tipos";
-import { paginarMaquinas } from "@/lib/catalogo/tipos";
+import { maquinasPorPagina, paginarMaquinas } from "@/lib/catalogo/tipos";
 import { CatalogoPaginaA4 } from "./CatalogoPaginaA4";
 import { FotoEditorModal } from "./FotoEditorModal";
 import { CATALOGO_CSS } from "./catalogo-shared";
@@ -21,7 +21,7 @@ interface CatalogoLinhaViewProps {
 
 export function CatalogoLinhaView({ isAdmin, dados }: CatalogoLinhaViewProps) {
   const { linha, specCampos, maquinas } = dados;
-  const paginas = paginarMaquinas(maquinas, 4);
+  const paginas = paginarMaquinas(maquinas, maquinasPorPagina(specCampos.length));
   const [editando, setEditando] = useState<MaquinaCatalogo | null>(null);
 
   return (
