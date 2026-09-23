@@ -85,7 +85,11 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar }: Props) {
   const [qtys, setQtys] = useState<Record<string, number>>({});
   const [condicao, setCondicao] = useState("30/60/90 dias");
   const [prazo, setPrazo] = useState("A combinar");
-  const [validade, setValidade] = useState("30 dias");
+  // Coluna no banco é do tipo data — guarda a data-limite (padrão: hoje + 30 dias), não texto livre.
+  const [validade, setValidade] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() + 30);
+    return d.toISOString().slice(0, 10);
+  });
   const [observacoes, setObservacoes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -689,7 +693,6 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar }: Props) {
                 {[
                   { label: "Condição de pagamento", val: condicao, setter: setCondicao },
                   { label: "Prazo de entrega", val: prazo, setter: setPrazo },
-                  { label: "Validade da proposta", val: validade, setter: setValidade },
                 ].map((f) => (
                   <div key={f.label}>
                     <label className="text-[10px] font-semibold text-[#6B7B8D] uppercase block mb-1">{f.label}</label>
@@ -701,6 +704,15 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar }: Props) {
                     />
                   </div>
                 ))}
+                <div>
+                  <label className="text-[10px] font-semibold text-[#6B7B8D] uppercase block mb-1">Válida até</label>
+                  <input
+                    type="date"
+                    value={validade}
+                    onChange={(e) => setValidade(e.target.value)}
+                    className="w-full h-8 rounded-lg border border-[#E2E8F0] px-3 text-[12px] focus:border-[#2074B9] outline-none"
+                  />
+                </div>
               </div>
 
               <div className="mb-5">

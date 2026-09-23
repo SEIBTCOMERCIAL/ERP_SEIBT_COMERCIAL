@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { formatDate } from "@/lib/utils";
 import {
   Document,
   Packer,
@@ -556,7 +557,7 @@ export async function GET(
     ],
     [
       "VALIDADE DA PROPOSTA:",
-      (proposta.validade_proposta as string | null) ?? "15 dias",
+      proposta.validade_proposta ? formatDate(proposta.validade_proposta as string) : "15 dias",
     ],
   ];
 

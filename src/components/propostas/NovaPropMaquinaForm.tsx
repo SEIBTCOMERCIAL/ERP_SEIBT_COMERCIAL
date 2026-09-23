@@ -100,7 +100,11 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
   // Step 5 — condições
   const [condicao, setCondicao] = useState("");
   const [prazo, setPrazo] = useState("");
-  const [validade, setValidade] = useState("30 dias");
+  // Coluna no banco é do tipo data — guarda a data-limite (padrão: hoje + 30 dias), não texto livre.
+  const [validade, setValidade] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() + 30);
+    return d.toISOString().slice(0, 10);
+  });
   const [obs, setObs] = useState("");
 
   const clientesFiltrados = clientes.filter((c) => {
@@ -541,7 +545,6 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
                 {[
                   { label: "Condição de Pagamento", value: condicao, set: setCondicao, placeholder: "ex: 30/60/90 dias" },
                   { label: "Prazo de Entrega", value: prazo, set: setPrazo, placeholder: "ex: 90 dias úteis" },
-                  { label: "Validade da Proposta", value: validade, set: setValidade, placeholder: "ex: 30 dias" },
                 ].map((f) => (
                   <div key={f.label} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     <label style={{ fontSize: 11, fontWeight: 600, color: "#374151", textTransform: "uppercase" as const }}>{f.label}</label>
@@ -549,6 +552,11 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
                       style={{ padding: "8px 10px", border: `1px solid ${BORDER}`, borderRadius: 6, fontSize: 13 }} />
                   </div>
                 ))}
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: "#374151", textTransform: "uppercase" as const }}>Válida até</label>
+                  <input type="date" value={validade} onChange={(e) => setValidade(e.target.value)}
+                    style={{ padding: "8px 10px", border: `1px solid ${BORDER}`, borderRadius: 6, fontSize: 13 }} />
+                </div>
                 <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 4 }}>
                   <label style={{ fontSize: 11, fontWeight: 600, color: "#374151", textTransform: "uppercase" as const }}>Observações</label>
                   <textarea value={obs} onChange={(e) => setObs(e.target.value)} rows={3} placeholder="Observações adicionais..."

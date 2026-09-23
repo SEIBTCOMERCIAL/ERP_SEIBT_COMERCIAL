@@ -146,7 +146,7 @@ ${checklist ? `
       <div class="total-row"><span>Subtotal:</span><span>${formatCurrency(valorTotal)}</span></div>
       ${proposta?.condicao_pagamento ? `<div class="total-row"><span>Pagamento:</span><span>${proposta.condicao_pagamento}</span></div>` : ""}
       ${proposta?.prazo_entrega ? `<div class="total-row"><span>Prazo:</span><span>${proposta.prazo_entrega}</span></div>` : ""}
-      ${proposta?.validade_proposta ? `<div class="total-row"><span>Validade:</span><span>${proposta.validade_proposta}</span></div>` : ""}
+      ${proposta?.validade_proposta ? `<div class="total-row"><span>Validade:</span><span>${formatDate(proposta.validade_proposta)}</span></div>` : ""}
       <div class="total-row total-final"><span>TOTAL</span><span>${formatCurrency(valorTotal)}</span></div>
     </div>
   </div>

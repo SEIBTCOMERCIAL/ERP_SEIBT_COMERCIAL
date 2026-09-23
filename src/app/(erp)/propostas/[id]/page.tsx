@@ -157,7 +157,7 @@ export default async function DetalhePropostaPage({
                 ["Canal de origem", proposta.canal_origem ? canalLabel[proposta.canal_origem] : "—"],
                 ["Condição de pagamento", proposta.condicao_pagamento ?? "—"],
                 ["Prazo de entrega", proposta.prazo_entrega ?? "—"],
-                ["Validade", proposta.validade_proposta ?? "—"],
+                ["Validade", proposta.validade_proposta ? formatDate(proposta.validade_proposta) : "—"],
                 ["Criada em", formatDate(proposta.criado_em)],
                 ["Enviada em", proposta.enviada_em ? formatDate(proposta.enviada_em) : "—"],
                 ["Fechada em", proposta.fechada_em ? formatDate(proposta.fechada_em) : "—"],
