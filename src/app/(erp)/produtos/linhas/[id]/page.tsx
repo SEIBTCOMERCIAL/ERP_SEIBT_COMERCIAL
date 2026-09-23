@@ -18,7 +18,7 @@ export default async function LinhaPage({ params }: { params: any }) {
     supabase.from("linhas").select("id, nome, ordem").eq("id", params.id).single(),
     supabase
       .from("produtos")
-      .select("id, codigo, descricao, descricao_painel, potencia_motor, preco_brl, preco_painel_220, preco_painel_380, ncm, specs, ativo, status, atualizado_em, produto_arquivos(id, tipo)")
+      .select("id, codigo, descricao, descricao_painel, potencia_motor, preco_brl, preco_painel_220, preco_painel_380, ncm, specs, ativo, status, atualizado_em, foto_url, produto_arquivos(id, tipo, nome, url, ordem)")
       .eq("categoria", "maquina")
       .eq("linha_id", params.id)
       .is("deleted_at", null)
@@ -48,6 +48,12 @@ export default async function LinhaPage({ params }: { params: any }) {
     status: eq.status ?? "ativo",
     atualizado_em: eq.atualizado_em,
     imagens_count: (eq.produto_arquivos ?? []).filter((a: { tipo: string }) => a.tipo === "imagem").length,
+    // Mesma foto usada no Catálogo (produtos.foto_url).
+    foto: eq.foto_url ?? null,
+    imagens: (eq.produto_arquivos ?? [])
+      .filter((a: { tipo: string }) => a.tipo === "imagem")
+      .sort((a: { ordem: number | null }, b: { ordem: number | null }) => (a.ordem ?? 0) - (b.ordem ?? 0))
+      .map((a: { id: string; url: string; nome: string }) => ({ id: a.id, url: a.url, nome: a.nome })),
   }));
 
   const specCampos: { id: string; nome: string; ordem: number }[] = rawCampos ?? [];

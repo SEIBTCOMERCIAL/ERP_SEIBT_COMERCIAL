@@ -3,13 +3,22 @@
 import { useState, useTransition, useEffect, useRef } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Plus, Trash2, Edit2, X, Copy, Search, AlertTriangle, ArrowUpDown, Download, Settings2, Eye, EyeOff } from "lucide-react";
+import Link from "next/link";
+import {
+  ChevronRight, Plus, Trash2, Edit2, X, Copy, Search, AlertTriangle, ArrowUpDown, Download, Settings2, Eye, EyeOff,
+  MoreVertical, PauseCircle, PlayCircle, CalendarDays, Cog, ImageOff, Camera,
+} from "lucide-react";
+import { FotoEditorModal } from "@/components/catalogo/FotoEditorModal";
 import {
   criarEquipamento, editarEquipamento, excluirEquipamento,
   duplicarEquipamento, atualizarStatusEquipamento,
   criarLinhaSpecCampo, excluirLinhaSpecCampo,
   type AdminState,
 } from "@/app/actions/produtos-admin";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 const NAV = "#2C4F79";
 const BLUE = "#2074B9";
@@ -38,6 +47,8 @@ interface Equipamento {
   status: "ativo" | "descontinuado";
   atualizado_em: string | null;
   imagens_count: number;
+  foto: string | null;
+  imagens: { id: string; url: string; nome: string }[];
 }
 
 interface Linha { id: string; nome: string }
@@ -198,11 +209,255 @@ function EquipamentoModal({ linha, equip, specCampos, onClose }: {
   );
 }
 
-function IncompletoBadge() {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 7px", background: "#FEF3C7", color: "#D97706", borderRadius: 5, fontSize: 10, fontWeight: 700 }}>
-      <AlertTriangle size={10} /> Incompleto
+// Mesmas condições que já definiam "Incompleto" — agora listadas, pra dizer o que falta.
+function listarPendencias(eq: Equipamento): string[] {
+  const pendencias: string[] = [];
+  if (!eq.preco_painel_380) pendencias.push("preço do painel 380V");
+  if (!eq.specs || Object.keys(eq.specs).length === 0) pendencias.push("especificações técnicas");
+  if (eq.imagens_count === 0) pendencias.push("imagem");
+  return pendencias;
+}
+
+function juntarLista(itens: string[]): string {
+  if (itens.length <= 1) return itens.join("");
+  return `${itens.slice(0, -1).join(", ")} e ${itens[itens.length - 1]}`;
+}
+
+function StatusPill({ descontinuado }: { descontinuado: boolean }) {
+  return descontinuado ? (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
+      <span className="h-1.5 w-1.5 rounded-full bg-slate-400" aria-hidden /> Descontinuado
     </span>
+  ) : (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[11px] font-semibold text-green-700">
+      <span className="h-1.5 w-1.5 rounded-full bg-green-500" aria-hidden /> Ativo
+    </span>
+  );
+}
+
+function SecaoTitulo({ children }: { children: React.ReactNode }) {
+  return <p className="mb-1.5 px-0.5 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-slate-500">{children}</p>;
+}
+
+function EquipamentoCard({
+  eq, href, effectiveAdmin, isPending, onEditar, onEditarFoto, onDuplicar, onToggleStatus, onExcluir,
+}: {
+  eq: Equipamento;
+  href: string;
+  effectiveAdmin: boolean;
+  isPending: boolean;
+  onEditar: () => void;
+  onEditarFoto: () => void;
+  onDuplicar: () => void;
+  onToggleStatus: () => void;
+  onExcluir: () => void;
+}) {
+  const moinho = eq.preco_brl;
+  const p220 = eq.preco_painel_220;
+  const p380 = eq.preco_painel_380;
+  const total220 = (moinho ?? 0) + (p220 ?? 0);
+  const total380 = (moinho ?? 0) + (p380 ?? 0);
+  const descontinuado = eq.status === "descontinuado";
+  const pendencias = listarPendencias(eq);
+  const incompleto = pendencias.length > 0;
+  const semPrecos = moinho == null && p220 == null && p380 == null;
+  const temPainel = p220 != null || p380 != null;
+
+  return (
+    <article className={cn(
+      "flex min-w-0 flex-col rounded-xl border border-border bg-white shadow-sm transition-shadow hover:shadow-md",
+      descontinuado && "opacity-[0.65]"
+    )}>
+      {/* Cabeçalho */}
+      <div className="flex items-start gap-3 p-4 pb-3">
+        {effectiveAdmin ? (
+          <button
+            type="button"
+            onClick={onEditarFoto}
+            title="Trocar foto (é a mesma foto usada no Catálogo)"
+            aria-label={`Trocar foto — ${eq.codigo}`}
+            className="group/foto relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seibt-blue/40"
+          >
+            {eq.foto ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={eq.foto} alt="" className="h-full w-full object-contain p-1" />
+            ) : (
+              <Camera className="h-5 w-5 text-slate-300" aria-hidden />
+            )}
+            <span className="absolute inset-0 flex items-center justify-center bg-slate-900/55 opacity-0 transition-opacity group-hover/foto:opacity-100 group-focus-visible/foto:opacity-100" aria-hidden>
+              <Camera className="h-4 w-4 text-white" />
+            </span>
+          </button>
+        ) : (
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-slate-50">
+            {eq.foto ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={eq.foto} alt="" className="h-full w-full object-contain p-1" />
+            ) : (
+              <ImageOff className="h-5 w-5 text-slate-300" aria-hidden />
+            )}
+          </div>
+        )}
+
+        <Link
+          href={href}
+          className="group min-w-0 flex-1 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-seibt-blue/40"
+        >
+          <div className="min-w-0">
+            <h3 className="break-words text-[15px] font-bold leading-snug text-seibt-navy transition-colors group-hover:text-seibt-blue">
+              {eq.codigo}
+            </h3>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+              {eq.potencia_motor
+                ? <span className="text-[12.5px] text-slate-600">{eq.potencia_motor}</span>
+                : <span className="text-[12.5px] text-slate-400">Potência não cadastrada</span>}
+              <StatusPill descontinuado={descontinuado} />
+            </div>
+          </div>
+        </Link>
+
+        {effectiveAdmin && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={`Mais ações — ${eq.codigo}`}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-seibt-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seibt-blue/40 data-[state=open]:bg-slate-100"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              {/* setTimeout: deixa o menu fechar antes da janela de confirmação abrir */}
+              {descontinuado ? (
+                <DropdownMenuItem disabled={isPending} onSelect={() => setTimeout(onToggleStatus, 0)} className="cursor-pointer">
+                  <PlayCircle className="text-green-600" /> Reativar
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem disabled={isPending} onSelect={() => setTimeout(onToggleStatus, 0)} className="cursor-pointer">
+                  <PauseCircle className="text-amber-600" /> Descontinuar
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                disabled={isPending}
+                onSelect={() => setTimeout(onExcluir, 0)}
+                className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700"
+              >
+                <Trash2 /> Excluir
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-3 px-4 pb-4">
+        {/* Alerta de cadastro incompleto — mesma regra de antes (só admin, só ativo) */}
+        {!descontinuado && incompleto && effectiveAdmin && (
+          <div className="flex gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden />
+            <div className="min-w-0 text-[12px] leading-snug">
+              <p className="font-semibold text-amber-800">Cadastro incompleto</p>
+              <p className="text-amber-700">Falta: {juntarLista(pendencias)}.</p>
+            </div>
+          </div>
+        )}
+
+        {semPrecos ? (
+          <p className="rounded-lg bg-slate-50 px-3 py-2.5 text-[12px] text-slate-400">Preços não cadastrados</p>
+        ) : (
+          <>
+            <div className="flex flex-col gap-2.5 rounded-lg bg-slate-50 p-2.5">
+              {moinho != null && (
+                <div>
+                  <SecaoTitulo>Composição do equipamento</SecaoTitulo>
+                  <div className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+                    <span className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-slate-700">
+                      <Cog className="h-4 w-4 shrink-0 text-slate-400" aria-hidden /> Moinho
+                    </span>
+                    <span className="whitespace-nowrap text-[13px] font-semibold tabular-nums text-slate-800">{fmt(moinho)}</span>
+                  </div>
+                </div>
+              )}
+
+              {temPainel && (
+                <div>
+                  <SecaoTitulo>Opções de painel</SecaoTitulo>
+                  <div className="divide-y divide-slate-100 overflow-hidden rounded-md bg-white shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+                    {p220 != null && (
+                      <div className="flex items-center justify-between gap-3 px-3 py-2">
+                        <span className="flex min-w-0 items-center gap-2 text-[13px] text-slate-700">
+                          <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-slate-300" aria-hidden /> Painel 220V
+                        </span>
+                        <span className="whitespace-nowrap text-[13px] font-medium tabular-nums text-slate-700">{fmt(p220)}</span>
+                      </div>
+                    )}
+                    {p380 != null && (
+                      <div className="flex items-center justify-between gap-3 px-3 py-2">
+                        <span className="flex min-w-0 items-center gap-2 text-[13px] text-slate-700">
+                          <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-slate-300" aria-hidden /> Painel 380V
+                        </span>
+                        <span className="whitespace-nowrap text-[13px] font-medium tabular-nums text-slate-700">{fmt(p380)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {temPainel && (
+              <div>
+                <SecaoTitulo>Totais</SecaoTitulo>
+                <div className="flex flex-col gap-1.5">
+                  {p220 != null && (
+                    <div className="flex items-center gap-2.5 rounded-lg border border-seibt-blue/20 bg-seibt-blue-light px-3 py-2">
+                      <span className="shrink-0 rounded-full bg-seibt-blue px-2 py-0.5 text-[11px] font-bold text-white">220V</span>
+                      <span className="min-w-0 flex-1 text-[12px] leading-tight text-slate-600">Total com painel 220V</span>
+                      <span className="whitespace-nowrap text-[15px] font-bold tabular-nums text-seibt-navy">{fmt(total220)}</span>
+                    </div>
+                  )}
+                  {p380 != null && (
+                    <div className="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                      <span className="shrink-0 rounded-full bg-slate-600 px-2 py-0.5 text-[11px] font-bold text-white">380V</span>
+                      <span className="min-w-0 flex-1 text-[12px] leading-tight text-slate-600">Total com painel 380V</span>
+                      <span className="whitespace-nowrap text-[15px] font-bold tabular-nums text-seibt-navy">{fmt(total380)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {effectiveAdmin && (
+        <div className="mt-auto border-t border-border px-4 py-3">
+          {eq.atualizado_em && (
+            <p className="mb-2.5 flex items-center gap-1.5 text-[11.5px] text-slate-500">
+              <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              Última alteração: {new Date(eq.atualizado_em).toLocaleDateString("pt-BR")}
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onEditar}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-seibt-blue/50 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-seibt-blue transition-colors hover:bg-seibt-blue-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seibt-blue/40"
+            >
+              <Edit2 className="h-3.5 w-3.5" aria-hidden /> Editar
+            </button>
+            <button
+              type="button"
+              onClick={onDuplicar}
+              disabled={isPending}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-[12.5px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seibt-blue/40 disabled:opacity-50"
+            >
+              <Copy className="h-3.5 w-3.5" aria-hidden /> Duplicar
+            </button>
+          </div>
+        </div>
+      )}
+    </article>
   );
 }
 
@@ -215,6 +470,7 @@ export function LinhaEquipamentosView({ isAdmin, linha, equipamentos, specCampos
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [modal, setModal] = useState<"criar" | { equip: Equipamento } | null>(null);
+  const [fotoEditando, setFotoEditando] = useState<Equipamento | null>(null);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortKey>("codigo");
   const [sortAsc, setSortAsc] = useState(true);
@@ -365,99 +621,21 @@ export function LinhaEquipamentosView({ isAdmin, linha, equipamentos, specCampos
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 14 }}>
-        {equipFiltrados.map(eq => {
-          const moinho = eq.preco_brl;
-          const p220 = eq.preco_painel_220;
-          const p380 = eq.preco_painel_380;
-          const total220 = (moinho ?? 0) + (p220 ?? 0);
-          const total380 = (moinho ?? 0) + (p380 ?? 0);
-          const descontinuado = eq.status === "descontinuado";
-          const incompleto = !eq.preco_painel_380 || !eq.specs || Object.keys(eq.specs).length === 0 || eq.imagens_count === 0;
-
-          return (
-            <div key={eq.id} style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden", opacity: descontinuado ? 0.65 : 1 }}>
-              {/* Card header */}
-              <div style={{ padding: "14px 18px", cursor: "pointer", borderBottom: `1px solid ${BORDER}` }}
-                onClick={() => router.push(`/produtos/linhas/${linha.id}/${eq.id}`)}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: NAV }}>{eq.codigo}</span>
-                      {descontinuado && <span style={{ padding: "1px 6px", background: "#F1F5F9", color: "#6b7b8d", borderRadius: 4, fontSize: 10, fontWeight: 700 }}>DESCONTINUADO</span>}
-                      {!descontinuado && incompleto && effectiveAdmin && <IncompletoBadge />}
-                    </div>
-                    <div style={{ fontSize: 12, color: "#6b7b8d", lineHeight: 1.3 }}>
-                      {eq.potencia_motor || <span style={{ color: "#b0bac9" }}>Potência não cadastrada</span>}
-                    </div>
-                  </div>
-                  <ChevronRight size={15} color="#b0bac9" style={{ flexShrink: 0, marginLeft: 8 }} />
-                </div>
-              </div>
-
-              {/* Price breakdown */}
-              <div style={{ padding: "10px 18px", borderBottom: `1px solid ${BORDER}` }}>
-                {moinho == null && p220 == null && p380 == null ? (
-                  <div style={{ fontSize: 12, color: "#b0bac9" }}>Preços não cadastrados</div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                    {moinho != null && (
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: 11, color: "#b0bac9" }}>Moinho</span>
-                        <span style={{ fontSize: 12, fontWeight: 500, color: "#374151" }}>{fmt(moinho)}</span>
-                      </div>
-                    )}
-                    {p220 != null && (
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: 11, color: "#b0bac9" }}>Painel 220V</span>
-                        <span style={{ fontSize: 12, fontWeight: 500, color: "#374151" }}>{fmt(p220)}</span>
-                      </div>
-                    )}
-                    {p380 != null && (
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: 11, color: "#b0bac9" }}>Painel 380V</span>
-                        <span style={{ fontSize: 12, fontWeight: 500, color: "#374151" }}>{fmt(p380)}</span>
-                      </div>
-                    )}
-                    {(p220 != null || p380 != null) && (
-                      <div style={{ borderTop: `1px solid ${BORDER}`, marginTop: 4, paddingTop: 4, display: "flex", flexDirection: "column", gap: 3 }}>
-                        {p220 != null && (
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: "#6b7b8d" }}>TOTAL 220V</span>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: NAV }}>{fmt(total220)}</span>
-                          </div>
-                        )}
-                        {p380 != null && (
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: "#6b7b8d" }}>TOTAL 380V</span>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: NAV }}>{fmt(total380)}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {effectiveAdmin && (
-                <div style={{ padding: "8px 12px", display: "flex", justifyContent: "flex-end", gap: 6, flexWrap: "wrap" }}>
-                  <button onClick={() => setModal({ equip: eq })} style={{ background: "none", border: "none", cursor: "pointer", color: BLUE, display: "flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600 }}>
-                    <Edit2 size={12} /> Editar
-                  </button>
-                  <button onClick={() => handleDuplicar(eq.id)} disabled={isPending} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7b8d", display: "flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, opacity: isPending ? 0.5 : 1 }}>
-                    <Copy size={12} /> Duplicar
-                  </button>
-                  <button onClick={() => handleToggleStatus(eq)} disabled={isPending} style={{ background: "none", border: "none", cursor: "pointer", color: descontinuado ? "#16A34A" : "#D97706", display: "flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, opacity: isPending ? 0.5 : 1 }}>
-                    {descontinuado ? "Reativar" : "Descontinuar"}
-                  </button>
-                  <button onClick={() => handleExcluir(eq.id, eq.codigo)} disabled={isPending} style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", display: "flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, opacity: isPending ? 0.5 : 1 }}>
-                    <Trash2 size={12} /> Excluir
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(290px, 100%), 1fr))", gap: 16 }}>
+        {equipFiltrados.map(eq => (
+          <EquipamentoCard
+            key={eq.id}
+            eq={eq}
+            href={`/produtos/linhas/${linha.id}/${eq.id}`}
+            effectiveAdmin={effectiveAdmin}
+            isPending={isPending}
+            onEditar={() => setModal({ equip: eq })}
+            onEditarFoto={() => setFotoEditando(eq)}
+            onDuplicar={() => handleDuplicar(eq.id)}
+            onToggleStatus={() => handleToggleStatus(eq)}
+            onExcluir={() => handleExcluir(eq.id, eq.codigo)}
+          />
+        ))}
       </div>
 
       {/* Template de especificações (admin only — never in preview mode) */}
@@ -515,6 +693,19 @@ export function LinhaEquipamentosView({ isAdmin, linha, equipamentos, specCampos
           equip={modal === "criar" ? undefined : modal.equip}
           specCampos={specCampos}
           onClose={() => setModal(null)}
+        />
+      )}
+
+      {fotoEditando && (
+        <FotoEditorModal
+          maquina={{
+            id: fotoEditando.id,
+            codigo: fotoEditando.codigo,
+            fotoUrl: fotoEditando.foto,
+            imagensDisponiveis: fotoEditando.imagens,
+          }}
+          linhaId={linha.id}
+          onClose={() => setFotoEditando(null)}
         />
       )}
     </div>

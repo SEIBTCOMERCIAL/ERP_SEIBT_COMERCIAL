@@ -201,7 +201,7 @@ export async function excluirPeca(id: string, categoriaId: string): Promise<Admi
 
 // ─── Arquivos de produto ──────────────────────────────────────────────────────
 
-export async function uploadArquivoProduto(_prev: AdminState, formData: FormData): Promise<AdminState> {
+export async function uploadArquivoProduto(_prev: AdminState, formData: FormData): Promise<AdminState & { url?: string }> {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
   const produto_id = formData.get("produto_id") as string;
@@ -225,7 +225,7 @@ export async function uploadArquivoProduto(_prev: AdminState, formData: FormData
   });
   if (error) return { error: error.message };
   revalidatePath(`/produtos/linhas/${linha_id}/${produto_id}`);
-  return { success: true };
+  return { success: true, url: urlData.publicUrl };
 }
 
 export async function excluirArquivoProduto(

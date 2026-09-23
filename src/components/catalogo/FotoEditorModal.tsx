@@ -12,16 +12,16 @@ const BG = "#F8FAFC";
 const BORDER = "#E2E8F0";
 
 /**
- * Modal pra trocar/subir a foto de uma máquina, aberto ao clicar em cima da
- * foto na prévia do catálogo (tanto na visão de uma linha só quanto na visão
- * completa, com todas as linhas juntas).
+ * Modal pra trocar/subir a foto de uma máquina (produtos.foto_url) — a mesma
+ * foto usada no card de Produtos e no Catálogo. Aberto ao clicar na foto,
+ * tanto em Produtos quanto na prévia do Catálogo.
  */
 export function FotoEditorModal({
   maquina,
   linhaId,
   onClose,
 }: {
-  maquina: MaquinaCatalogo;
+  maquina: Pick<MaquinaCatalogo, "id" | "codigo" | "fotoUrl" | "imagensDisponiveis">;
   linhaId: string;
   onClose: () => void;
 }) {
@@ -52,9 +52,14 @@ export function FotoEditorModal({
       formData.set("tipo", "imagem");
       formData.set("arquivo", file);
       const res = await uploadArquivoProduto({}, formData);
-      if (res.error) {
-        setMsg(res.error);
+      if (res.error || !res.url) {
+        setMsg(res.error ?? "Não foi possível enviar a foto");
         if (fileRef.current) fileRef.current.value = "";
+        return;
+      }
+      const capa = await definirFotoCapaProduto(maquina.id, linhaId, res.url);
+      if (capa.error) {
+        setMsg(capa.error);
         return;
       }
       router.refresh();
