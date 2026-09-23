@@ -129,11 +129,17 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
     checklist.producao_horaria_kgh?.trim() &&
     checklist.moagem_tipo && checklist.forma_abastecimento && checklist.voltagem;
 
+  // Item da máquina: título do equipamento; a descrição completa (texto de orçamento)
+  // vai como complemento — a menos que só repita o título (ex.: "10 CV").
+  const descMaquina = maquinaSel?.descricao?.trim() ?? "";
+  const descRepete = !descMaquina || (maquinaSel?.codigo ?? "").toLowerCase().includes(descMaquina.toLowerCase());
+
   // build full cart (máquina + peças)
   const allCartItems: CartItemInput[] = [
     ...(maquinaSel ? [{
       produto_id: maquinaSel.id, variante_id: null,
-      codigo: maquinaSel.codigo, descricao: maquinaSel.descricao,
+      codigo: maquinaSel.codigo, descricao: tituloComSeparador(maquinaSel.codigo),
+      observacao: descRepete ? null : descMaquina,
       preco_unitario: maquinaSel.preco_brl ?? 0, ipi_pct: maquinaSel.ipi_pct, quantidade: 1,
     }] : []),
     ...cart,
@@ -458,7 +464,12 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
                   <tbody>
                     {allCartItems.map((item, i) => (
                       <tr key={i} style={{ borderBottom: `1px solid ${BORDER}` }}>
-                        <td style={{ padding: "10px 12px", fontSize: 13 }}>{item.descricao}</td>
+                        <td style={{ padding: "10px 12px", fontSize: 13 }}>
+                          <div style={{ fontWeight: 600 }}>{item.descricao}</div>
+                          {item.observacao && (
+                            <div style={{ fontSize: 11.5, color: "#6b7b8d", marginTop: 3, whiteSpace: "pre-wrap", maxHeight: 60, overflow: "hidden" }}>{item.observacao}</div>
+                          )}
+                        </td>
                         <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right" }}>{item.quantidade}</td>
                         <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right" }}>{formatCurrency(item.preco_unitario)}</td>
                         <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, textAlign: "right" }}>{formatCurrency(item.preco_unitario * item.quantidade)}</td>

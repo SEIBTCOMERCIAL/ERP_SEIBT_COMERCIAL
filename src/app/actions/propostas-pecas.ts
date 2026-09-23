@@ -12,6 +12,8 @@ export interface CartItemInput {
   preco_unitario: number;
   ipi_pct: number;
   quantidade: number;
+  /** Texto complementar do item (ex.: descrição completa do moinho, para o orçamento). */
+  observacao?: string | null;
 }
 
 export interface CriarPropostaPecasInput {
@@ -37,11 +39,20 @@ export async function criarPropostaPecas(
 
   const { data: usuario } = await supabase
     .from("usuarios")
-    .select("perfil, representante_id")
+    .select("perfil")
     .eq("id", user.id)
     .single();
 
-  if (!usuario) return { error: "Perfil não configurado. Execute o seed SQL no Supabase." };
+  if (!usuario) return { error: "Seu usuário não está cadastrado no ERP. Fale com o administrador." };
+
+  // O vínculo usuário → representante fica em representantes.usuario_id.
+  const { data: representante } = await supabase
+    .from("representantes")
+    .select("id")
+    .eq("usuario_id", user.id)
+    .eq("ativo", true)
+    .limit(1)
+    .maybeSingle();
 
   if (input.itens.length === 0) return { error: "Adicione ao menos um item à proposta." };
 
@@ -63,7 +74,7 @@ export async function criarPropostaPecas(
       cliente_id:         input.cliente_id,
       maquina_id:         input.maquina_id || null,
       responsavel_id:     user.id,
-      representante_id:   usuario.representante_id || null,
+      representante_id:   representante?.id ?? null,
       condicao_pagamento: input.condicao_pagamento || null,
       prazo_entrega:      input.prazo_entrega || null,
       validade_proposta:  input.validade_proposta || null,
@@ -94,6 +105,7 @@ export async function criarPropostaPecas(
     total:          item.quantidade * item.preco_unitario * (1 + item.ipi_pct / 100),
     ordem:          idx,
     opcional:       false,
+    observacao:     item.observacao?.trim() || null,
   }));
 
   const { error: itensErr } = await supabase.from("itens_proposta").insert(itensPrepared);

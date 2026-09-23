@@ -392,9 +392,10 @@ export async function GET(
         para([run(item.descricao, { size: 19 })]),
       ];
       if (item.observacao) {
-        descParagraphs.push(
-          para([run(item.observacao, { size: 17, color: "555555" })])
-        );
+        // Uma linha do texto = um parágrafo (o Word ignora quebras de linha dentro do texto).
+        for (const linha of item.observacao.split(/\r?\n/)) {
+          descParagraphs.push(para([run(linha, { size: 17, color: "555555" })]));
+        }
       }
       if (item.opcional) {
         descParagraphs.push(
