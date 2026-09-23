@@ -218,6 +218,11 @@ function listarPendencias(eq: Equipamento): string[] {
   return pendencias;
 }
 
+// Só na exibição do título: "MGHS 1300 A2 200 CV" → "MGHS 1300 A2 / 200 CV". O código salvo não muda.
+function tituloComSeparador(codigo: string): string {
+  return codigo.replace(/(?<!\/)\s+(\d+(?:[.,]\d+)?\s*CV\b)/i, " / $1");
+}
+
 function juntarLista(itens: string[]): string {
   if (itens.length <= 1) return itens.join("");
   return `${itens.slice(0, -1).join(", ")} e ${itens[itens.length - 1]}`;
@@ -305,7 +310,7 @@ function EquipamentoCard({
         >
           <div className="min-w-0">
             <h3 className="break-words text-[15px] font-bold leading-snug text-seibt-navy transition-colors group-hover:text-seibt-blue">
-              {eq.codigo}
+              {tituloComSeparador(eq.codigo)}
             </h3>
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
               {eq.potencia_motor
