@@ -13,7 +13,7 @@ export interface ImagemProduto {
 export interface MaquinaCatalogo {
   id: string;
   codigo: string;
-  /** Nome exibido (código; ou a descrição, se o código for provisório REC-/PEPP-). */
+  /** Nome exibido (título) — é o próprio código do equipamento. */
   nome: string;
   potenciaMotor: string | null;
   precoMaquina: number | null;

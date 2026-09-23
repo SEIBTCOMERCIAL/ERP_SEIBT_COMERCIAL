@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { nomeExibicao } from "@/lib/produto-nome";
 import type { CatalogoLinha, JogoNavalhas, MaquinaCatalogo, PecaCatalogo, SpecCampo } from "./tipos";
 
 export type { SpecCampo, ImagemProduto, MaquinaCatalogo, CatalogoLinha, PecaCatalogo, JogoNavalhas, ModoCatalogo } from "./tipos";
@@ -40,7 +39,7 @@ export async function carregarCatalogoLinha(
     supabase
       .from("produtos")
       .select(
-        "id, codigo, descricao, potencia_motor, preco_brl, preco_painel_220, preco_painel_380, specs, foto_url, produto_arquivos(id, tipo, nome, url)"
+        "id, codigo, potencia_motor, preco_brl, preco_painel_220, preco_painel_380, specs, foto_url, produto_arquivos(id, tipo, nome, url)"
       )
       .eq("categoria", "maquina")
       .eq("linha_id", linhaId)
@@ -66,7 +65,7 @@ export async function carregarCatalogoLinha(
     .map((p: SupabaseAny) => ({
       id: p.id,
       codigo: p.codigo,
-      nome: nomeExibicao(p.codigo, p.descricao),
+      nome: p.codigo,
       potenciaMotor: p.potencia_motor ?? null,
       precoMaquina: p.preco_brl,
       precoPainel220: p.preco_painel_220,

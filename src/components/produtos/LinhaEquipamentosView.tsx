@@ -9,7 +9,6 @@ import {
   MoreVertical, PauseCircle, PlayCircle, CalendarDays, Cog, ImageOff, Camera,
 } from "lucide-react";
 import { FotoEditorModal } from "@/components/catalogo/FotoEditorModal";
-import { codigoProvisorio, nomeExibicao } from "@/lib/produto-nome";
 import {
   criarEquipamento, editarEquipamento, excluirEquipamento,
   duplicarEquipamento, atualizarStatusEquipamento,
@@ -136,7 +135,7 @@ function EquipamentoModal({ linha, equip, specCampos, onClose }: {
 
           {/* Código + NCM */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            {inp("codigo", "Código", { required: true, def: equip?.codigo, placeholder: "ex: MGHS-500" })}
+            {inp("codigo", "Código / nome (título do card)", { required: true, def: equip?.codigo, placeholder: "ex: MGHS 500 A2 30 CV" })}
             {inp("ncm", "NCM", { def: equip?.ncm ?? "", placeholder: "ex: 84779000" })}
           </div>
 
@@ -271,8 +270,7 @@ function EquipamentoCard({
   const incompleto = pendencias.length > 0;
   const semPrecos = moinho == null && p220 == null && p380 == null;
   const temPainel = p220 != null || p380 != null;
-  const nome = nomeExibicao(eq.codigo, eq.descricao);
-  const provisorio = codigoProvisorio(eq.codigo);
+  const nome = eq.codigo;
 
   return (
     <article className={cn(
@@ -365,7 +363,6 @@ function EquipamentoCard({
             {tituloComSeparador(nome)}
           </h3>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-            {provisorio && <span className="text-[11.5px] text-slate-400">Cód. {eq.codigo}</span>}
             {eq.potencia_motor
               ? <span className="text-[12px] text-slate-600">{eq.potencia_motor}</span>
               : <span className="text-[12px] text-slate-400">Potência não cadastrada</span>}
@@ -556,7 +553,7 @@ export function LinhaEquipamentosView({ isAdmin, linha, equipamentos, specCampos
     )
     .sort((a, b) => {
       let cmp = 0;
-      if (sort === "codigo") cmp = nomeExibicao(a.codigo, a.descricao).localeCompare(nomeExibicao(b.codigo, b.descricao));
+      if (sort === "codigo") cmp = a.codigo.localeCompare(b.codigo);
       else if (sort === "preco") cmp = (a.preco_brl ?? 0) - (b.preco_brl ?? 0);
       else cmp = (a.atualizado_em ?? "").localeCompare(b.atualizado_em ?? "");
       return sortAsc ? cmp : -cmp;
@@ -724,7 +721,7 @@ export function LinhaEquipamentosView({ isAdmin, linha, equipamentos, specCampos
           maquina={{
             id: fotoEditando.id,
             codigo: fotoEditando.codigo,
-            nome: nomeExibicao(fotoEditando.codigo, fotoEditando.descricao),
+            nome: fotoEditando.codigo,
             fotoUrl: fotoEditando.foto,
             imagensDisponiveis: fotoEditando.imagens,
           }}

@@ -110,6 +110,8 @@ export async function editarEquipamento(_prev: AdminState, formData: FormData): 
   if ("error" in auth) return auth;
   const id = formData.get("id") as string;
   const linha_id = formData.get("linha_id") as string;
+  const codigo = (formData.get("codigo") as string)?.trim();
+  if (!codigo) return { error: "Código / nome obrigatório" };
   const descricao = (formData.get("descricao") as string)?.trim();
   if (!descricao) return { error: "Descrição obrigatória" };
   const preco_brl = parseCurr(formData.get("preco_brl") as string);
@@ -123,9 +125,12 @@ export async function editarEquipamento(_prev: AdminState, formData: FormData): 
     if (key.startsWith("spec__") && (val as string).trim()) specs[key.slice(6)] = (val as string).trim();
   });
   const { error } = await auth.supabase.from("produtos")
-    .update({ descricao, descricao_painel, potencia_motor, preco_brl, preco_painel_220, preco_painel_380, ncm, specs, atualizado_em: new Date().toISOString() })
+    .update({ codigo, descricao, descricao_painel, potencia_motor, preco_brl, preco_painel_220, preco_painel_380, ncm, specs, atualizado_em: new Date().toISOString() })
     .eq("id", id);
-  if (error) return { error: error.message };
+  if (error) {
+    if (error.code === "23505") return { error: `Já existe um produto com o código/nome "${codigo}"` };
+    return { error: error.message };
+  }
   revalidatePath(`/produtos/linhas/${linha_id}`);
   revalidatePath(`/produtos/linhas/${linha_id}/${id}`);
   return { success: true };
