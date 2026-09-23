@@ -279,62 +279,53 @@ function EquipamentoCard({
       "flex min-w-0 flex-col rounded-xl border border-border bg-white shadow-sm transition-shadow hover:shadow-md",
       descontinuado && "opacity-[0.65]"
     )}>
-      {/* Cabeçalho */}
-      <div className="flex items-start gap-3 p-4 pb-3">
+      {/* Foto em destaque */}
+      <div className="relative">
         {effectiveAdmin ? (
           <button
             type="button"
             onClick={onEditarFoto}
             title="Trocar foto (é a mesma foto usada no Catálogo)"
             aria-label={`Trocar foto — ${nome}`}
-            className="group/foto relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seibt-blue/40"
+            className="group/foto relative flex h-44 w-full items-center justify-center overflow-hidden rounded-t-xl border-b border-border bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-seibt-blue/40"
           >
             {eq.foto ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={eq.foto} alt="" className="h-full w-full object-contain p-1" />
+              <img src={eq.foto} alt="" className="h-full w-full object-contain p-3" />
             ) : (
-              <Camera className="h-5 w-5 text-slate-300" aria-hidden />
+              <span className="flex flex-col items-center gap-1.5 text-slate-300">
+                <Camera className="h-8 w-8" aria-hidden />
+                <span className="text-[11.5px] font-medium text-slate-400">Adicionar foto</span>
+              </span>
             )}
-            <span className="absolute inset-0 flex items-center justify-center bg-slate-900/55 opacity-0 transition-opacity group-hover/foto:opacity-100 group-focus-visible/foto:opacity-100" aria-hidden>
-              <Camera className="h-4 w-4 text-white" />
+            <span className="absolute inset-0 flex items-center justify-center gap-1.5 bg-slate-900/50 text-[12px] font-semibold text-white opacity-0 transition-opacity group-hover/foto:opacity-100 group-focus-visible/foto:opacity-100" aria-hidden>
+              <Camera className="h-4 w-4" /> Trocar foto
             </span>
           </button>
         ) : (
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-slate-50">
+          <Link
+            href={href}
+            tabIndex={-1}
+            aria-hidden
+            className="flex h-44 w-full items-center justify-center overflow-hidden rounded-t-xl border-b border-border bg-slate-50"
+          >
             {eq.foto ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={eq.foto} alt="" className="h-full w-full object-contain p-1" />
+              <img src={eq.foto} alt="" className="h-full w-full object-contain p-3" />
             ) : (
-              <ImageOff className="h-5 w-5 text-slate-300" aria-hidden />
+              <ImageOff className="h-8 w-8 text-slate-300" />
             )}
-          </div>
+          </Link>
         )}
 
-        <Link
-          href={href}
-          className="group min-w-0 flex-1 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-seibt-blue/40"
-        >
-          <div className="min-w-0">
-            <h3 className="break-words text-[15px] font-bold leading-snug text-seibt-navy transition-colors group-hover:text-seibt-blue">
-              {tituloComSeparador(nome)}
-            </h3>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-              {provisorio && <span className="text-[11.5px] text-slate-400">Cód. {eq.codigo}</span>}
-              {eq.potencia_motor
-                ? <span className="text-[12.5px] text-slate-600">{eq.potencia_motor}</span>
-                : <span className="text-[12.5px] text-slate-400">Potência não cadastrada</span>}
-              <StatusPill descontinuado={descontinuado} />
-            </div>
-          </div>
-        </Link>
-
         {effectiveAdmin && (
-          <DropdownMenu>
+          <div className="absolute right-2 top-2">
+            <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
                 aria-label={`Mais ações — ${nome}`}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-seibt-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seibt-blue/40 data-[state=open]:bg-slate-100"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-white/95 text-slate-500 shadow-sm transition-colors hover:bg-white hover:text-seibt-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seibt-blue/40 data-[state=open]:bg-slate-100"
               >
                 <MoreVertical className="h-4 w-4" />
               </button>
@@ -359,8 +350,28 @@ function EquipamentoCard({
                 <Trash2 /> Excluir
               </DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>
+            </DropdownMenu>
+          </div>
         )}
+      </div>
+
+      {/* Nome logo abaixo da foto */}
+      <div className="px-4 pb-3 pt-3">
+        <Link
+          href={href}
+          className="group block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-seibt-blue/40"
+        >
+          <h3 className="break-words text-[13.5px] font-bold leading-snug text-seibt-navy transition-colors group-hover:text-seibt-blue">
+            {tituloComSeparador(nome)}
+          </h3>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+            {provisorio && <span className="text-[11.5px] text-slate-400">Cód. {eq.codigo}</span>}
+            {eq.potencia_motor
+              ? <span className="text-[12px] text-slate-600">{eq.potencia_motor}</span>
+              : <span className="text-[12px] text-slate-400">Potência não cadastrada</span>}
+            <StatusPill descontinuado={descontinuado} />
+          </div>
+        </Link>
       </div>
 
       <div className="flex flex-col gap-3 px-4 pb-4">
