@@ -233,6 +233,60 @@ export async function uploadArquivoProduto(_prev: AdminState, formData: FormData
   return { success: true, url: urlData.publicUrl };
 }
 
+/**
+ * Uma foto para todos os equipamentos da linha: sobe o arquivo uma vez, vira a
+ * foto (produtos.foto_url — card e catálogo) de cada equipamento e entra na
+ * lista de imagens de cada um. Trocar de novo substitui a foto de linha anterior.
+ */
+export async function definirFotoDaLinha(_prev: AdminState, formData: FormData): Promise<AdminState & { qtd?: number }> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+  const linha_id = formData.get("linha_id") as string;
+  const file = formData.get("arquivo") as File;
+  if (!linha_id) return { error: "Linha não informada" };
+  if (!file || file.size === 0) return { error: "Escolha uma foto" };
+  if (!file.type.startsWith("image/")) return { error: "O arquivo precisa ser uma imagem" };
+  if (file.size > 52428800) return { error: "Arquivo muito grande (máx 50MB)" };
+
+  const { data: maqs, error: errMaqs } = await auth.supabase.from("produtos")
+    .select("id").eq("linha_id", linha_id).eq("categoria", "maquina").is("deleted_at", null);
+  if (errMaqs) return { error: errMaqs.message };
+  const ids = (maqs ?? []).map((m: { id: string }) => m.id);
+  if (!ids.length) return { error: "Nenhum equipamento nesta linha" };
+
+  const admin = createAdminClient();
+  const pasta = `linhas/${linha_id}`;
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+  const path = `${pasta}/${Date.now()}.${ext}`;
+  const { error: upErr } = await admin.storage.from("produto-arquivos")
+    .upload(path, await file.arrayBuffer(), { contentType: file.type, upsert: false });
+  if (upErr) return { error: "Falha no upload: " + upErr.message };
+  const url = admin.storage.from("produto-arquivos").getPublicUrl(path).data.publicUrl;
+  const prefixoPasta = url.slice(0, url.lastIndexOf("/") + 1);
+
+  // Remove a foto de linha anterior da lista de imagens de cada equipamento.
+  await auth.supabase.from("produto_arquivos").delete()
+    .in("produto_id", ids).eq("tipo", "imagem").is("storage_path", null).like("url", `${prefixoPasta}%`);
+
+  // storage_path vazio: apagar a imagem de UM equipamento não apaga o arquivo que os outros usam.
+  const { error: errIns } = await auth.supabase.from("produto_arquivos")
+    .insert(ids.map((id: string) => ({ produto_id: id, tipo: "imagem", nome: file.name, url, storage_path: null })));
+  if (errIns) return { error: errIns.message };
+
+  const { error: errUpd } = await auth.supabase.from("produtos")
+    .update({ foto_url: url }).eq("linha_id", linha_id).eq("categoria", "maquina").is("deleted_at", null);
+  if (errUpd) return { error: errUpd.message };
+
+  const { data: antigos } = await admin.storage.from("produto-arquivos").list(pasta);
+  const remover = (antigos ?? []).map((o) => `${pasta}/${o.name}`).filter((p) => p !== path);
+  if (remover.length) await admin.storage.from("produto-arquivos").remove(remover);
+
+  revalidatePath(`/produtos/linhas/${linha_id}`);
+  revalidatePath(`/catalogo/${linha_id}`);
+  revalidatePath("/catalogo/completo");
+  return { success: true, qtd: ids.length };
+}
+
 export async function excluirArquivoProduto(
   arquivoId: string,
   storagePath: string | null,

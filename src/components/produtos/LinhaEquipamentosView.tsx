@@ -12,7 +12,7 @@ import { FotoEditorModal } from "@/components/catalogo/FotoEditorModal";
 import {
   criarEquipamento, editarEquipamento, excluirEquipamento,
   duplicarEquipamento, atualizarStatusEquipamento,
-  criarLinhaSpecCampo, excluirLinhaSpecCampo,
+  criarLinhaSpecCampo, excluirLinhaSpecCampo, definirFotoDaLinha,
   type AdminState,
 } from "@/app/actions/produtos-admin";
 import {
@@ -502,6 +502,21 @@ export function LinhaEquipamentosView({ isAdmin, linha, equipamentos, specCampos
 
   const [campoState, campoAction] = useFormState(criarLinhaSpecCampo, {});
   const campoInputRef = useRef<HTMLInputElement>(null);
+  const fotoLinhaRef = useRef<HTMLInputElement>(null);
+
+  const handleFotoDaLinha = (file: File | undefined) => {
+    if (fotoLinhaRef.current) fotoLinhaRef.current.value = "";
+    if (!file) return;
+    if (!confirm(`Colocar esta foto em todos os ${equipamentos.length} equipamentos da ${linha.nome}?\nA foto atual de cada card será trocada (e aparece também no Catálogo).`)) return;
+    startTransition(async () => {
+      const formData = new FormData();
+      formData.set("linha_id", linha.id);
+      formData.set("arquivo", file);
+      const res = await definirFotoDaLinha({}, formData);
+      if (res.error) alert(res.error);
+      else router.refresh();
+    });
+  };
 
   useEffect(() => {
     if (campoState.success) { router.refresh(); if (campoInputRef.current) campoInputRef.current.value = ""; }
@@ -606,6 +621,15 @@ export function LinhaEquipamentosView({ isAdmin, linha, equipamentos, specCampos
             style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 16px", background: "#fff", color: NAV, border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none" }}>
             <Download size={15} /> Exportar .docx
           </a>
+          {effectiveAdmin && equipamentos.length > 0 && (
+            <label
+              title="Envia uma foto e coloca ela em todos os equipamentos desta linha"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 16px", background: "#fff", color: NAV, border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: isPending ? "default" : "pointer", opacity: isPending ? 0.6 : 1 }}>
+              <Camera size={15} /> {isPending ? "Enviando..." : "Foto da linha"}
+              <input ref={fotoLinhaRef} type="file" accept="image/*" disabled={isPending}
+                onChange={e => handleFotoDaLinha(e.target.files?.[0])} style={{ display: "none" }} />
+            </label>
+          )}
           {effectiveAdmin && (
             <button onClick={() => setModal("criar")}
               style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", background: NAV, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
