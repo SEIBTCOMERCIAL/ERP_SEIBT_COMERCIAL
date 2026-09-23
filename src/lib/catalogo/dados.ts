@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { nomeExibicao } from "@/lib/produto-nome";
 import type { CatalogoLinha, JogoNavalhas, MaquinaCatalogo, PecaCatalogo, SpecCampo } from "./tipos";
 
 export type { SpecCampo, ImagemProduto, MaquinaCatalogo, CatalogoLinha, PecaCatalogo, JogoNavalhas, ModoCatalogo } from "./tipos";
@@ -39,7 +40,7 @@ export async function carregarCatalogoLinha(
     supabase
       .from("produtos")
       .select(
-        "id, codigo, potencia_motor, preco_brl, preco_painel_220, preco_painel_380, specs, foto_url, produto_arquivos(id, tipo, nome, url)"
+        "id, codigo, descricao, potencia_motor, preco_brl, preco_painel_220, preco_painel_380, specs, foto_url, produto_arquivos(id, tipo, nome, url)"
       )
       .eq("categoria", "maquina")
       .eq("linha_id", linhaId)
@@ -65,6 +66,7 @@ export async function carregarCatalogoLinha(
     .map((p: SupabaseAny) => ({
       id: p.id,
       codigo: p.codigo,
+      nome: nomeExibicao(p.codigo, p.descricao),
       potenciaMotor: p.potencia_motor ?? null,
       precoMaquina: p.preco_brl,
       precoPainel220: p.preco_painel_220,
@@ -76,8 +78,8 @@ export async function carregarCatalogoLinha(
         .map((a: SupabaseAny) => ({ id: a.id, url: a.url, nome: a.nome })),
     }))
     .sort((a: MaquinaCatalogo, b: MaquinaCatalogo) => {
-      const diff = tamanhoModelo(a.codigo) - tamanhoModelo(b.codigo);
-      return diff !== 0 ? diff : a.codigo.localeCompare(b.codigo);
+      const diff = tamanhoModelo(a.nome) - tamanhoModelo(b.nome);
+      return diff !== 0 ? diff : a.nome.localeCompare(b.nome);
     });
 
   const specCampos: SpecCampo[] = rawCampos ?? [];

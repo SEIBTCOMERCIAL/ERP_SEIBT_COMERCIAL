@@ -143,7 +143,7 @@ function TabelaMaquinasLinha({ nome, maquinas }: { nome: string; maquinas: Maqui
       <tbody>
         {maquinas.map((m) => (
           <tr key={m.id}>
-            <td>{m.codigo}</td>
+            <td>{m.nome}</td>
             <td>{m.potenciaMotor ? `${m.potenciaMotor} CV` : "—"}</td>
             <td className="num valor">{formatBRL(m.precoMaquina)}</td>
             <td className="num valor">{formatTotalComPainel(m.precoMaquina, m.precoPainel220)}</td>

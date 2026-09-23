@@ -11,6 +11,7 @@ import {
   criarPecaEVincular, editarPecaVinculada,
   type AdminState,
 } from "@/app/actions/produtos-admin";
+import { codigoProvisorio, nomeExibicao } from "@/lib/produto-nome";
 
 const NAV = "#2C4F79";
 const BLUE = "#2074B9";
@@ -604,7 +605,7 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
         <ChevronRight size={14} />
         <span style={{ cursor: "pointer", color: BLUE }} onClick={() => router.push(`/produtos/linhas/${linha.id}`)}>{linha.nome}</span>
         <ChevronRight size={14} />
-        <span style={{ color: NAV, fontWeight: 600 }}>{equip.codigo}</span>
+        <span style={{ color: NAV, fontWeight: 600 }}>{nomeExibicao(equip.codigo, equip.descricao)}</span>
       </div>
 
       {previewAsUser && (
@@ -617,11 +618,12 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
       <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: NAV, margin: 0 }}>{equip.codigo}</h1>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: NAV, margin: 0 }}>{nomeExibicao(equip.codigo, equip.descricao)}</h1>
             {equip.status === "descontinuado" && (
               <span style={{ padding: "2px 10px", background: "#F1F5F9", color: "#6b7b8d", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>DESCONTINUADO</span>
             )}
           </div>
+          {codigoProvisorio(equip.codigo) && <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 4 }}>Cód. {equip.codigo}</div>}
           {equip.potencia_motor && <div style={{ fontSize: 14, color: "#6b7b8d", marginTop: 4 }}>{equip.potencia_motor}</div>}
         </div>
         {isAdmin && (

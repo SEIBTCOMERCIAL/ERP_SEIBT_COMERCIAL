@@ -9,6 +9,7 @@ import {
   MoreVertical, PauseCircle, PlayCircle, CalendarDays, Cog, ImageOff, Camera,
 } from "lucide-react";
 import { FotoEditorModal } from "@/components/catalogo/FotoEditorModal";
+import { codigoProvisorio, nomeExibicao } from "@/lib/produto-nome";
 import {
   criarEquipamento, editarEquipamento, excluirEquipamento,
   duplicarEquipamento, atualizarStatusEquipamento,
@@ -218,9 +219,12 @@ function listarPendencias(eq: Equipamento): string[] {
   return pendencias;
 }
 
-// Só na exibição do título: "MGHS 1300 A2 200 CV" → "MGHS 1300 A2 / 200 CV". O código salvo não muda.
-function tituloComSeparador(codigo: string): string {
-  return codigo.replace(/(?<!\/)\s+(\d+(?:[.,]\d+)?\s*CV\b)/i, " / $1");
+// Só na exibição do título: "MGHS 1300 A2 200 CV" → "MGHS 1300 A2 / 200 CV"
+// ("BOMBA ÁGUA 15M³ — 1,5 CV" → "BOMBA ÁGUA 15M³ / 1,5 CV"). O código salvo não muda.
+function tituloComSeparador(nome: string): string {
+  const potencia = /\s[—–-]\s*(\d+(?:[.,]\d+)?\s*CV\b)/i;
+  if (potencia.test(nome)) return nome.replace(potencia, " / $1");
+  return nome.replace(/(?<!\/)\s+(\d+(?:[.,]\d+)?\s*CV\b)/i, " / $1");
 }
 
 function juntarLista(itens: string[]): string {
@@ -267,6 +271,8 @@ function EquipamentoCard({
   const incompleto = pendencias.length > 0;
   const semPrecos = moinho == null && p220 == null && p380 == null;
   const temPainel = p220 != null || p380 != null;
+  const nome = nomeExibicao(eq.codigo, eq.descricao);
+  const provisorio = codigoProvisorio(eq.codigo);
 
   return (
     <article className={cn(
@@ -280,7 +286,7 @@ function EquipamentoCard({
             type="button"
             onClick={onEditarFoto}
             title="Trocar foto (é a mesma foto usada no Catálogo)"
-            aria-label={`Trocar foto — ${eq.codigo}`}
+            aria-label={`Trocar foto — ${nome}`}
             className="group/foto relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seibt-blue/40"
           >
             {eq.foto ? (
@@ -310,9 +316,10 @@ function EquipamentoCard({
         >
           <div className="min-w-0">
             <h3 className="break-words text-[15px] font-bold leading-snug text-seibt-navy transition-colors group-hover:text-seibt-blue">
-              {tituloComSeparador(eq.codigo)}
+              {tituloComSeparador(nome)}
             </h3>
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+              {provisorio && <span className="text-[11.5px] text-slate-400">Cód. {eq.codigo}</span>}
               {eq.potencia_motor
                 ? <span className="text-[12.5px] text-slate-600">{eq.potencia_motor}</span>
                 : <span className="text-[12.5px] text-slate-400">Potência não cadastrada</span>}
@@ -326,7 +333,7 @@ function EquipamentoCard({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                aria-label={`Mais ações — ${eq.codigo}`}
+                aria-label={`Mais ações — ${nome}`}
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-seibt-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-seibt-blue/40 data-[state=open]:bg-slate-100"
               >
                 <MoreVertical className="h-4 w-4" />
@@ -538,7 +545,7 @@ export function LinhaEquipamentosView({ isAdmin, linha, equipamentos, specCampos
     )
     .sort((a, b) => {
       let cmp = 0;
-      if (sort === "codigo") cmp = a.codigo.localeCompare(b.codigo);
+      if (sort === "codigo") cmp = nomeExibicao(a.codigo, a.descricao).localeCompare(nomeExibicao(b.codigo, b.descricao));
       else if (sort === "preco") cmp = (a.preco_brl ?? 0) - (b.preco_brl ?? 0);
       else cmp = (a.atualizado_em ?? "").localeCompare(b.atualizado_em ?? "");
       return sortAsc ? cmp : -cmp;
@@ -706,6 +713,7 @@ export function LinhaEquipamentosView({ isAdmin, linha, equipamentos, specCampos
           maquina={{
             id: fotoEditando.id,
             codigo: fotoEditando.codigo,
+            nome: nomeExibicao(fotoEditando.codigo, fotoEditando.descricao),
             fotoUrl: fotoEditando.foto,
             imagensDisponiveis: fotoEditando.imagens,
           }}

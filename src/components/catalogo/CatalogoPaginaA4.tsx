@@ -69,7 +69,7 @@ function MaquinaBloco({
         >
           {maquina.fotoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={maquina.fotoUrl} alt={maquina.codigo} />
+            <img src={maquina.fotoUrl} alt={maquina.nome} />
           ) : (
             <span className="sem-foto">Sem foto selecionada</span>
           )}
@@ -81,7 +81,7 @@ function MaquinaBloco({
         </div>
         <div className="info">
           <div className="titlerow">
-            <span className="modelo">{maquina.codigo}</span>
+            <span className={`modelo${maquina.nome.length > 32 ? " longo" : ""}`}>{maquina.nome}</span>
             {maquina.potenciaMotor && <span className="motor">Motor {maquina.potenciaMotor} CV</span>}
           </div>
           <div className="maqrow">

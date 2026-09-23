@@ -25,6 +25,7 @@ export const CATALOGO_CSS = `
   .info { flex-grow: 1; display: flex; flex-direction: column; gap: 4px; justify-content: center; }
   .titlerow { display: flex; justify-content: space-between; align-items: baseline; }
   .modelo { font-family: var(--font-archivo), sans-serif; font-weight: 800; font-size: 14.5px; white-space: nowrap; }
+  .modelo.longo { white-space: normal; line-height: 1.2; min-width: 0; }
   .motor { background: #E8ECF1; color: #2E3B4E; font-weight: 700; font-size: 9px; padding: 2px 7px; border-radius: 4px; white-space: nowrap; }
   .maqrow { background: #F4F5F7; border-radius: 5px; padding: 4px 8px; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
   .maqrow .lbl { font-size: 8px; letter-spacing: 0.3px; text-transform: uppercase; color: #4B5563; }

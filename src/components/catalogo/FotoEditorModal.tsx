@@ -21,7 +21,7 @@ export function FotoEditorModal({
   linhaId,
   onClose,
 }: {
-  maquina: Pick<MaquinaCatalogo, "id" | "codigo" | "fotoUrl" | "imagensDisponiveis">;
+  maquina: Pick<MaquinaCatalogo, "id" | "codigo" | "nome" | "fotoUrl" | "imagensDisponiveis">;
   linhaId: string;
   onClose: () => void;
 }) {
@@ -78,7 +78,7 @@ export function FotoEditorModal({
         style={{ background: "#fff", borderRadius: 12, padding: 20, width: 340, display: "flex", flexDirection: "column", gap: 14 }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: NAV }}>{maquina.codigo}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: NAV }}>{maquina.nome}</span>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7b8d" }}>
             <X size={18} />
           </button>
