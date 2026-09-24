@@ -1,5 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    // Modelos de Word das propostas, lidos em tempo de execução pela rota de .docx.
+    outputFileTracingIncludes: {
+      "/api/docx/[propostaId]": ["./templates/**/*"],
+    },
+  },
   images: {
     remotePatterns: [
       {

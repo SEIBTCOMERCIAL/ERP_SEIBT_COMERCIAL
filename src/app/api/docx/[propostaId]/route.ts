@@ -1,5 +1,9 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
+import { gerarDocxMaquina } from "@/lib/propostas/docx-modelo";
+import { carregarDadosDocxMaquina } from "@/lib/propostas/docx-maquina-dados";
 import {
   Document,
   Packer,
@@ -140,6 +144,21 @@ export async function GET(
 
   if (!proposta) {
     return new Response("Proposta não encontrada", { status: 404 });
+  }
+
+  // Proposta de máquina: preenche o modelo oficial do Word (PROPOSTA MÁQUINA 2026).
+  if (proposta.tipo === "maquina") {
+    const carregado = await carregarDadosDocxMaquina(supabase, params.propostaId);
+    if (!carregado) return new Response("Proposta não encontrada", { status: 404 });
+    const modelo = await readFile(path.join(process.cwd(), "templates", "proposta-maquina.docx"));
+    const arquivo = gerarDocxMaquina(modelo, carregado.dados);
+    const nomeAscii = carregado.nomeArquivo.normalize("NFD").replace(/[^\x20-\x7E]/g, "");
+    return new Response(new Uint8Array(arquivo), {
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "Content-Disposition": `attachment; filename="${nomeAscii}"; filename*=UTF-8''${encodeURIComponent(carregado.nomeArquivo)}`,
+      },
+    });
   }
 
   const [

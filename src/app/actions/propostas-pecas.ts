@@ -3,6 +3,19 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+export interface ChecklistInput {
+  segmento_aplicacao: string;
+  produto_final: string;
+  material: string;
+  dimensoes: string;
+  granulometria: string;
+  moagem_tipo: string;
+  forma_abastecimento: string;
+  producao_horaria_kgh: number;
+  voltagem: string;
+}
 
 export interface CartItemInput {
   produto_id: string;
@@ -27,6 +40,8 @@ export interface CriarPropostaPecasInput {
   validade_proposta?: string;
   observacoes?: string;
   taxa_cambio?: number;
+  /** Checklist técnico da aplicação (proposta de máquina) — vai para o Word. */
+  checklist?: ChecklistInput;
 }
 
 export async function criarPropostaPecas(
@@ -116,6 +131,31 @@ export async function criarPropostaPecas(
 
   const valor_total = itensPrepared.reduce((s, i) => s + (i.total ?? 0), 0);
   await supabase.from("propostas").update({ valor_total }).eq("id", propostaId);
+
+  if (input.checklist) {
+    // A proposta acabou de ser criada por este usuário; gravação direta evita que a
+    // permissão por perfil (ex.: representante só lê checklist) perca os dados.
+    const c = input.checklist;
+    const { error: checklistErr } = await createAdminClient().from("checklist_tecnico").upsert(
+      {
+        proposta_id:          propostaId,
+        segmento_aplicacao:   c.segmento_aplicacao.trim(),
+        produto_final:        c.produto_final.trim(),
+        material:             c.material.trim(),
+        dimensoes:            c.dimensoes.trim(),
+        granulometria:        c.granulometria.trim(),
+        moagem_tipo:          c.moagem_tipo,
+        forma_abastecimento:  c.forma_abastecimento,
+        producao_horaria_kgh: c.producao_horaria_kgh,
+        voltagem:             c.voltagem,
+        completo:             true,
+        preenchido_em:        new Date().toISOString(),
+        preenchido_por:       user.id,
+      },
+      { onConflict: "proposta_id" }
+    );
+    if (checklistErr) console.error("checklist_tecnico:", checklistErr.message);
+  }
 
   revalidatePath("/propostas");
   redirect(`/propostas/${propostaId}`);

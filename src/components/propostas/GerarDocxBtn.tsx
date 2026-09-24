@@ -4,17 +4,15 @@ import { FileText } from "lucide-react";
 
 interface Props {
   propostaId: string;
-  numeroCompleto: string;
+  /** Mantido por compatibilidade; o nome do arquivo agora vem do servidor. */
+  numeroCompleto?: string;
   checklistCompleto?: boolean;
 }
 
 export function GerarDocxBtn({
   propostaId,
-  numeroCompleto,
   checklistCompleto = true,
 }: Props) {
-  const safeNum = numeroCompleto.replace(/\//g, "-");
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {!checklistCompleto && (
@@ -34,7 +32,8 @@ export function GerarDocxBtn({
       )}
       <a
         href={`/api/docx/${propostaId}`}
-        download={`proposta_${safeNum}.docx`}
+        // O nome do arquivo vem do servidor (padrão "CLIENTE - CIDADE - UF - EQUIPAMENTO - Nº").
+        download
         style={{
           display: "inline-flex",
           alignItems: "center",

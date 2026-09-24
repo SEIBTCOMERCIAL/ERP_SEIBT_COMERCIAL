@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import type { ProdutoComDetalhes } from "@/types/database";
 import { formatCurrency } from "@/lib/utils";
 import { compararPorTamanho, tituloComSeparador } from "@/lib/produto-titulo";
+import { montarDescritivoMaquina } from "@/lib/propostas/descritivo-maquina";
 import { criarPropostaPecas, type CartItemInput } from "@/app/actions/propostas-pecas";
 
 interface ClienteSimples {
@@ -51,6 +52,10 @@ const CHECKLIST_SELECTS = [
   { name: "forma_abastecimento", label: "Abastecimento", options: ["Esteira transportadora", "Manual", "Silo", "Pneumático"] },
   { name: "voltagem", label: "Voltagem", options: ["380V 60Hz", "220V 60Hz", "440V 60Hz", "Outro"] },
 ];
+
+// Textos padrão do modelo "PROPOSTA MÁQUINA 2026".
+const CONDICAO_PADRAO = "35% no pedido;\n15% a 30 dias do pedido;\n15% a 60 dias do pedido;\nSaldo em 28/56 ddl.";
+const PRAZO_PADRAO = "120/130 dias da confirmação do pedido, aprovação do projeto e quitação da parcela de sinal*";
 
 type OpcaoPainel = "sem" | "220" | "380";
 
@@ -97,12 +102,12 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
   const [cart, setCart] = useState<CartItemInput[]>([]);
   const [pecaSearch, setPecaSearch] = useState("");
 
-  // Step 5 — condições
-  const [condicao, setCondicao] = useState("");
-  const [prazo, setPrazo] = useState("");
-  // Coluna no banco é do tipo data — guarda a data-limite (padrão: hoje + 30 dias), não texto livre.
+  // Step 5 — condições (padrões do modelo "PROPOSTA MÁQUINA 2026"; o vendedor pode alterar)
+  const [condicao, setCondicao] = useState(CONDICAO_PADRAO);
+  const [prazo, setPrazo] = useState(PRAZO_PADRAO);
+  // Coluna no banco é do tipo data — guarda a data-limite (padrão do modelo: 15 dias).
   const [validade, setValidade] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() + 30);
+    const d = new Date(); d.setDate(d.getDate() + 15);
     return d.toISOString().slice(0, 10);
   });
   const [obs, setObs] = useState("");
@@ -160,30 +165,26 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
     checklist.producao_horaria_kgh?.trim() &&
     checklist.moagem_tipo && checklist.forma_abastecimento && checklist.voltagem;
 
-  // Item da máquina: título do equipamento; a descrição completa (texto de orçamento)
-  // vai como complemento — a menos que só repita o título (ex.: "10 CV").
-  const descMaquina = maquinaSel?.descricao?.trim() ?? "";
-  const descRepete = !descMaquina || (maquinaSel?.codigo ?? "").toLowerCase().includes(descMaquina.toLowerCase());
+  // Painel escolhido: como no modelo do Word, fica DENTRO do item da máquina —
+  // o preço do painel soma no valor da máquina e o descritivo ganha o bloco do
+  // painel + "Valor Painel NR 12 R$ X – INCLUSO NO VALOR DO MOINHO".
+  const voltagemPainel = painel === "220" || painel === "380" ? painel : null;
+  const precoPainelSel = maquinaSel && voltagemPainel ? precoPainel(maquinaSel, voltagemPainel) : null;
+  const painelIncluso = voltagemPainel && precoPainelSel != null ? { voltagem: voltagemPainel, preco: precoPainelSel } : null;
 
-  // Painel escolhido entra como item próprio, logo abaixo da máquina.
-  const precoPainelSel = maquinaSel && (painel === "220" || painel === "380") ? precoPainel(maquinaSel, painel) : null;
-  const itemPainel: CartItemInput | null = maquinaSel && precoPainelSel != null ? {
+  // Item da máquina: título do equipamento; o texto do orçamento vem da "Descrição do moinho".
+  const itemMaquina: CartItemInput | null = maquinaSel ? {
     produto_id: maquinaSel.id, variante_id: null,
-    codigo: `${maquinaSel.codigo} — PAINEL ${painel}V`,
-    descricao: `Painel elétrico NR-12 — ${painel}V`,
-    observacao: maquinaSel.descricao_painel?.trim() || null,
-    preco_unitario: precoPainelSel, ipi_pct: maquinaSel.ipi_pct, quantidade: 1,
+    codigo: maquinaSel.codigo,
+    descricao: tituloComSeparador(maquinaSel.codigo) + (painelIncluso ? ` + painel NR-12 ${painelIncluso.voltagem}V` : ""),
+    observacao: montarDescritivoMaquina(maquinaSel, painelIncluso),
+    preco_unitario: (maquinaSel.preco_brl ?? 0) + (painelIncluso?.preco ?? 0),
+    ipi_pct: maquinaSel.ipi_pct, quantidade: 1,
   } : null;
 
-  // build full cart (máquina + painel + peças)
+  // build full cart (máquina + peças)
   const allCartItems: CartItemInput[] = [
-    ...(maquinaSel ? [{
-      produto_id: maquinaSel.id, variante_id: null,
-      codigo: maquinaSel.codigo, descricao: tituloComSeparador(maquinaSel.codigo),
-      observacao: descRepete ? null : descMaquina,
-      preco_unitario: maquinaSel.preco_brl ?? 0, ipi_pct: maquinaSel.ipi_pct, quantidade: 1,
-    }] : []),
-    ...(itemPainel ? [itemPainel] : []),
+    ...(itemMaquina ? [itemMaquina] : []),
     ...cart,
   ];
 
@@ -212,6 +213,17 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
         validade_proposta: validade,
         observacoes: obs,
         taxa_cambio: 5.70,
+        checklist: {
+          segmento_aplicacao: checklist.segmento_aplicacao,
+          produto_final: checklist.produto_final,
+          material: checklist.material,
+          dimensoes: checklist.dimensoes,
+          granulometria: checklist.granulometria,
+          moagem_tipo: checklist.moagem_tipo,
+          forma_abastecimento: checklist.forma_abastecimento,
+          producao_horaria_kgh: Number(checklist.producao_horaria_kgh),
+          voltagem: checklist.voltagem,
+        },
       });
       if (res.error) { setError(res.error); return; }
       router.push("/propostas");
@@ -543,13 +555,13 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
               <div style={{ fontSize: 13, color: "#6b7b8d", marginBottom: 16 }}>Revise os itens e informe as condições da proposta.</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, background: "#fff", borderRadius: 10, border: `1px solid ${BORDER}`, padding: 20, marginBottom: 16 }}>
                 {[
-                  { label: "Condição de Pagamento", value: condicao, set: setCondicao, placeholder: "ex: 30/60/90 dias" },
-                  { label: "Prazo de Entrega", value: prazo, set: setPrazo, placeholder: "ex: 90 dias úteis" },
+                  { label: "Condição de Pagamento", value: condicao, set: setCondicao, placeholder: "ex: 30/60/90 dias", linhas: 4 },
+                  { label: "Prazo de Entrega", value: prazo, set: setPrazo, placeholder: "ex: 90 dias úteis", linhas: 4 },
                 ].map((f) => (
                   <div key={f.label} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     <label style={{ fontSize: 11, fontWeight: 600, color: "#374151", textTransform: "uppercase" as const }}>{f.label}</label>
-                    <input value={f.value} onChange={(e) => f.set(e.target.value)} placeholder={f.placeholder}
-                      style={{ padding: "8px 10px", border: `1px solid ${BORDER}`, borderRadius: 6, fontSize: 13 }} />
+                    <textarea value={f.value} onChange={(e) => f.set(e.target.value)} placeholder={f.placeholder} rows={f.linhas}
+                      style={{ padding: "8px 10px", border: `1px solid ${BORDER}`, borderRadius: 6, fontSize: 13, resize: "vertical", fontFamily: "inherit" }} />
                   </div>
                 ))}
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -669,15 +681,21 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 8, paddingTop: 8, borderTop: "1px solid #bfdbfe", fontSize: 12 }}>
                 {painel === null ? (
                   <span style={{ color: "#b45309", fontWeight: 600 }}>Painel: escolher (com ou sem)</span>
-                ) : itemPainel ? (
+                ) : painelIncluso ? (
                   <>
-                    <span style={{ color: "#1e3a5f", fontWeight: 600 }}>Painel NR-12 {painel}V</span>
-                    <span style={{ fontWeight: 700, color: NAV }}>{formatCurrency(itemPainel.preco_unitario)}</span>
+                    <span style={{ color: "#1e3a5f", fontWeight: 600 }}>+ Painel NR-12 {painelIncluso.voltagem}V (incluso)</span>
+                    <span style={{ fontWeight: 700, color: NAV }}>{formatCurrency(painelIncluso.preco)}</span>
                   </>
                 ) : (
                   <span style={{ color: "#6b7b8d" }}>Sem painel</span>
                 )}
               </div>
+              {painelIncluso && itemMaquina && (
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6, fontSize: 12 }}>
+                  <span style={{ color: "#1e3a5f", fontWeight: 700 }}>Valor na proposta</span>
+                  <span style={{ fontWeight: 800, color: NAV }}>{formatCurrency(itemMaquina.preco_unitario)}</span>
+                </div>
+              )}
             </div>
           )}
 
