@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { moagemParaBanco } from "@/lib/propostas/checklist";
 
 export interface ChecklistInput {
   segmento_aplicacao: string;
@@ -135,6 +136,7 @@ export async function criarPropostaPecas(
   if (input.checklist) {
     // A proposta acabou de ser criada por este usuário; gravação direta evita que a
     // permissão por perfil (ex.: representante só lê checklist) perca os dados.
+    // Se o checklist não gravar, a proposta é desfeita — nada fica salvo pela metade.
     const c = input.checklist;
     const { error: checklistErr } = await createAdminClient().from("checklist_tecnico").upsert(
       {
@@ -144,7 +146,7 @@ export async function criarPropostaPecas(
         material:             c.material.trim(),
         dimensoes:            c.dimensoes.trim(),
         granulometria:        c.granulometria.trim(),
-        moagem_tipo:          c.moagem_tipo,
+        moagem_tipo:          moagemParaBanco(c.moagem_tipo),
         forma_abastecimento:  c.forma_abastecimento,
         producao_horaria_kgh: c.producao_horaria_kgh,
         voltagem:             c.voltagem,
@@ -154,7 +156,10 @@ export async function criarPropostaPecas(
       },
       { onConflict: "proposta_id" }
     );
-    if (checklistErr) console.error("checklist_tecnico:", checklistErr.message);
+    if (checklistErr) {
+      await supabase.from("propostas").delete().eq("id", propostaId);
+      return { error: "Erro ao salvar o checklist técnico: " + checklistErr.message };
+    }
   }
 
   revalidatePath("/propostas");

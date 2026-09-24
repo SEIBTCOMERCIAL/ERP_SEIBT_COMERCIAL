@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { moagemParaBanco } from "@/lib/propostas/checklist";
 
 export interface ChecklistFormState {
   errors?: Record<string, string>;
@@ -22,7 +23,7 @@ export async function salvarChecklist(
   const material = (formData.get("material") as string)?.trim();
   const dimensoes = (formData.get("dimensoes") as string)?.trim();
   const granulometria = (formData.get("granulometria") as string)?.trim();
-  const moagem_tipo = (formData.get("moagem_tipo") as string)?.trim();
+  const moagem_tipo = moagemParaBanco(formData.get("moagem_tipo") as string);
   const forma_abastecimento = (formData.get("forma_abastecimento") as string)?.trim();
   const producao_horaria_kgh = parseFloat(formData.get("producao_horaria_kgh") as string);
   const voltagem = (formData.get("voltagem") as string)?.trim();

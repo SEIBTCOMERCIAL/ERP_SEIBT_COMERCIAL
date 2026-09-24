@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
 import { gerarDocxMaquina } from "@/lib/propostas/docx-modelo";
 import { carregarDadosDocxMaquina } from "@/lib/propostas/docx-maquina-dados";
+import { moagemRotulo } from "@/lib/propostas/checklist";
 import {
   Document,
   Packer,
@@ -366,7 +367,7 @@ export async function GET(
       ["Material", checklist.material ?? ""],
       ["Dimensões", checklist.dimensoes ?? ""],
       ["Granulometria", checklist.granulometria ?? ""],
-      ["Tipo de Moagem", checklist.moagem_tipo ?? ""],
+      ["Tipo de Moagem", moagemRotulo(checklist.moagem_tipo)],
       ["Forma de Abastecimento", checklist.forma_abastecimento ?? ""],
       [
         "Produção Horária",

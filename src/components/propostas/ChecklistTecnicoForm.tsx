@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { CheckCircle, AlertCircle } from "lucide-react";
 import { salvarChecklist, type ChecklistFormState } from "@/app/actions/checklist";
+import { ROTULOS_MOAGEM, moagemRotulo } from "@/lib/propostas/checklist";
 import type { ChecklistTecnico } from "@/types/database";
 
 function SubmitBtn() {
@@ -79,34 +81,59 @@ interface Props {
 
 export function ChecklistTecnicoForm({ propostaId, checklist }: Props) {
   const [state, action] = useFormState<ChecklistFormState, FormData>(salvarChecklist, {});
+  const [editando, setEditando] = useState(false);
 
-  if (state.success || checklist?.completo) {
+  useEffect(() => {
+    if (state.success) setEditando(false);
+  }, [state]);
+
+  if (!editando && (state.success || checklist?.completo)) {
+    const resumo: [string, string][] = checklist ? [
+      ["Segmento", checklist.segmento_aplicacao ?? ""],
+      ["Produto final", checklist.produto_final ?? ""],
+      ["Material", checklist.material ?? ""],
+      ["Dimensões", checklist.dimensoes ?? ""],
+      ["Granulometria", checklist.granulometria ?? ""],
+      ["Moagem", moagemRotulo(checklist.moagem_tipo)],
+      ["Abastecimento", checklist.forma_abastecimento ?? ""],
+      ["Produção", checklist.producao_horaria_kgh != null ? `${checklist.producao_horaria_kgh} kg/h` : ""],
+      ["Voltagem", checklist.voltagem ?? ""],
+    ] : [];
     return (
       <div style={{
         background: "#f0fdf4",
         border: "1px solid #86efac",
         borderRadius: 8,
         padding: "12px 16px",
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
       }}>
-        <CheckCircle size={18} color="#16a34a" />
-        <div>
-          <div style={{ fontWeight: 600, color: "#15803d", fontSize: 13 }}>Checklist técnico completo</div>
-          {checklist?.preenchido_em && (
-            <div style={{ fontSize: 11, color: "#6b7b8d" }}>
-              Preenchido em {new Date(checklist.preenchido_em).toLocaleDateString("pt-BR")}
-            </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <CheckCircle size={18} color="#16a34a" />
+          <div>
+            <div style={{ fontWeight: 600, color: "#15803d", fontSize: 13 }}>Checklist técnico completo</div>
+            {checklist?.preenchido_em && (
+              <div style={{ fontSize: 11, color: "#6b7b8d" }}>
+                Preenchido em {new Date(checklist.preenchido_em).toLocaleDateString("pt-BR")}
+              </div>
+            )}
+          </div>
+          {checklist && (
+            <button
+              onClick={() => setEditando(true)}
+              style={{ marginLeft: "auto", fontSize: 12, color: "#2074B9", background: "none", border: "none", cursor: "pointer" }}
+            >
+              Editar
+            </button>
           )}
         </div>
-        {checklist && (
-          <button
-            onClick={() => window.location.reload()}
-            style={{ marginLeft: "auto", fontSize: 12, color: "#2074B9", background: "none", border: "none", cursor: "pointer" }}
-          >
-            Editar
-          </button>
+        {resumo.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px 16px", marginTop: 10, paddingTop: 10, borderTop: "1px solid #bbf7d0" }}>
+            {resumo.map(([rotulo, valor]) => (
+              <div key={rotulo} style={{ fontSize: 12 }}>
+                <span style={{ color: "#6b7b8d" }}>{rotulo}: </span>
+                <span style={{ color: "#1a1a1a", fontWeight: 600 }}>{valor || "—"}</span>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     );
@@ -161,9 +188,9 @@ export function ChecklistTecnicoForm({ propostaId, checklist }: Props) {
           {FIELD("Dimensões do Material", "dimensoes", "text", undefined, state.errors?.dimensoes, checklist?.dimensoes)}
           {FIELD("Granulometria Desejada", "granulometria", "text", undefined, state.errors?.granulometria, checklist?.granulometria)}
           {FIELD("Tipo de Moagem", "moagem_tipo", "select",
-            ["A seco", "Úmida", "Semi-úmida"],
+            ROTULOS_MOAGEM,
             state.errors?.moagem_tipo,
-            checklist?.moagem_tipo ?? "A seco"
+            checklist?.moagem_tipo ? moagemRotulo(checklist.moagem_tipo) : "A seco"
           )}
           {FIELD("Forma de Abastecimento", "forma_abastecimento", "select",
             ["Esteira transportadora", "Manual", "Silo", "Pneumático"],

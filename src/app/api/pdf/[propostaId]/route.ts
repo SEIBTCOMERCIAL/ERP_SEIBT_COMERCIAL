@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { moagemRotulo } from "@/lib/propostas/checklist";
 
 export async function GET(
   _req: Request,
@@ -108,7 +109,7 @@ ${checklist ? `
     <div><div class="field-label">Material</div><div class="field-value">${checklist.material}</div></div>
     <div><div class="field-label">Dimensões</div><div class="field-value">${checklist.dimensoes}</div></div>
     <div><div class="field-label">Granulometria</div><div class="field-value">${checklist.granulometria}</div></div>
-    <div><div class="field-label">Tipo de Moagem</div><div class="field-value">${checklist.moagem_tipo}</div></div>
+    <div><div class="field-label">Tipo de Moagem</div><div class="field-value">${moagemRotulo(checklist.moagem_tipo)}</div></div>
     <div><div class="field-label">Abastecimento</div><div class="field-value">${checklist.forma_abastecimento}</div></div>
     <div><div class="field-label">Produção (kg/h)</div><div class="field-value">${checklist.producao_horaria_kgh}</div></div>
     <div><div class="field-label">Voltagem</div><div class="field-value">${checklist.voltagem}</div></div>

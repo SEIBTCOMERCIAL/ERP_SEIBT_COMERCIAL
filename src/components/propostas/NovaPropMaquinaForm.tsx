@@ -10,6 +10,7 @@ import type { ProdutoComDetalhes } from "@/types/database";
 import { formatCurrency } from "@/lib/utils";
 import { compararPorTamanho, tituloComSeparador } from "@/lib/produto-titulo";
 import { montarDescritivoMaquina } from "@/lib/propostas/descritivo-maquina";
+import { ROTULOS_MOAGEM } from "@/lib/propostas/checklist";
 import { criarPropostaPecas, type CartItemInput } from "@/app/actions/propostas-pecas";
 
 interface ClienteSimples {
@@ -48,7 +49,7 @@ const CHECKLIST_FIELDS = [
 ];
 
 const CHECKLIST_SELECTS = [
-  { name: "moagem_tipo", label: "Tipo de Moagem", options: ["A seco", "Úmida", "Semi-úmida"] },
+  { name: "moagem_tipo", label: "Tipo de Moagem", options: ROTULOS_MOAGEM },
   { name: "forma_abastecimento", label: "Abastecimento", options: ["Esteira transportadora", "Manual", "Silo", "Pneumático"] },
   { name: "voltagem", label: "Voltagem", options: ["380V 60Hz", "220V 60Hz", "440V 60Hz", "Outro"] },
 ];

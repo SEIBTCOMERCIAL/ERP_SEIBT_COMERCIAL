@@ -2,6 +2,7 @@
 // Só roda no servidor (recebe o cliente do Supabase já criado).
 
 import type { DadosDocxMaquina, ItemDocx } from "./docx-modelo";
+import { moagemRotulo } from "./checklist";
 
 const FUSO = "America/Sao_Paulo";
 
@@ -102,7 +103,7 @@ export async function carregarDadosDocxMaquina(
     };
   });
 
-  const moagem = (checklist?.moagem_tipo ?? "").trim();
+  const moagem = moagemRotulo(checklist?.moagem_tipo);
   const nomeCliente = (cliente?.razao_social ?? cliente?.nome_fantasia ?? "").trim();
   const responsavelNome = (responsavel?.nome ?? "Departamento Comercial").trim();
 
