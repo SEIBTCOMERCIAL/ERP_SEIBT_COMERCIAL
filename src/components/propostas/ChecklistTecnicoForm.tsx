@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useFormState, useFormStatus } from "react-dom";
 import { CheckCircle, AlertCircle } from "lucide-react";
 import { salvarChecklist, type ChecklistFormState } from "@/app/actions/checklist";
@@ -81,13 +81,8 @@ interface Props {
 
 export function ChecklistTecnicoForm({ propostaId, checklist }: Props) {
   const [state, action] = useFormState<ChecklistFormState, FormData>(salvarChecklist, {});
-  const [editando, setEditando] = useState(false);
 
-  useEffect(() => {
-    if (state.success) setEditando(false);
-  }, [state]);
-
-  if (!editando && (state.success || checklist?.completo)) {
+  if (state.success || checklist?.completo) {
     const resumo: [string, string][] = checklist ? [
       ["Segmento", checklist.segmento_aplicacao ?? ""],
       ["Produto final", checklist.produto_final ?? ""],
@@ -117,12 +112,13 @@ export function ChecklistTecnicoForm({ propostaId, checklist }: Props) {
             )}
           </div>
           {checklist && (
-            <button
-              onClick={() => setEditando(true)}
-              style={{ marginLeft: "auto", fontSize: 12, color: "#2074B9", background: "none", border: "none", cursor: "pointer" }}
+            // Alterar o checklist depois de preenchido é uma edição da proposta (gera revisão).
+            <Link
+              href={`/propostas/${propostaId}/editar`}
+              style={{ marginLeft: "auto", fontSize: 12, color: "#2074B9", textDecoration: "none" }}
             >
               Editar
-            </button>
+            </Link>
           )}
         </div>
         {resumo.length > 0 && (

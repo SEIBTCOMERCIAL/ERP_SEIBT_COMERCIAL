@@ -82,16 +82,8 @@ export async function criarProposta(
   }
 
   const d = parsed.data;
-  const ano = new Date().getFullYear();
 
-  // Gera número atômico via função do banco
-  const { data: numData, error: numError } = await supabase
-    .rpc("next_proposta_numero", { p_ano: ano });
-
-  if (numError) return { message: "Erro ao gerar número da proposta." };
-
-  const numero = numData as number;
-  const numero_completo = `${String(numero).padStart(4, "0")}/${ano}`;
+  // O número (0001/2026, 0002/2026…) é gerado pelo próprio banco ao gravar a proposta.
 
   // Verifica se o usuário tem perfil configurado (pré-condição para RLS passar)
   if (!usuario) {
@@ -101,8 +93,6 @@ export async function criarProposta(
   const { data: proposta, error } = await supabase
     .from("propostas")
     .insert({
-      numero,
-      numero_completo,
       tipo:              d.tipo,
       moeda:             d.moeda,
       status:            "rascunho",

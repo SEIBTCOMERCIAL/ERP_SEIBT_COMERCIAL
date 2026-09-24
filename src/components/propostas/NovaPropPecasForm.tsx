@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { criarPropostaPecas, type CartItemInput } from "@/app/actions/propostas-pecas";
 import type { MaquinaCliente, ProdutoComDetalhes, Categoriaproduto } from "@/types/database";
 import { createClient } from "@/lib/supabase/client";
+import { precoComDesconto } from "@/lib/propostas/revisao";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -186,8 +187,14 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar }: Props) {
     setStep(4);
   }
 
-  const subtotal = cart.reduce((s, i) => s + i.preco_unitario * i.quantidade, 0);
-  const ipiTotal = cart.reduce((s, i) => s + i.preco_unitario * i.quantidade * (i.ipi_pct / 100), 0);
+  function updateCartDesconto(prodId: string, valor: number) {
+    const v = Math.min(100, Math.max(0, valor));
+    setCart((prev) => prev.map((i) => (i.produto_id === prodId ? { ...i, desconto_pct: v } : i)));
+  }
+
+  const precoItem = (i: CartItemInput) => precoComDesconto(i.preco_unitario, i.desconto_pct);
+  const subtotal = cart.reduce((s, i) => s + precoItem(i) * i.quantidade, 0);
+  const ipiTotal = cart.reduce((s, i) => s + precoItem(i) * i.quantidade * (i.ipi_pct / 100), 0);
   const total = subtotal + ipiTotal;
 
   async function registrarNovaMaquina() {
@@ -706,12 +713,28 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar }: Props) {
               <div className="mb-5">
                 <p className="text-[11px] font-bold uppercase text-[#6B7B8D] mb-3">Itens selecionados</p>
                 {cart.map((item) => (
-                  <div key={item.produto_id} className="flex items-center justify-between py-2.5 border-b border-[#F1F5F9] last:border-0">
-                    <div>
+                  <div key={item.produto_id} className="flex items-center justify-between gap-3 py-2.5 border-b border-[#F1F5F9] last:border-0">
+                    <div className="min-w-0">
                       <p className="text-[12px] font-semibold text-[#1A1A1A]">{item.descricao}</p>
-                      <p className="text-[10px] text-[#6B7B8D]">CÓD. {item.codigo} · {item.quantidade}x · IPI {item.ipi_pct.toFixed(2)}%</p>
+                      <p className="text-[10px] text-[#6B7B8D]">
+                        CÓD. {item.codigo} · {item.quantidade}x {fmtBRL(item.preco_unitario)} · IPI {item.ipi_pct.toFixed(2)}%
+                      </p>
                     </div>
-                    <span className="font-mono font-semibold text-[13px]">{fmtBRL(item.preco_unitario * item.quantidade)}</span>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <label className="flex items-center gap-1.5 text-[10px] font-semibold uppercase text-[#6B7B8D]">
+                        Desc. %
+                        <input
+                          type="number" min={0} max={100} step={0.5}
+                          value={item.desconto_pct ?? 0}
+                          onChange={(e) => updateCartDesconto(item.produto_id, Number(e.target.value.replace(",", ".")) || 0)}
+                          className={cn(
+                            "w-16 h-7 rounded-md border px-2 text-[12px] text-center outline-none focus:border-[#2074B9]",
+                            (item.desconto_pct ?? 0) > 0 ? "border-[#16A34A] text-[#15803D] font-semibold" : "border-[#E2E8F0]"
+                          )}
+                        />
+                      </label>
+                      <span className="font-mono font-semibold text-[13px] w-[110px] text-right">{fmtBRL(precoItem(item) * item.quantidade)}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -836,7 +859,7 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar }: Props) {
                         </button>
                       </div>
                       <span className="text-[12px] font-mono font-semibold text-[#1A1A1A]">
-                        {fmtBRL(item.preco_unitario * item.quantidade)} + IPI
+                        {fmtBRL(precoItem(item) * item.quantidade)} + IPI
                       </span>
                     </div>
                   </div>

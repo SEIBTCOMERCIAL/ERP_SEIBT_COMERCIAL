@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { moagemParaBanco } from "@/lib/propostas/checklist";
+import { precoComDesconto } from "@/lib/propostas/revisao";
 
 export interface ChecklistInput {
   segmento_aplicacao: string;
@@ -28,6 +29,8 @@ export interface CartItemInput {
   quantidade: number;
   /** Texto complementar do item (ex.: descrição completa do moinho, para o orçamento). */
   observacao?: string | null;
+  /** Desconto % sobre o preço de tabela (preco_unitario). */
+  desconto_pct?: number;
 }
 
 export interface CriarPropostaPecasInput {
@@ -72,18 +75,11 @@ export async function criarPropostaPecas(
 
   if (input.itens.length === 0) return { error: "Adicione ao menos um item à proposta." };
 
-  const ano = new Date().getFullYear();
-  const { data: numData, error: numErr } = await supabase.rpc("next_proposta_numero", { p_ano: ano });
-  if (numErr) return { error: "Erro ao gerar número da proposta." };
-
-  const numero = numData as number;
-  const numero_completo = `${String(numero).padStart(4, "0")}/${ano}`;
-
+  // O número (0001/2026, 0002/2026…) é gerado pelo próprio banco ao gravar a
+  // proposta (tabela sequencias_proposta) — um número novo a cada proposta criada.
   const { data: proposta, error: propErr } = await supabase
     .from("propostas")
     .insert({
-      numero,
-      numero_completo,
       tipo:               input.tipo ?? "pecas",
       moeda:              input.moeda,
       status:             "rascunho",
@@ -109,20 +105,25 @@ export async function criarPropostaPecas(
 
   const propostaId = proposta.id as string;
 
-  const itensPrepared = input.itens.map((item, idx) => ({
-    proposta_id:    propostaId,
-    produto_id:     item.produto_id,
-    variante_id:    item.variante_id || null,
-    descricao:      item.descricao,
-    quantidade:     item.quantidade,
-    preco_tabela:   item.preco_unitario,
-    preco_unitario: item.preco_unitario,
-    ipi_pct:        item.ipi_pct,
-    total:          item.quantidade * item.preco_unitario * (1 + item.ipi_pct / 100),
-    ordem:          idx,
-    opcional:       false,
-    observacao:     item.observacao?.trim() || null,
-  }));
+  // preco_tabela = preço de lista; preco_unitario = preço final com o desconto do item
+  // (o banco recalcula desconto_pct e total a partir desses dois).
+  const itensPrepared = input.itens.map((item, idx) => {
+    const precoFinal = precoComDesconto(item.preco_unitario, item.desconto_pct);
+    return {
+      proposta_id:    propostaId,
+      produto_id:     item.produto_id,
+      variante_id:    item.variante_id || null,
+      descricao:      item.descricao,
+      quantidade:     item.quantidade,
+      preco_tabela:   item.preco_unitario,
+      preco_unitario: precoFinal,
+      ipi_pct:        item.ipi_pct,
+      total:          item.quantidade * precoFinal * (1 + item.ipi_pct / 100),
+      ordem:          idx,
+      opcional:       false,
+      observacao:     item.observacao?.trim() || null,
+    };
+  });
 
   const { error: itensErr } = await supabase.from("itens_proposta").insert(itensPrepared);
   if (itensErr) {

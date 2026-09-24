@@ -11,6 +11,7 @@ import { formatCurrency } from "@/lib/utils";
 import { compararPorTamanho, tituloComSeparador } from "@/lib/produto-titulo";
 import { montarDescritivoMaquina } from "@/lib/propostas/descritivo-maquina";
 import { ROTULOS_MOAGEM } from "@/lib/propostas/checklist";
+import { precoComDesconto } from "@/lib/propostas/revisao";
 import { criarPropostaPecas, type CartItemInput } from "@/app/actions/propostas-pecas";
 
 interface ClienteSimples {
@@ -101,6 +102,8 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
 
   // Step 4 — itens adicionais (peças)
   const [cart, setCart] = useState<CartItemInput[]>([]);
+  // Desconto % por item (chave = produto), editado no resumo final
+  const [descontos, setDescontos] = useState<Record<string, number>>({});
   const [pecaSearch, setPecaSearch] = useState("");
 
   // Step 5 — condições (padrões do modelo "PROPOSTA MÁQUINA 2026"; o vendedor pode alterar)
@@ -183,14 +186,15 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
     ipi_pct: maquinaSel.ipi_pct, quantidade: 1,
   } : null;
 
-  // build full cart (máquina + peças)
+  // build full cart (máquina + peças), com o desconto % de cada item
   const allCartItems: CartItemInput[] = [
     ...(itemMaquina ? [itemMaquina] : []),
     ...cart,
-  ];
+  ].map((i) => ({ ...i, desconto_pct: descontos[i.produto_id] ?? 0 }));
 
-  const subtotal = allCartItems.reduce((a, i) => a + i.preco_unitario * i.quantidade, 0);
-  const ipiTotal = allCartItems.reduce((a, i) => a + i.preco_unitario * i.quantidade * (i.ipi_pct / 100), 0);
+  const precoFinal = (i: CartItemInput) => precoComDesconto(i.preco_unitario, i.desconto_pct);
+  const subtotal = allCartItems.reduce((a, i) => a + precoFinal(i) * i.quantidade, 0);
+  const ipiTotal = allCartItems.reduce((a, i) => a + precoFinal(i) * i.quantidade * (i.ipi_pct / 100), 0);
 
   const handleFinalizar = () => {
     if (!clienteId || !maquinaId || allCartItems.length === 0) {
@@ -583,7 +587,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr style={{ background: BG }}>
-                      {["Descrição", "Qtd", "Preço Unit.", "Total"].map((h) => (
+                      {["Descrição", "Qtd", "Preço tabela", "Desc. %", "Preço final", "Total"].map((h) => (
                         <th key={h} style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, textAlign: "left", borderBottom: `1px solid ${BORDER}`, color: "#374151", textTransform: "uppercase" as const }}>{h}</th>
                       ))}
                     </tr>
@@ -598,8 +602,20 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
                           )}
                         </td>
                         <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right" }}>{item.quantidade}</td>
-                        <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right" }}>{formatCurrency(item.preco_unitario)}</td>
-                        <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, textAlign: "right" }}>{formatCurrency(item.preco_unitario * item.quantidade)}</td>
+                        <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right", color: "#6b7b8d" }}>{formatCurrency(item.preco_unitario)}</td>
+                        <td style={{ padding: "6px 8px", width: 84 }}>
+                          <input
+                            type="number" min={0} max={100} step={0.5}
+                            value={item.desconto_pct ?? 0}
+                            onChange={(e) => {
+                              const v = Math.min(100, Math.max(0, Number(e.target.value.replace(",", ".")) || 0));
+                              setDescontos((prev) => ({ ...prev, [item.produto_id]: v }));
+                            }}
+                            style={{ width: 68, padding: "6px 8px", border: `1px solid ${(item.desconto_pct ?? 0) > 0 ? "#16a34a" : BORDER}`, borderRadius: 6, fontSize: 13, textAlign: "center" }}
+                          />
+                        </td>
+                        <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right", fontWeight: 600 }}>{formatCurrency(precoFinal(item))}</td>
+                        <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, textAlign: "right" }}>{formatCurrency(precoFinal(item) * item.quantidade)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -691,10 +707,14 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
                   <span style={{ color: "#6b7b8d" }}>Sem painel</span>
                 )}
               </div>
-              {painelIncluso && itemMaquina && (
+              {itemMaquina && (painelIncluso || (descontos[itemMaquina.produto_id] ?? 0) > 0) && (
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6, fontSize: 12 }}>
-                  <span style={{ color: "#1e3a5f", fontWeight: 700 }}>Valor na proposta</span>
-                  <span style={{ fontWeight: 800, color: NAV }}>{formatCurrency(itemMaquina.preco_unitario)}</span>
+                  <span style={{ color: "#1e3a5f", fontWeight: 700 }}>
+                    Valor na proposta{(descontos[itemMaquina.produto_id] ?? 0) > 0 ? ` (−${descontos[itemMaquina.produto_id]}%)` : ""}
+                  </span>
+                  <span style={{ fontWeight: 800, color: NAV }}>
+                    {formatCurrency(precoComDesconto(itemMaquina.preco_unitario, descontos[itemMaquina.produto_id]))}
+                  </span>
                 </div>
               )}
             </div>
@@ -707,7 +727,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
               {cart.map((item) => (
                 <div key={item.produto_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
                   <span style={{ color: "#374151" }}>{item.descricao.slice(0, 28)}{item.descricao.length > 28 ? "…" : ""} ×{item.quantidade}</span>
-                  <span style={{ fontWeight: 600 }}>{formatCurrency(item.preco_unitario * item.quantidade)}</span>
+                  <span style={{ fontWeight: 600 }}>{formatCurrency(precoComDesconto(item.preco_unitario, descontos[item.produto_id]) * item.quantidade)}</span>
                 </div>
               ))}
             </div>

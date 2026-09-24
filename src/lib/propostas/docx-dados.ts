@@ -35,7 +35,7 @@ export async function carregarDadosDocx(
 ): Promise<{ dados: DadosDocxProposta; nomeArquivo: string; modelo: ModeloProposta } | null> {
   const { data: proposta } = await supabase
     .from("propostas")
-    .select("id, numero, numero_completo, tipo, criado_em, condicao_pagamento, prazo_entrega, validade_proposta, cliente_id, responsavel_id, representante_id, contato_nome, contato_email, contato_telefone")
+    .select("id, numero, numero_completo, revisao, tipo, criado_em, condicao_pagamento, prazo_entrega, validade_proposta, cliente_id, responsavel_id, representante_id, contato_nome, contato_email, contato_telefone")
     .eq("id", propostaId)
     .is("deleted_at", null)
     .single();
@@ -145,20 +145,44 @@ export async function carregarDadosDocx(
     responsavel: responsavelNome,
   };
 
-  // Mesmo padrão de nome dos arquivos da SEIBT:
-  // "CLIENTE - CIDADE - UF - 01 MGHS 300 A2 10 CV - 1173.docx"
-  // "CLIENTE - CIDADE - UF - 09 NAVALHA ROTORA MGHS 800 + 1 ITEM - 1111.docx"
-  const principal = itensBanco.find((it) => it.produto?.categoria === "maquina") ?? itensBanco[0];
-  const outros = modelo === "maquina" ? 0 : itensBanco.length - 1;
+  const nomeArquivo = montarNomeArquivo({
+    cliente: nomeCliente,
+    cidade,
+    uf,
+    tipo: proposta.tipo,
+    itens: itensBanco,
+    numero: proposta.numero,
+    revisao: proposta.revisao,
+  });
+
+  return { dados, nomeArquivo, modelo };
+}
+
+/**
+ * Mesmo padrão de nome dos arquivos da SEIBT:
+ * "CLIENTE - CIDADE - UF - 01 MGHS 300 A2 10 CV - 1173.docx"
+ * "CLIENTE - CIDADE - UF - 09 NAVALHA ROTORA MGHS 800 + 1 ITEM - 1111 A.docx"
+ */
+export function montarNomeArquivo(p: {
+  cliente: string;
+  cidade: string;
+  uf: string;
+  tipo: string;
+  itens: { descricao: string; quantidade: number; produto: { codigo: string; categoria: string } | null }[];
+  numero: number;
+  revisao: string | null;
+}): string {
+  const ehMaquina = p.tipo === "maquina";
+  const principal = p.itens.find((it) => it.produto?.categoria === "maquina") ?? p.itens[0];
+  const outros = ehMaquina ? 0 : p.itens.length - 1;
   const equipamento = principal
-    ? `${String(principal.quantidade).padStart(2, "0")} ${modelo === "maquina" ? principal.produto?.codigo ?? principal.descricao : principal.descricao}`
+    ? `${String(principal.quantidade).padStart(2, "0")} ${ehMaquina ? principal.produto?.codigo ?? principal.descricao : principal.descricao}`
       + (outros > 0 ? ` + ${outros} ${outros === 1 ? "ITEM" : "ITENS"}` : "")
     : "";
-  const nomeArquivo = limparNomeArquivo(
-    [nomeCliente.toUpperCase(), cidade.toUpperCase(), uf.toUpperCase(), equipamento.toUpperCase(), String(proposta.numero).padStart(4, "0")]
+  const numero = String(p.numero).padStart(4, "0") + (p.revisao ? ` ${p.revisao}` : "");
+  return limparNomeArquivo(
+    [p.cliente.trim().toUpperCase(), p.cidade.trim().toUpperCase(), p.uf.trim().toUpperCase(), equipamento.toUpperCase(), numero]
       .filter(Boolean)
       .join(" - ")
   ) + ".docx";
-
-  return { dados, nomeArquivo, modelo };
 }

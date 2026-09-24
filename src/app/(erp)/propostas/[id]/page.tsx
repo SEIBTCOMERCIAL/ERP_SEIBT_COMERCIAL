@@ -10,9 +10,8 @@ import {
 import {
   StatusDropdown, EtapaDropdown, TransferirDropdown,
 } from "@/components/propostas/AcoesPropostaClient";
-import { AdicionarItemForm } from "@/components/propostas/AdicionarItemForm";
-import { RemoverItemForm } from "@/components/propostas/RemoverItemForm";
 import { NovoFollowupForm } from "@/components/followups/NovoFollowupForm";
+import { montarNomeArquivo } from "@/lib/propostas/docx-dados";
 import type { Proposta, ItemProposta, Followup, EtapaFunil, Usuario, Representante, ChecklistTecnico } from "@/types/database";
 import { ChecklistTecnicoForm } from "@/components/propostas/ChecklistTecnicoForm";
 import { GerarDocxBtn } from "@/components/propostas/GerarDocxBtn";
@@ -52,7 +51,7 @@ export default async function DetalhePropostaPage({
       .single(),
     supabase
       .from("itens_proposta")
-      .select("id, descricao, quantidade, preco_tabela, preco_unitario, ipi_pct, desconto_pct, total, opcional, numero_item, observacao")
+      .select("id, descricao, quantidade, preco_tabela, preco_unitario, ipi_pct, desconto_pct, total, opcional, numero_item, observacao, produto:produtos(codigo, categoria)")
       .eq("proposta_id", params.id)
       .order("ordem"),
     supabase
@@ -100,6 +99,19 @@ export default async function DetalhePropostaPage({
 
   const totalSemIpi = itens.reduce((s, i) => s + i.quantidade * i.preco_unitario, 0);
   const totalComIpi = itens.reduce((s, i) => s + (i.total ?? 0), 0);
+
+  // Nome sugerido ao salvar o Word (mesmo padrão usado pelo servidor).
+  const nomeArquivo = proposta.tipo === "maquina" || proposta.tipo === "pecas"
+    ? montarNomeArquivo({
+        cliente: cliente?.razao_social ?? "",
+        cidade: cliente?.cidade ?? "",
+        uf: cliente?.estado ?? "",
+        tipo: proposta.tipo,
+        itens: (itensRaw ?? []) as { descricao: string; quantidade: number; produto: { codigo: string; categoria: string } | null }[],
+        numero: proposta.numero,
+        revisao: proposta.revisao,
+      })
+    : `proposta_${proposta.numero_completo.replace(/\//g, "-")}.docx`;
 
   return (
     <div className="flex flex-col">
@@ -228,7 +240,6 @@ export default async function DetalhePropostaPage({
                     {["#", "Descrição", "Qtd.", "Preço unit.", "IPI%", "Desc.%", "Total"].map((h) => (
                       <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">{h}</th>
                     ))}
-                    <th className="px-3 py-2 border-b border-border" />
                   </tr>
                 </thead>
                 <tbody>
@@ -248,9 +259,6 @@ export default async function DetalhePropostaPage({
                       <td className="px-3 py-2.5 font-mono text-[12px] font-semibold text-foreground">
                         {item.total ? formatCurrency(item.total, proposta.moeda === "USD" ? "USD" : "BRL") : "—"}
                       </td>
-                      <td className="px-3 py-2.5">
-                        <RemoverItemForm itemId={item.id} propostaId={proposta.id} />
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -259,22 +267,24 @@ export default async function DetalhePropostaPage({
                     <tr className="bg-muted/20">
                       <td colSpan={6} className="px-3 py-2 text-right text-[11px] font-semibold text-muted-foreground">Subtotal s/ IPI</td>
                       <td className="px-3 py-2 font-mono text-[12px] font-bold">{formatCurrency(totalSemIpi, proposta.moeda === "USD" ? "USD" : "BRL")}</td>
-                      <td />
                     </tr>
                     <tr className="bg-muted/30">
                       <td colSpan={6} className="px-3 py-2 text-right text-[11px] font-semibold text-muted-foreground">Total c/ IPI</td>
                       <td className="px-3 py-2 font-mono text-[13px] font-bold text-foreground">{formatCurrency(totalComIpi, proposta.moeda === "USD" ? "USD" : "BRL")}</td>
-                      <td />
                     </tr>
                   </tfoot>
                 )}
               </table>
             )}
 
-            {/* Adicionar item */}
-            <div className="px-5 py-4 border-t border-border bg-muted/20">
-              <p className="text-[12px] font-semibold text-foreground mb-3">Adicionar item</p>
-              <AdicionarItemForm propostaId={proposta.id} />
+            {/* Alterações de itens só pelo Editar — cada edição salva gera a próxima letra de revisão */}
+            <div className="px-5 py-3 border-t border-border bg-muted/20 flex items-center justify-between gap-3">
+              <p className="text-[12px] text-muted-foreground">
+                Para incluir, remover ou mudar itens, quantidades e descontos, use <strong>Editar</strong> — ao salvar, a proposta ganha a próxima letra de revisão.
+              </p>
+              <Link href={`/propostas/${proposta.id}/editar`} className="shrink-0 flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border bg-card text-[12px] font-medium hover:border-[#2074B9]">
+                <Edit className="h-3.5 w-3.5" /> Editar
+              </Link>
             </div>
           </div>
 
@@ -462,7 +472,7 @@ export default async function DetalhePropostaPage({
             <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Exportar Proposta</p>
             <GerarDocxBtn
               propostaId={proposta.id}
-              numeroCompleto={proposta.numero_completo}
+              nomeArquivo={nomeArquivo}
               checklistCompleto={proposta.tipo !== "maquina" || !!(checklist?.completo)}
             />
           </div>
