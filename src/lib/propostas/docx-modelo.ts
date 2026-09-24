@@ -1,10 +1,21 @@
-// Geração da proposta em Word a partir do MODELO oficial da SEIBT
-// (templates/proposta-maquina.docx — cópia do "PROPOSTA MÁQUINA 2026.doc" com os
-// campos marcados entre chaves). Só roda no servidor.
+// Geração da proposta em Word a partir dos MODELOS oficiais da SEIBT, cópias dos
+// .doc de REFERENCIAS/TEMPLATES_WORD com os campos marcados entre chaves:
+//   templates/proposta-maquina.docx  ← PROPOSTA MÁQUINA 2026
+//   templates/proposta-navalhas.docx ← PROPOSTA NAVALHAS 2026
+//   templates/proposta-pecas.docx    ← PROPOSTA PENEIRAS 2026 (= PROPOSTA PEÇAS 2026)
+// Só roda no servidor.
 
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import { iniciaisAssinatura } from "./descritivo-maquina";
+
+export type ModeloProposta = "maquina" | "navalhas" | "pecas";
+
+export const ARQUIVO_MODELO: Record<ModeloProposta, string> = {
+  maquina: "proposta-maquina.docx",
+  navalhas: "proposta-navalhas.docx",
+  pecas: "proposta-pecas.docx",
+};
 
 export interface ItemDocx {
   /** Título do item (usado quando não há texto de descrição). */
@@ -19,11 +30,15 @@ export interface ItemDocx {
   total: number;
 }
 
-export interface DadosDocxMaquina {
+export interface DadosDocxProposta {
   numero: string;
   data: string;
   cliente: string;
+  /** "CIDADE - UF" (modelos de máquina e peças). */
   endereco: string;
+  /** Separados (modelo de navalhas). */
+  cidade: string;
+  estado: string;
   tratamento: string;
   contato: string;
   telefone: string;
@@ -154,9 +169,15 @@ function detalhesXml(texto: string): string {
   return blocos.join("");
 }
 
+/** Peça/acessório: descrição + código em uma linha, e o complemento (se houver) abaixo. */
+function itemSimplesXml(titulo: string, texto: string | null): string {
+  const linhas = (texto ?? "").replace(/\r\n/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
+  return [paragrafo(titulo), ...linhas.map((l) => paragrafo(l))].join("");
+}
+
 // ── Preenchimento do modelo ───────────────────────────────────────────────────
 
-export function gerarDocxMaquina(modelo: Buffer, dados: DadosDocxMaquina): Buffer {
+export function gerarDocxProposta(modelo: Buffer, dados: DadosDocxProposta): Buffer {
   const doc = new Docxtemplater(new PizZip(modelo), {
     paragraphLoop: true,
     linebreaks: true,
@@ -170,6 +191,8 @@ export function gerarDocxMaquina(modelo: Buffer, dados: DadosDocxMaquina): Buffe
     data: dados.data,
     cliente: dados.cliente,
     endereco: dados.endereco,
+    cidade: dados.cidade,
+    estado: dados.estado,
     tratamento: dados.tratamento,
     contato: dados.contato,
     telefone: dados.telefone,
@@ -186,9 +209,9 @@ export function gerarDocxMaquina(modelo: Buffer, dados: DadosDocxMaquina): Buffe
     voltagem: dados.checklist.voltagem,
     itens: dados.itens.map((it, idx) => ({
       item: doisDigitos(idx + 1),
-      detalhes: it.texto
-        ? detalhesXml(it.texto)
-        : paragrafo(it.titulo, it.maquina),
+      detalhes: it.maquina
+        ? (it.texto ? detalhesXml(it.texto) : paragrafo(it.titulo, true))
+        : itemSimplesXml(it.titulo, it.texto),
       maquina: it.maquina,
       qtd: doisDigitos(it.quantidade),
       preco: dinheiro(it.precoUnitario),

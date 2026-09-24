@@ -35,6 +35,17 @@ const PART_CATS: { label: string; value: Categoriaproduto | "todos" }[] = [
 
 const STEP_LABELS = ["Cliente", "Máquina", "Peças", "Revisão"];
 
+// Textos padrão dos modelos de Word "PROPOSTA NAVALHAS 2026" e "PROPOSTA PENEIRAS/PEÇAS 2026".
+const CONDICOES_MODELO = {
+  navalhas: { condicao: "21 dias DDL.", prazo: "5 dias da confirmação do pedido", dias: 5 },
+  pecas: { condicao: "A VISTA", prazo: "ATÉ 15 DIAS", dias: 15 },
+} as const;
+
+function dataDaquiA(dias: number): string {
+  const d = new Date(); d.setDate(d.getDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
 function fmtBRL(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
@@ -83,13 +94,14 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar }: Props) {
   const [partSearch, setPartSearch] = useState("");
   const [cart, setCart] = useState<CartItemInput[]>([]);
   const [qtys, setQtys] = useState<Record<string, number>>({});
-  const [condicao, setCondicao] = useState("30/60/90 dias");
-  const [prazo, setPrazo] = useState("A combinar");
-  // Coluna no banco é do tipo data — guarda a data-limite (padrão: hoje + 30 dias), não texto livre.
-  const [validade, setValidade] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() + 30);
-    return d.toISOString().slice(0, 10);
-  });
+  // Condições começam com os textos do modelo de Word (peças); ao ir para a revisão,
+  // se houver navalha no carrinho, trocam para os do modelo de navalhas — a menos
+  // que o vendedor já tenha alterado alguma delas.
+  const [condicao, setCondicao] = useState<string>(CONDICOES_MODELO.pecas.condicao);
+  const [prazo, setPrazo] = useState<string>(CONDICOES_MODELO.pecas.prazo);
+  // Coluna no banco é do tipo data — guarda a data-limite, não texto livre.
+  const [validade, setValidade] = useState(() => dataDaquiA(CONDICOES_MODELO.pecas.dias));
+  const [condicoesEditadas, setCondicoesEditadas] = useState(false);
   const [observacoes, setObservacoes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -157,6 +169,21 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar }: Props) {
       const newQty = Math.max(1, i.quantidade + delta);
       return { ...i, quantidade: newQty };
     }));
+  }
+
+  const modeloWord: keyof typeof CONDICOES_MODELO = cart.some(
+    (i) => produtos.find((p) => p.id === i.produto_id)?.categoria === "navalha"
+  ) ? "navalhas" : "pecas";
+
+  function irParaRevisao() {
+    if (cart.length === 0) return;
+    if (!condicoesEditadas) {
+      const c = CONDICOES_MODELO[modeloWord];
+      setCondicao(c.condicao);
+      setPrazo(c.prazo);
+      setValidade(dataDaquiA(c.dias));
+    }
+    setStep(4);
   }
 
   const subtotal = cart.reduce((s, i) => s + i.preco_unitario * i.quantidade, 0);
@@ -257,7 +284,7 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar }: Props) {
           )}
           {step === 3 && (
             <button
-              onClick={() => { if (cart.length > 0) setStep(4); }}
+              onClick={irParaRevisao}
               disabled={cart.length === 0}
               className="h-9 px-4 rounded-lg bg-[#2C4F79] hover:bg-[#1E3A5F] disabled:opacity-40 text-white text-[13px] font-semibold transition-colors flex items-center gap-1.5"
             >
@@ -689,6 +716,9 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar }: Props) {
                 ))}
               </div>
 
+              <p className="text-[11px] text-[#6B7B8D] mb-2">
+                Modelo do Word: <span className="font-semibold text-[#2C4F79]">{modeloWord === "navalhas" ? "Proposta de Navalhas" : "Proposta de Peneiras / Peças"}</span>
+              </p>
               <div className="grid grid-cols-3 gap-3 mb-5">
                 {[
                   { label: "Condição de pagamento", val: condicao, setter: setCondicao },
@@ -699,7 +729,7 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar }: Props) {
                     <input
                       type="text"
                       value={f.val}
-                      onChange={(e) => f.setter(e.target.value)}
+                      onChange={(e) => { f.setter(e.target.value); setCondicoesEditadas(true); }}
                       className="w-full h-8 rounded-lg border border-[#E2E8F0] px-3 text-[12px] focus:border-[#2074B9] outline-none"
                     />
                   </div>
@@ -709,7 +739,7 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar }: Props) {
                   <input
                     type="date"
                     value={validade}
-                    onChange={(e) => setValidade(e.target.value)}
+                    onChange={(e) => { setValidade(e.target.value); setCondicoesEditadas(true); }}
                     className="w-full h-8 rounded-lg border border-[#E2E8F0] px-3 text-[12px] focus:border-[#2074B9] outline-none"
                   />
                 </div>

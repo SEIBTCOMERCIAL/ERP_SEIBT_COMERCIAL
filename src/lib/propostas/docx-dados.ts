@@ -1,7 +1,9 @@
-// Busca no banco tudo o que o modelo de Word da proposta de máquina precisa.
+// Busca no banco tudo o que os modelos de Word da proposta precisam e escolhe o
+// modelo: máquina → PROPOSTA MÁQUINA; peças com navalha → PROPOSTA NAVALHAS;
+// demais peças (peneiras, rolamentos…) → PROPOSTA PENEIRAS/PEÇAS.
 // Só roda no servidor (recebe o cliente do Supabase já criado).
 
-import type { DadosDocxMaquina, ItemDocx } from "./docx-modelo";
+import type { DadosDocxProposta, ItemDocx, ModeloProposta } from "./docx-modelo";
 import { moagemRotulo } from "./checklist";
 
 const FUSO = "America/Sao_Paulo";
@@ -26,18 +28,18 @@ function limparNomeArquivo(s: string): string {
   return s.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
-export async function carregarDadosDocxMaquina(
+export async function carregarDadosDocx(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   propostaId: string
-): Promise<{ dados: DadosDocxMaquina; nomeArquivo: string } | null> {
+): Promise<{ dados: DadosDocxProposta; nomeArquivo: string; modelo: ModeloProposta } | null> {
   const { data: proposta } = await supabase
     .from("propostas")
-    .select("id, numero, numero_completo, criado_em, condicao_pagamento, prazo_entrega, validade_proposta, cliente_id, responsavel_id, representante_id, contato_nome, contato_email, contato_telefone")
+    .select("id, numero, numero_completo, tipo, criado_em, condicao_pagamento, prazo_entrega, validade_proposta, cliente_id, responsavel_id, representante_id, contato_nome, contato_email, contato_telefone")
     .eq("id", propostaId)
     .is("deleted_at", null)
     .single();
-  if (!proposta) return null;
+  if (!proposta || (proposta.tipo !== "maquina" && proposta.tipo !== "pecas")) return null;
 
   const [
     { data: cliente },
@@ -85,7 +87,7 @@ export async function carregarDadosDocxMaquina(
     produto: { codigo: string; categoria: string } | null;
   };
 
-  const itensDocx: ItemDocx[] = ((itens ?? []) as ItemBanco[]).map((it) => {
+  const itensDocx: ItemDocx[] = ((itens ?? []) as ItemBanco[]).map((it): ItemDocx => {
     const ipi = Number(it.ipi_pct ?? 0);
     const ehMaquina = it.produto?.categoria === "maquina" && !/^painel el[ée]trico/i.test(it.descricao);
     const codigo = it.produto?.codigo ?? "";
@@ -107,11 +109,19 @@ export async function carregarDadosDocxMaquina(
   const nomeCliente = (cliente?.razao_social ?? cliente?.nome_fantasia ?? "").trim();
   const responsavelNome = (responsavel?.nome ?? "Departamento Comercial").trim();
 
-  const dados: DadosDocxMaquina = {
+  const itensBanco = (itens ?? []) as ItemBanco[];
+  const modelo: ModeloProposta =
+    proposta.tipo === "maquina" ? "maquina"
+    : itensBanco.some((it) => it.produto?.categoria === "navalha") ? "navalhas"
+    : "pecas";
+
+  const dados: DadosDocxProposta = {
     numero: proposta.numero_completo,
     data: dataBR(new Date(proposta.criado_em)),
     cliente: nomeCliente,
     endereco: [cidade, uf].filter(Boolean).join(" - ").toUpperCase(),
+    cidade: cidade.toUpperCase(),
+    estado: uf.toUpperCase(),
     tratamento: contato?.tratamento === "sra" ? "SRA." : "SR.",
     contato: (proposta.contato_nome ?? contato?.nome ?? "").trim(),
     telefone: (proposta.contato_telefone ?? contato?.telefone ?? "").trim(),
@@ -137,15 +147,18 @@ export async function carregarDadosDocxMaquina(
 
   // Mesmo padrão de nome dos arquivos da SEIBT:
   // "CLIENTE - CIDADE - UF - 01 MGHS 300 A2 10 CV - 1173.docx"
-  const principal = ((itens ?? []) as ItemBanco[]).find((it) => it.produto?.categoria === "maquina");
+  // "CLIENTE - CIDADE - UF - 09 NAVALHA ROTORA MGHS 800 + 1 ITEM - 1111.docx"
+  const principal = itensBanco.find((it) => it.produto?.categoria === "maquina") ?? itensBanco[0];
+  const outros = modelo === "maquina" ? 0 : itensBanco.length - 1;
   const equipamento = principal
-    ? `${String(principal.quantidade).padStart(2, "0")} ${principal.produto?.codigo ?? principal.descricao}`
+    ? `${String(principal.quantidade).padStart(2, "0")} ${modelo === "maquina" ? principal.produto?.codigo ?? principal.descricao : principal.descricao}`
+      + (outros > 0 ? ` + ${outros} ${outros === 1 ? "ITEM" : "ITENS"}` : "")
     : "";
   const nomeArquivo = limparNomeArquivo(
-    [nomeCliente.toUpperCase(), cidade.toUpperCase(), uf.toUpperCase(), equipamento, String(proposta.numero).padStart(4, "0")]
+    [nomeCliente.toUpperCase(), cidade.toUpperCase(), uf.toUpperCase(), equipamento.toUpperCase(), String(proposta.numero).padStart(4, "0")]
       .filter(Boolean)
       .join(" - ")
   ) + ".docx";
 
-  return { dados, nomeArquivo };
+  return { dados, nomeArquivo, modelo };
 }
