@@ -56,7 +56,10 @@ function MaquinaBloco({
   linhaId: string;
   onEditarFoto?: (maquina: MaquinaCatalogo, linhaId: string) => void;
 }) {
-  const colunas = dividirEmColunas(specCampos, 3);
+  // Só os campos que este equipamento tem preenchidos: linhas que misturam tipos de
+  // máquina (ex.: Moinho para Tubos = MDTS, MHTS e TP) têm fichas diferentes por item.
+  const camposComValor = specCampos.filter((c) => String(maquina.specs[c.nome] ?? "").trim() !== "");
+  const colunas = dividirEmColunas(camposComValor, 3);
   const editavel = Boolean(onEditarFoto);
 
   return (
