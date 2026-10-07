@@ -4,8 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, Printer } from "lucide-react";
 import type { CatalogoLinha, MaquinaCatalogo } from "@/lib/catalogo/tipos";
-import { maquinasPorPagina, paginarMaquinas } from "@/lib/catalogo/tipos";
 import { CatalogoPaginaA4 } from "./CatalogoPaginaA4";
+import { usePaginasCatalogo } from "./paginacao";
 import { FotoEditorModal } from "./FotoEditorModal";
 import { CATALOGO_CSS } from "./catalogo-shared";
 import { archivo, ibmPlexSans } from "./catalogo-fonts";
@@ -21,12 +21,13 @@ interface CatalogoLinhaViewProps {
 
 export function CatalogoLinhaView({ isAdmin, dados }: CatalogoLinhaViewProps) {
   const { linha, specCampos, maquinas } = dados;
-  const paginas = paginarMaquinas(maquinas, maquinasPorPagina(specCampos.length));
+  const { paginas, medidor } = usePaginasCatalogo([{ linhaId: linha.id, linhaNome: linha.nome, specCampos, maquinas }]);
   const [editando, setEditando] = useState<MaquinaCatalogo | null>(null);
 
   return (
     <div className={`${archivo.variable} ${ibmPlexSans.variable} catalogo-fundo`} style={{ minHeight: "100vh", background: BG }}>
       <style>{CATALOGO_CSS}</style>
+      {medidor}
 
       <div className="catalogo-no-print" style={{ padding: "20px 28px", borderBottom: `1px solid ${BORDER}`, background: "#fff", display: "flex", alignItems: "center", gap: 12 }}>
         <Link href="/catalogo" style={{ display: "flex", alignItems: "center", gap: 4, color: "#6b7b8d", fontSize: 13, textDecoration: "none" }}>
@@ -55,12 +56,12 @@ export function CatalogoLinhaView({ isAdmin, dados }: CatalogoLinhaViewProps) {
         </div>
       ) : (
         <div className="catalogo-paginas" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 32, padding: "32px 16px" }}>
-          {paginas.map((maquinasDaPagina, i) => (
+          {paginas.map((pagina, i) => (
             <div key={i} className="catalogo-page-wrap" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.12)" }}>
               <CatalogoPaginaA4
                 linhaId={linha.id}
                 linhaNome={linha.nome}
-                maquinas={maquinasDaPagina}
+                maquinas={pagina.maquinas}
                 specCampos={specCampos}
                 numeroPagina={i + 1}
                 onEditarFoto={isAdmin ? (m) => setEditando(m) : undefined}

@@ -45,7 +45,7 @@ export function CatalogoPaginaA4({ linhaId, linhaNome, maquinas, specCampos, num
   );
 }
 
-function MaquinaBloco({
+export function MaquinaBloco({
   maquina,
   specCampos,
   linhaId,
@@ -148,6 +148,29 @@ function PrecosMaquina({ maquina }: { maquina: MaquinaCatalogo }) {
   const rotulos = compartilhado
     ? { a: "Painel compartilhado", subA: "Painel compartilhado", b: "Painel dedicado (avulso)", subB: "Painel dedicado", maq: "Valor do exaustor (sem painel)" }
     : { a: "NR-12 220V", subA: "Valor Painel NR-12", b: "NR-12 380V", subB: "Valor Painel NR-12", maq: "Valor da máquina (sem painel)" };
+
+  // Painel único para 220V e 380V (ex.: Linha LR, cadastrado só em um dos campos):
+  // uma caixa só, em vez de uma caixa vazia com "—".
+  const p220 = (maquina.precoPainel220 ?? 0) > 0 ? maquina.precoPainel220 : null;
+  const p380 = (maquina.precoPainel380 ?? 0) > 0 ? maquina.precoPainel380 : null;
+  if (!compartilhado && (p220 == null) !== (p380 == null)) {
+    const painel = p220 ?? p380;
+    return (
+      <>
+        <div className="maqrow">
+          <span className="lbl">{rotulos.maq}</span>
+          <span className="val">{formatBRL(maquina.precoMaquina)}</span>
+        </div>
+        <div className="pricerow">
+          <div className="pbox unico">
+            <div className="lbl">NR-12 220V / 380V</div>
+            <div className="val">{formatTotalComPainel(maquina.precoMaquina, painel)}</div>
+            <div className="sub">Valor Painel NR-12: {formatBRL(painel)}</div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

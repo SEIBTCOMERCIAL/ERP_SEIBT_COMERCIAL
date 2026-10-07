@@ -4,9 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, Printer } from "lucide-react";
 import type { CatalogoLinha, JogoNavalhas, MaquinaCatalogo, PecaCatalogo, SpecCampo } from "@/lib/catalogo/tipos";
-import { maquinasPorPagina, paginarMaquinas } from "@/lib/catalogo/tipos";
 import { CatalogoPaginaA4 } from "./CatalogoPaginaA4";
 import { TabelaJogosNavalhas, TabelaPecas } from "./CatalogoPecasView";
+import { usePaginasCatalogo } from "./paginacao";
 import { FotoEditorModal } from "./FotoEditorModal";
 import { CATALOGO_CSS, formatBRL, formatTotalComPainel } from "./catalogo-shared";
 import { archivo, ibmPlexSans } from "./catalogo-fonts";
@@ -40,20 +40,22 @@ export function CatalogoCompletoView({ isAdmin, linhas, jogosNavalhas, peneiras 
     .filter((l) => l.linha.modoCatalogo === "lista")
     .sort((a, b) => a.linha.nome.localeCompare(b.linha.nome));
 
-  const todasPaginas: PaginaComLinha[] = completos.flatMap(({ linha, specCampos, maquinas }) =>
-    paginarMaquinas(maquinas, maquinasPorPagina(specCampos.length)).map((maquinasDaPagina) => ({
-      linhaId: linha.id,
-      linhaNome: linha.nome,
-      specCampos,
-      maquinasDaPagina,
-    }))
+  const { paginas: paginasMedidas, medidor } = usePaginasCatalogo(
+    completos.map(({ linha, specCampos, maquinas }) => ({ linhaId: linha.id, linhaNome: linha.nome, specCampos, maquinas }))
   );
+  const todasPaginas: PaginaComLinha[] = paginasMedidas.map((p) => ({
+    linhaId: p.linhaId,
+    linhaNome: p.linhaNome,
+    specCampos: p.specCampos,
+    maquinasDaPagina: p.maquinas,
+  }));
 
   const totalItens = todasPaginas.length + listas.length + jogosNavalhas.length + peneiras.length;
 
   return (
     <div className={`${archivo.variable} ${ibmPlexSans.variable} catalogo-fundo`} style={{ minHeight: "100vh", background: BG }}>
       <style>{CATALOGO_CSS}</style>
+      {medidor}
 
       <div className="catalogo-no-print" style={{ padding: "20px 28px", borderBottom: `1px solid ${BORDER}`, background: "#fff", display: "flex", alignItems: "center", gap: 12 }}>
         <Link href="/catalogo" style={{ display: "flex", alignItems: "center", gap: 4, color: "#6b7b8d", fontSize: 13, textDecoration: "none" }}>

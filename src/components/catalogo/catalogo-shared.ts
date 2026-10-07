@@ -44,6 +44,9 @@ export const CATALOGO_CSS = `
   .specrow { display: flex; justify-content: space-between; align-items: baseline; padding: 2px 0; border-bottom: 1px solid #D5DAE1; font-size: 9px; }
   .specrow span:first-child { color: #1C2430; }
   .specrow span:last-child { font-weight: 600; }
+  /* Área invisível usada só para medir a altura real de cada ficha (paginação). */
+  .catalogo-medidor { position: absolute; left: -20000px; top: 0; visibility: hidden; pointer-events: none; }
+  .catalogo-medidor-blocos { width: 714px; }
   .catalogo-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #E2E5EA; font-size: 10px; color: #9CA3AF; }
 
   .tabela-pecas { width: 100%; border-collapse: collapse; font-family: var(--font-ibm-plex-sans), sans-serif; font-size: 12px; }
@@ -59,7 +62,7 @@ export const CATALOGO_CSS = `
 
   @media print {
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
-    .catalogo-no-print { display: none !important; }
+    .catalogo-no-print, .catalogo-medidor { display: none !important; }
     html, body, .catalogo-fundo { background: #fff !important; height: auto !important; min-height: 0 !important; }
     .catalogo-paginas { display: block !important; padding: 0 !important; gap: 0 !important; }
     .catalogo-page-wrap { box-shadow: none !important; break-after: page; page-break-after: always; break-inside: avoid; page-break-inside: avoid; }
