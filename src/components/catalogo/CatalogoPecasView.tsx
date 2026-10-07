@@ -61,7 +61,7 @@ export function CatalogoPecasView({ jogosNavalhas, peneiras }: CatalogoPecasView
   );
 }
 
-function TabelaJogosNavalhas({ jogos }: { jogos: JogoNavalhas[] }) {
+export function TabelaJogosNavalhas({ jogos }: { jogos: JogoNavalhas[] }) {
   if (jogos.length === 0) return null;
   return (
     <table className="tabela-pecas">
@@ -98,7 +98,7 @@ function TabelaJogosNavalhas({ jogos }: { jogos: JogoNavalhas[] }) {
   );
 }
 
-function TabelaPecas({ titulo, itens }: { titulo: string; itens: PecaCatalogo[] }) {
+export function TabelaPecas({ titulo, itens }: { titulo: string; itens: PecaCatalogo[] }) {
   if (itens.length === 0) return null;
   return (
     <table className="tabela-pecas">

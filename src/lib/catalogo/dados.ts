@@ -52,6 +52,8 @@ export async function carregarCatalogoLinha(
     modoCatalogo: (rawLinha.modo_catalogo ?? "completo") as "completo" | "lista",
   };
 
+  const precoPorVoltagem = LINHAS_PRECO_POR_VOLTAGEM.test(linha.nome);
+
   const maquinas: MaquinaCatalogo[] = (rawMaquinas ?? [])
     .map((p: SupabaseAny) => ({
       id: p.id,
@@ -61,6 +63,11 @@ export async function carregarCatalogoLinha(
       precoMaquina: p.preco_brl,
       precoPainel220: p.preco_painel_220,
       precoPainel380: p.preco_painel_380,
+      tipoPreco: precoPorVoltagem
+        ? "por_voltagem"
+        : (p.preco_painel_220 ?? 0) > 0 || (p.preco_painel_380 ?? 0) > 0
+          ? "com_painel"
+          : "sem_painel",
       specs: (p.specs ?? {}) as Record<string, string>,
       fotoUrl: p.foto_url ?? null,
       imagensDisponiveis: (p.produto_arquivos ?? [])
@@ -72,10 +79,19 @@ export async function carregarCatalogoLinha(
       return diff !== 0 ? diff : a.nome.localeCompare(b.nome);
     });
 
-  const specCampos: SpecCampo[] = rawCampos ?? [];
+  const specCampos: SpecCampo[] = ((rawCampos ?? []) as SpecCampo[]).filter(
+    (c) => !CAMPOS_FORA_DO_CATALOGO.test(c.nome)
+  );
 
   return { linha, specCampos, maquinas };
 }
+
+/** Linhas em que o item tem um preço por voltagem (220V / 380V), sem painel à parte. */
+const LINHAS_PRECO_POR_VOLTAGEM = /soft\s*starter/i;
+
+/** Campos técnicos que continuam no cadastro, mas não saem no catálogo impresso
+ * (ex.: "PENEIRA PADRÃO (Ømm) 6 a 22" dos moinhos — pedido do Lucas, 07/10/2026). */
+const CAMPOS_FORA_DO_CATALOGO = /^PENEIRA\s+PADR/i;
 
 /**
  * Todas as linhas que têm pelo menos uma máquina ativa, cada uma já com

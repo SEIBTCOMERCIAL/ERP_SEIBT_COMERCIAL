@@ -14,7 +14,9 @@ export const CATALOGO_CSS = `
   .catalogo-brand .tagline { font-size: 9px; letter-spacing: 1.4px; text-transform: uppercase; color: #6B7280; }
   .catalogo-badge-linha { background: #2E3B4E; color: #fff; font-size: 10.5px; font-weight: 700; letter-spacing: 1px; padding: 5px 13px; border-radius: 999px; text-transform: uppercase; white-space: nowrap; }
   .catalogo-blocos { display: flex; flex-direction: column; gap: 10px; flex-grow: 1; }
-  .blk { background: #fff; border: 1px solid #E2E5EA; border-radius: 9px; padding: 10px 13px; display: flex; flex-direction: column; gap: 6px; }
+  .blk { position: relative; background: #fff; border: 1px solid #C9CFD8; border-radius: 9px; padding: 10px 13px; display: flex; flex-direction: column; gap: 6px; }
+  /* Linha de separação entre um item e o próximo na folha. */
+  .catalogo-blocos .blk + .blk::before { content: ""; position: absolute; left: 0; right: 0; top: -6.5px; border-top: 1.5px solid #2E3B4E; }
   .toprow { display: flex; gap: 11px; align-items: stretch; }
   .photo { width: 108px; height: 80px; flex-shrink: 0; background: #F7F8F9; border: 1px solid #EEF0F2; border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
   .photo img { width: 100%; height: 100%; object-fit: contain; padding: 5px; box-sizing: border-box; }
@@ -35,10 +37,11 @@ export const CATALOGO_CSS = `
   .pbox .lbl { font-size: 8px; letter-spacing: 0.3px; text-transform: uppercase; opacity: 0.75; }
   .pbox .val { font-family: var(--font-archivo), sans-serif; font-weight: 800; font-size: 11.5px; white-space: nowrap; }
   .pbox .sub { font-size: 7.6px; opacity: 0.8; white-space: nowrap; }
+  .pbox.unico { flex: 0 0 calc(50% - 3px); }
   .spectitle { font-size: 8.5px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: #2E3B4E; border-bottom: 1.5px solid #2E3B4E; padding-bottom: 3px; }
   .spectitle.vazio { color: #B0BAC9; border-bottom-color: #ECEDEF; }
   .specgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 16px; }
-  .specrow { display: flex; justify-content: space-between; align-items: baseline; padding: 2px 0; border-bottom: 1px solid #ECEDEF; font-size: 9px; }
+  .specrow { display: flex; justify-content: space-between; align-items: baseline; padding: 2px 0; border-bottom: 1px solid #D5DAE1; font-size: 9px; }
   .specrow span:first-child { color: #1C2430; }
   .specrow span:last-child { font-weight: 600; }
   .catalogo-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #E2E5EA; font-size: 10px; color: #9CA3AF; }
@@ -47,7 +50,10 @@ export const CATALOGO_CSS = `
   .tabela-pecas caption { text-align: left; font-family: var(--font-archivo), sans-serif; font-weight: 800; font-size: 15px; color: #2E3B4E; padding: 18px 0 8px; }
   .tabela-pecas thead th { text-align: left; font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; color: #4B5563; border-bottom: 2px solid #2E3B4E; padding: 6px 8px; }
   .tabela-pecas th.num, .tabela-pecas td.num { text-align: right; }
-  .tabela-pecas td { padding: 5px 8px; border-bottom: 1px solid #ECEDEF; }
+  .tabela-pecas td { padding: 5px 8px; border-bottom: 1px solid #C9CFD8; }
+  .tabela-pecas tbody tr:nth-child(even) td { background: #F4F6F9; }
+  /* Cada seção (lista de máquinas, navalhas e peneiras) começa em folha nova na impressão. */
+  .catalogo-secao + .catalogo-secao { margin-top: 32px; }
   .tabela-pecas td.valor { font-family: var(--font-archivo), sans-serif; font-weight: 700; white-space: nowrap; }
 
   @media print {
@@ -60,6 +66,8 @@ export const CATALOGO_CSS = `
     .catalogo-a4 { break-inside: avoid; page-break-inside: avoid; }
     .tabela-pecas thead { display: table-header-group; }
     .tabela-pecas tr { break-inside: avoid; page-break-inside: avoid; }
+    .catalogo-secao { break-before: page; page-break-before: always; padding: 0 !important; }
+    .catalogo-secao:first-child { break-before: auto; page-break-before: auto; }
 
     /* Caixas de preço e a etiqueta da linha usam fundo escuro sólido, que
        impressoras de escritório às vezes não reproduzem bem (sai fraco ou

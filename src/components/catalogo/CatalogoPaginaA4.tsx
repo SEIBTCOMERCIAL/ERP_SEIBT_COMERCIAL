@@ -84,22 +84,7 @@ function MaquinaBloco({
             <span className={`modelo${maquina.nome.length > 32 ? " longo" : ""}`}>{maquina.nome}</span>
             {maquina.potenciaMotor && <span className="motor">Motor {maquina.potenciaMotor} CV</span>}
           </div>
-          <div className="maqrow">
-            <span className="lbl">Valor da máquina (sem painel)</span>
-            <span className="val">{formatBRL(maquina.precoMaquina)}</span>
-          </div>
-          <div className="pricerow">
-            <div className="pbox">
-              <div className="lbl">NR-12 220V</div>
-              <div className="val">{formatTotalComPainel(maquina.precoMaquina, maquina.precoPainel220)}</div>
-              <div className="sub">Valor Painel NR-12: {formatBRL(maquina.precoPainel220)}</div>
-            </div>
-            <div className="pbox">
-              <div className="lbl">NR-12 380V</div>
-              <div className="val">{formatTotalComPainel(maquina.precoMaquina, maquina.precoPainel380)}</div>
-              <div className="sub">Valor Painel NR-12: {formatBRL(maquina.precoPainel380)}</div>
-            </div>
-          </div>
+          <PrecosMaquina maquina={maquina} />
         </div>
       </div>
 
@@ -123,5 +108,55 @@ function MaquinaBloco({
         <div className="spectitle vazio">Especificações técnicas não configuradas para esta linha</div>
       )}
     </div>
+  );
+}
+
+/** Bloco de preços conforme o tipo do item (ver TipoPreco). */
+function PrecosMaquina({ maquina }: { maquina: MaquinaCatalogo }) {
+  if (maquina.tipoPreco === "sem_painel") {
+    return (
+      <div className="pricerow">
+        <div className="pbox unico">
+          <div className="lbl">Valor</div>
+          <div className="val">{formatBRL(maquina.precoMaquina)}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (maquina.tipoPreco === "por_voltagem") {
+    return (
+      <div className="pricerow">
+        <div className="pbox">
+          <div className="lbl">220V</div>
+          <div className="val">{formatBRL(maquina.precoPainel220)}</div>
+        </div>
+        <div className="pbox">
+          <div className="lbl">380V</div>
+          <div className="val">{formatBRL(maquina.precoPainel380)}</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="maqrow">
+        <span className="lbl">Valor da máquina (sem painel)</span>
+        <span className="val">{formatBRL(maquina.precoMaquina)}</span>
+      </div>
+      <div className="pricerow">
+        <div className="pbox">
+          <div className="lbl">NR-12 220V</div>
+          <div className="val">{formatTotalComPainel(maquina.precoMaquina, maquina.precoPainel220)}</div>
+          <div className="sub">Valor Painel NR-12: {formatBRL(maquina.precoPainel220)}</div>
+        </div>
+        <div className="pbox">
+          <div className="lbl">NR-12 380V</div>
+          <div className="val">{formatTotalComPainel(maquina.precoMaquina, maquina.precoPainel380)}</div>
+          <div className="sub">Valor Painel NR-12: {formatBRL(maquina.precoPainel380)}</div>
+        </div>
+      </div>
+    </>
   );
 }

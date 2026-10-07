@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, Printer } from "lucide-react";
-import type { CatalogoLinha, MaquinaCatalogo, SpecCampo } from "@/lib/catalogo/tipos";
+import type { CatalogoLinha, JogoNavalhas, MaquinaCatalogo, PecaCatalogo, SpecCampo } from "@/lib/catalogo/tipos";
 import { maquinasPorPagina, paginarMaquinas } from "@/lib/catalogo/tipos";
 import { CatalogoPaginaA4 } from "./CatalogoPaginaA4";
+import { TabelaJogosNavalhas, TabelaPecas } from "./CatalogoPecasView";
 import { FotoEditorModal } from "./FotoEditorModal";
 import { CATALOGO_CSS, formatBRL, formatTotalComPainel } from "./catalogo-shared";
 import { archivo, ibmPlexSans } from "./catalogo-fonts";
@@ -17,6 +18,8 @@ const BORDER = "#E2E8F0";
 interface CatalogoCompletoViewProps {
   isAdmin: boolean;
   linhas: CatalogoLinha[];
+  jogosNavalhas: JogoNavalhas[];
+  peneiras: PecaCatalogo[];
 }
 
 interface PaginaComLinha {
@@ -26,7 +29,7 @@ interface PaginaComLinha {
   maquinasDaPagina: MaquinaCatalogo[];
 }
 
-export function CatalogoCompletoView({ isAdmin, linhas }: CatalogoCompletoViewProps) {
+export function CatalogoCompletoView({ isAdmin, linhas, jogosNavalhas, peneiras }: CatalogoCompletoViewProps) {
   const [editando, setEditando] = useState<{ maquina: MaquinaCatalogo; linhaId: string } | null>(null);
 
   const completos = linhas
@@ -46,7 +49,7 @@ export function CatalogoCompletoView({ isAdmin, linhas }: CatalogoCompletoViewPr
     }))
   );
 
-  const totalItens = todasPaginas.length + listas.length;
+  const totalItens = todasPaginas.length + listas.length + jogosNavalhas.length + peneiras.length;
 
   return (
     <div className={`${archivo.variable} ${ibmPlexSans.variable} catalogo-fundo`} style={{ minHeight: "100vh", background: BG }}>
@@ -59,7 +62,7 @@ export function CatalogoCompletoView({ isAdmin, linhas }: CatalogoCompletoViewPr
         <span style={{ color: BORDER }}>/</span>
         <span style={{ fontWeight: 700, color: NAV, fontSize: 14 }}>Catálogo completo</span>
         <span style={{ fontSize: 12, color: "#6b7b8d" }}>
-          {completos.length} em formato completo · {listas.length} em lista · {todasPaginas.length} páginas
+          {completos.length} em formato completo · {listas.length} em lista · {todasPaginas.length} páginas · navalhas e peneiras no final
         </span>
         {totalItens > 0 && (
           <button
@@ -95,20 +98,22 @@ export function CatalogoCompletoView({ isAdmin, linhas }: CatalogoCompletoViewPr
           )}
 
           {listas.length > 0 && (
-            <div style={{ display: "flex", justifyContent: "center", padding: "0 16px 32px" }}>
+            <div className="catalogo-secao" style={{ display: "flex", justifyContent: "center", padding: "0 16px 32px" }}>
               <div className="catalogo-folha-pecas">
-                {todasPaginas.length === 0 && (
-                  <div className="catalogo-header">
-                    <div className="catalogo-brand">
-                      <span className="nome">SEIBT</span>
-                      <span className="tagline">Soluções para a Indústria do Plástico</span>
-                    </div>
-                    <span className="catalogo-badge-linha">Catálogo completo</span>
-                  </div>
-                )}
+                <CabecalhoFolha titulo="Demais equipamentos" />
                 {listas.map(({ linha, maquinas }) => (
                   <TabelaMaquinasLinha key={linha.id} nome={linha.nome} maquinas={maquinas} />
                 ))}
+              </div>
+            </div>
+          )}
+
+          {(jogosNavalhas.length > 0 || peneiras.length > 0) && (
+            <div className="catalogo-secao" style={{ display: "flex", justifyContent: "center", padding: "0 16px 32px" }}>
+              <div className="catalogo-folha-pecas">
+                <CabecalhoFolha titulo="Navalhas e Peneiras" />
+                <TabelaJogosNavalhas jogos={jogosNavalhas} />
+                <TabelaPecas titulo="Peneiras" itens={peneiras} />
               </div>
             </div>
           )}
@@ -126,28 +131,49 @@ export function CatalogoCompletoView({ isAdmin, linhas }: CatalogoCompletoViewPr
   );
 }
 
+function CabecalhoFolha({ titulo }: { titulo: string }) {
+  return (
+    <div className="catalogo-header">
+      <div className="catalogo-brand">
+        <span className="nome">SEIBT</span>
+        <span className="tagline">Soluções para a Indústria do Plástico</span>
+      </div>
+      <span className="catalogo-badge-linha">{titulo}</span>
+    </div>
+  );
+}
+
+/** Linha em formato lista. Colunas de painel só aparecem se algum item da linha tiver painel;
+ * itens com preço por voltagem (soft starter) mostram 220V / 380V. */
 function TabelaMaquinasLinha({ nome, maquinas }: { nome: string; maquinas: MaquinaCatalogo[] }) {
   if (maquinas.length === 0) return null;
+  const comPainel = maquinas.some((m) => m.tipoPreco === "com_painel");
+  const porVoltagem = maquinas.some((m) => m.tipoPreco === "por_voltagem");
+  const comMotor = maquinas.some((m) => m.potenciaMotor);
   return (
     <table className="tabela-pecas">
       <caption>{nome} ({maquinas.length})</caption>
       <thead>
         <tr>
           <th>Modelo</th>
-          <th>Motor</th>
-          <th className="num">Valor da máquina</th>
-          <th className="num">NR-12 220V</th>
-          <th className="num">NR-12 380V</th>
+          {comMotor && <th>Motor</th>}
+          {!porVoltagem && <th className="num">{comPainel ? "Valor da máquina" : "Valor"}</th>}
+          {comPainel && <th className="num">NR-12 220V</th>}
+          {comPainel && <th className="num">NR-12 380V</th>}
+          {porVoltagem && <th className="num">220V</th>}
+          {porVoltagem && <th className="num">380V</th>}
         </tr>
       </thead>
       <tbody>
         {maquinas.map((m) => (
           <tr key={m.id}>
             <td>{m.nome}</td>
-            <td>{m.potenciaMotor ? `${m.potenciaMotor} CV` : "—"}</td>
-            <td className="num valor">{formatBRL(m.precoMaquina)}</td>
-            <td className="num valor">{formatTotalComPainel(m.precoMaquina, m.precoPainel220)}</td>
-            <td className="num valor">{formatTotalComPainel(m.precoMaquina, m.precoPainel380)}</td>
+            {comMotor && <td>{m.potenciaMotor ? `${m.potenciaMotor} CV` : "—"}</td>}
+            {!porVoltagem && <td className="num valor">{formatBRL(m.precoMaquina)}</td>}
+            {comPainel && <td className="num valor">{m.tipoPreco === "com_painel" ? formatTotalComPainel(m.precoMaquina, m.precoPainel220) : "—"}</td>}
+            {comPainel && <td className="num valor">{m.tipoPreco === "com_painel" ? formatTotalComPainel(m.precoMaquina, m.precoPainel380) : "—"}</td>}
+            {porVoltagem && <td className="num valor">{formatBRL(m.precoPainel220)}</td>}
+            {porVoltagem && <td className="num valor">{formatBRL(m.precoPainel380)}</td>}
           </tr>
         ))}
       </tbody>

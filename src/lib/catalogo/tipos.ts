@@ -10,6 +10,15 @@ export interface ImagemProduto {
   nome: string;
 }
 
+/**
+ * Como o preço aparece no catálogo:
+ * - "com_painel": valor da máquina + caixas NR-12 220V e 380V (máquina + painel);
+ * - "sem_painel": item sem painel (silo, cabine, carenagem, reservatório…) — só o valor;
+ * - "por_voltagem": o próprio item tem um preço por voltagem (soft starter) — os
+ *   campos de painel guardam o preço 220V e 380V do item, não um painel à parte.
+ */
+export type TipoPreco = "com_painel" | "sem_painel" | "por_voltagem";
+
 export interface MaquinaCatalogo {
   id: string;
   codigo: string;
@@ -19,6 +28,7 @@ export interface MaquinaCatalogo {
   precoMaquina: number | null;
   precoPainel220: number | null;
   precoPainel380: number | null;
+  tipoPreco: TipoPreco;
   specs: Record<string, string>;
   fotoUrl: string | null;
   imagensDisponiveis: ImagemProduto[];
