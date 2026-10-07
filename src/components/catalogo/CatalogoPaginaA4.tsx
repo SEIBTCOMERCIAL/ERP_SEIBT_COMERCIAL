@@ -142,22 +142,29 @@ function PrecosMaquina({ maquina }: { maquina: MaquinaCatalogo }) {
     );
   }
 
+  // Exaustores: os dois painéis são "compartilhado" (com o moinho) e "dedicado"
+  // (exaustor vendido avulso), não 220V/380V.
+  const compartilhado = maquina.tipoPreco === "painel_compartilhado";
+  const rotulos = compartilhado
+    ? { a: "Painel compartilhado", subA: "Painel compartilhado", b: "Painel dedicado (avulso)", subB: "Painel dedicado", maq: "Valor do exaustor (sem painel)" }
+    : { a: "NR-12 220V", subA: "Valor Painel NR-12", b: "NR-12 380V", subB: "Valor Painel NR-12", maq: "Valor da máquina (sem painel)" };
+
   return (
     <>
       <div className="maqrow">
-        <span className="lbl">Valor da máquina (sem painel)</span>
+        <span className="lbl">{rotulos.maq}</span>
         <span className="val">{formatBRL(maquina.precoMaquina)}</span>
       </div>
       <div className="pricerow">
         <div className="pbox">
-          <div className="lbl">NR-12 220V</div>
+          <div className="lbl">{rotulos.a}</div>
           <div className="val">{formatTotalComPainel(maquina.precoMaquina, maquina.precoPainel220)}</div>
-          <div className="sub">Valor Painel NR-12: {formatBRL(maquina.precoPainel220)}</div>
+          <div className="sub">{rotulos.subA}: {formatBRL(maquina.precoPainel220)}</div>
         </div>
         <div className="pbox">
-          <div className="lbl">NR-12 380V</div>
+          <div className="lbl">{rotulos.b}</div>
           <div className="val">{formatTotalComPainel(maquina.precoMaquina, maquina.precoPainel380)}</div>
-          <div className="sub">Valor Painel NR-12: {formatBRL(maquina.precoPainel380)}</div>
+          <div className="sub">{rotulos.subB}: {formatBRL(maquina.precoPainel380)}</div>
         </div>
       </div>
     </>

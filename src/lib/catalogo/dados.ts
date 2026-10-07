@@ -53,6 +53,7 @@ export async function carregarCatalogoLinha(
   };
 
   const precoPorVoltagem = LINHAS_PRECO_POR_VOLTAGEM.test(linha.nome);
+  const painelCompartilhado = LINHAS_PAINEL_COMPARTILHADO.test(linha.nome);
 
   const maquinas: MaquinaCatalogo[] = (rawMaquinas ?? [])
     .map((p: SupabaseAny) => ({
@@ -65,9 +66,11 @@ export async function carregarCatalogoLinha(
       precoPainel380: p.preco_painel_380,
       tipoPreco: precoPorVoltagem
         ? "por_voltagem"
-        : (p.preco_painel_220 ?? 0) > 0 || (p.preco_painel_380 ?? 0) > 0
-          ? "com_painel"
-          : "sem_painel",
+        : !((p.preco_painel_220 ?? 0) > 0 || (p.preco_painel_380 ?? 0) > 0)
+          ? "sem_painel"
+          : painelCompartilhado
+            ? "painel_compartilhado"
+            : "com_painel",
       specs: (p.specs ?? {}) as Record<string, string>,
       fotoUrl: p.foto_url ?? null,
       imagensDisponiveis: (p.produto_arquivos ?? [])
@@ -88,6 +91,9 @@ export async function carregarCatalogoLinha(
 
 /** Linhas em que o item tem um preço por voltagem (220V / 380V), sem painel à parte. */
 const LINHAS_PRECO_POR_VOLTAGEM = /soft\s*starter/i;
+
+/** Linhas em que os dois preços de painel são "compartilhado" e "dedicado" (Base de Preço 2026). */
+const LINHAS_PAINEL_COMPARTILHADO = /exaustor/i;
 
 /** Campos técnicos que continuam no cadastro, mas não saem no catálogo impresso:
  * "PENEIRA PADRÃO (Ømm)" (6 a 22) dos moinhos e "PENEIRA" do RCX — pedido do Lucas, 07/10/2026. */

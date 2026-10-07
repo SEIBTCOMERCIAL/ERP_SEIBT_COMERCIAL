@@ -15,9 +15,11 @@ export interface ImagemProduto {
  * - "com_painel": valor da máquina + caixas NR-12 220V e 380V (máquina + painel);
  * - "sem_painel": item sem painel (silo, cabine, carenagem, reservatório…) — só o valor;
  * - "por_voltagem": o próprio item tem um preço por voltagem (soft starter) — os
- *   campos de painel guardam o preço 220V e 380V do item, não um painel à parte.
+ *   campos de painel guardam o preço 220V e 380V do item, não um painel à parte;
+ * - "painel_compartilhado": exaustores — os campos de painel guardam o painel
+ *   compartilhado (com o moinho) e o painel dedicado (exaustor vendido avulso).
  */
-export type TipoPreco = "com_painel" | "sem_painel" | "por_voltagem";
+export type TipoPreco = "com_painel" | "sem_painel" | "por_voltagem" | "painel_compartilhado";
 
 export interface MaquinaCatalogo {
   id: string;

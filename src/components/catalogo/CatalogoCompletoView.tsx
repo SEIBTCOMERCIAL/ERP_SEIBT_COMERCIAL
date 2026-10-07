@@ -147,7 +147,8 @@ function CabecalhoFolha({ titulo }: { titulo: string }) {
  * itens com preço por voltagem (soft starter) mostram 220V / 380V. */
 function TabelaMaquinasLinha({ nome, maquinas }: { nome: string; maquinas: MaquinaCatalogo[] }) {
   if (maquinas.length === 0) return null;
-  const comPainel = maquinas.some((m) => m.tipoPreco === "com_painel");
+  const comPainel = maquinas.some((m) => m.tipoPreco === "com_painel" || m.tipoPreco === "painel_compartilhado");
+  const compartilhado = maquinas.some((m) => m.tipoPreco === "painel_compartilhado");
   const porVoltagem = maquinas.some((m) => m.tipoPreco === "por_voltagem");
   const comMotor = maquinas.some((m) => m.potenciaMotor);
   return (
@@ -158,8 +159,8 @@ function TabelaMaquinasLinha({ nome, maquinas }: { nome: string; maquinas: Maqui
           <th>Modelo</th>
           {comMotor && <th>Motor</th>}
           {!porVoltagem && <th className="num">{comPainel ? "Valor da máquina" : "Valor"}</th>}
-          {comPainel && <th className="num">NR-12 220V</th>}
-          {comPainel && <th className="num">NR-12 380V</th>}
+          {comPainel && <th className="num">{compartilhado ? "Painel compartilhado" : "NR-12 220V"}</th>}
+          {comPainel && <th className="num">{compartilhado ? "Painel dedicado" : "NR-12 380V"}</th>}
           {porVoltagem && <th className="num">220V</th>}
           {porVoltagem && <th className="num">380V</th>}
         </tr>
@@ -170,8 +171,8 @@ function TabelaMaquinasLinha({ nome, maquinas }: { nome: string; maquinas: Maqui
             <td>{m.nome}</td>
             {comMotor && <td>{m.potenciaMotor ? `${m.potenciaMotor} CV` : "—"}</td>}
             {!porVoltagem && <td className="num valor">{formatBRL(m.precoMaquina)}</td>}
-            {comPainel && <td className="num valor">{m.tipoPreco === "com_painel" ? formatTotalComPainel(m.precoMaquina, m.precoPainel220) : "—"}</td>}
-            {comPainel && <td className="num valor">{m.tipoPreco === "com_painel" ? formatTotalComPainel(m.precoMaquina, m.precoPainel380) : "—"}</td>}
+            {comPainel && <td className="num valor">{m.tipoPreco !== "sem_painel" ? formatTotalComPainel(m.precoMaquina, m.precoPainel220) : "—"}</td>}
+            {comPainel && <td className="num valor">{m.tipoPreco !== "sem_painel" ? formatTotalComPainel(m.precoMaquina, m.precoPainel380) : "—"}</td>}
             {porVoltagem && <td className="num valor">{formatBRL(m.precoPainel220)}</td>}
             {porVoltagem && <td className="num valor">{formatBRL(m.precoPainel380)}</td>}
           </tr>
