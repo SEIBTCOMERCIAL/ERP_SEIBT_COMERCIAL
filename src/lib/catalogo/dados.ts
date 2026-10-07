@@ -89,9 +89,9 @@ export async function carregarCatalogoLinha(
 /** Linhas em que o item tem um preço por voltagem (220V / 380V), sem painel à parte. */
 const LINHAS_PRECO_POR_VOLTAGEM = /soft\s*starter/i;
 
-/** Campos técnicos que continuam no cadastro, mas não saem no catálogo impresso
- * (ex.: "PENEIRA PADRÃO (Ømm) 6 a 22" dos moinhos — pedido do Lucas, 07/10/2026). */
-const CAMPOS_FORA_DO_CATALOGO = /^PENEIRA\s+PADR/i;
+/** Campos técnicos que continuam no cadastro, mas não saem no catálogo impresso:
+ * "PENEIRA PADRÃO (Ømm)" (6 a 22) dos moinhos e "PENEIRA" do RCX — pedido do Lucas, 07/10/2026. */
+const CAMPOS_FORA_DO_CATALOGO = /^PENEIRA(\s+PADR|\s*$)/i;
 
 /**
  * Todas as linhas que têm pelo menos uma máquina ativa, cada uma já com
