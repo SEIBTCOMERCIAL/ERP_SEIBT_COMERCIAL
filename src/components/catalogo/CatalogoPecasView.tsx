@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import Link from "next/link";
 import { ChevronLeft, Printer } from "lucide-react";
 import type { JogoNavalhas, PecaCatalogo } from "@/lib/catalogo/tipos";
@@ -80,8 +81,12 @@ export function TabelaJogosNavalhas({ jogos }: { jogos: JogoNavalhas[] }) {
         </tr>
       </thead>
       <tbody>
-        {jogos.map((j) => (
-          <tr key={j.chave}>
+        {jogos.map((j, i) => (
+          <Fragment key={j.chave}>
+          {(i === 0 || jogos[i - 1]!.familia !== j.familia) && (
+            <tr className="familia"><td colSpan={9}>{j.familia}</td></tr>
+          )}
+          <tr>
             <td>{j.modelo}</td>
             <td>{j.codigoFixa ?? "—"}</td>
             <td className="num">{j.qtdFixa ?? "—"}</td>
@@ -92,6 +97,7 @@ export function TabelaJogosNavalhas({ jogos }: { jogos: JogoNavalhas[] }) {
             <td className="num">{combinarIpi(j.ipiFixa, j.ipiRotora)}</td>
             <td className="num valor">{formatBRL(j.valorTotalComIpi)}</td>
           </tr>
+          </Fragment>
         ))}
       </tbody>
     </table>
@@ -107,8 +113,9 @@ export function TabelaPecas({ titulo, itens }: { titulo: string; itens: PecaCata
         <tr>
           <th>Código</th>
           <th>Descrição</th>
-          <th className="num">Valor unitário</th>
+          <th className="num">Valor sem IPI</th>
           <th className="num">IPI</th>
+          <th className="num">Valor com IPI</th>
         </tr>
       </thead>
       <tbody>
@@ -118,6 +125,9 @@ export function TabelaPecas({ titulo, itens }: { titulo: string; itens: PecaCata
             <td>{p.descricao}</td>
             <td className="num valor">{formatBRL(p.precoUnitario)}</td>
             <td className="num">{formatPercent(p.ipiPct)}</td>
+            <td className="num valor">
+              {p.precoUnitario == null ? "—" : formatBRL(Math.round(p.precoUnitario * (1 + (p.ipiPct ?? 0) / 100) * 100) / 100)}
+            </td>
           </tr>
         ))}
       </tbody>

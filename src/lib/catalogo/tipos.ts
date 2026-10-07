@@ -54,6 +54,9 @@ export interface PecaCatalogo {
  * quantidade de cada uma e o valor total já com IPI. */
 export interface JogoNavalhas {
   chave: string;
+  /** Família (linha) do equipamento, ex.: "Linha LR" — define o agrupamento na folha. */
+  familia: string;
+  familiaOrdem: number;
   modelo: string;
   codigoFixa: string | null;
   qtdFixa: number | null;

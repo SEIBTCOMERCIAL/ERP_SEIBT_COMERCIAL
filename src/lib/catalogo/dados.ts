@@ -173,6 +173,7 @@ export async function carregarJogosNavalhas(
     .from("produtos")
     .select(
       `id, codigo,
+       linha:linhas(nome, ordem),
        compatibilidades_equip!compatibilidades_equip_equipamento_id_fkey(
          quantidade,
          peca:produtos!compatibilidades_equip_peca_id_fkey(id, codigo, descricao, preco_brl, ipi_pct, categoria)
@@ -198,7 +199,17 @@ export async function carregarJogosNavalhas(
     const qtdRotora = vRotora ? vRotora.quantidade ?? 1 : null;
 
     const chave = `${fixa?.id ?? "-"}|${rotora?.id ?? "-"}|${qtdFixa ?? "-"}|${qtdRotora ?? "-"}`;
-    if (porChave.has(chave)) continue;
+    const existente = porChave.get(chave);
+    if (existente) {
+      // Mesmo jogo em equipamentos de famílias diferentes (ex.: LR e LRX):
+      // fica na família que vem primeiro no catálogo.
+      const ordem = maquina.linha?.ordem ?? Number.MAX_SAFE_INTEGER;
+      if (ordem < existente.familiaOrdem) {
+        existente.familia = maquina.linha?.nome ?? existente.familia;
+        existente.familiaOrdem = ordem;
+      }
+      continue;
+    }
 
     const subtotalFixa = fixa && qtdFixa ? qtdFixa * fixa.preco_brl : 0;
     const subtotalRotora = rotora && qtdRotora ? qtdRotora * rotora.preco_brl : 0;
@@ -208,6 +219,8 @@ export async function carregarJogosNavalhas(
 
     porChave.set(chave, {
       chave,
+      familia: maquina.linha?.nome ?? "Outros",
+      familiaOrdem: maquina.linha?.ordem ?? Number.MAX_SAFE_INTEGER,
       modelo: extrairModeloNavalha(fixa?.descricao ?? rotora?.descricao ?? maquina.codigo),
       codigoFixa: fixa?.codigo ?? null,
       qtdFixa,
@@ -221,7 +234,11 @@ export async function carregarJogosNavalhas(
     });
   }
 
+  // Agrupado por família (mesma ordem das linhas no catálogo) e, dentro dela,
+  // do menor para o maior: MGHS 200 LR, MGHS 250 LR, … depois a próxima família.
   return Array.from(porChave.values()).sort((a, b) => {
+    if (a.familiaOrdem !== b.familiaOrdem) return a.familiaOrdem - b.familiaOrdem;
+    if (a.familia !== b.familia) return a.familia.localeCompare(b.familia);
     const diff = tamanhoModelo(a.modelo) - tamanhoModelo(b.modelo);
     return diff !== 0 ? diff : a.modelo.localeCompare(b.modelo);
   });

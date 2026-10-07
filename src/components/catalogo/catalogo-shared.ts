@@ -52,6 +52,7 @@ export const CATALOGO_CSS = `
   .tabela-pecas th.num, .tabela-pecas td.num { text-align: right; }
   .tabela-pecas td { padding: 5px 8px; border-bottom: 1px solid #C9CFD8; }
   .tabela-pecas tbody tr:nth-child(even) td { background: #F4F6F9; }
+  .tabela-pecas tr.familia td { background: #E8ECF1 !important; color: #2E3B4E; font-family: var(--font-archivo), sans-serif; font-weight: 800; font-size: 11px; letter-spacing: 0.6px; text-transform: uppercase; padding-top: 7px; border-bottom: 1.5px solid #2E3B4E; }
   /* Cada seção (lista de máquinas, navalhas e peneiras) começa em folha nova na impressão. */
   .catalogo-secao + .catalogo-secao { margin-top: 32px; }
   .tabela-pecas td.valor { font-family: var(--font-archivo), sans-serif; font-weight: 700; white-space: nowrap; }
