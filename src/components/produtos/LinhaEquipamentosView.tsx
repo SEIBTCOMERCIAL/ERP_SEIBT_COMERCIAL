@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { FotoEditorModal } from "@/components/catalogo/FotoEditorModal";
 import { tituloComSeparador } from "@/lib/produto-titulo";
+import { rotulosPainel, type RotulosPainel } from "@/lib/produtos/painel";
 import {
   criarEquipamento, editarEquipamento, excluirEquipamento,
   duplicarEquipamento, atualizarStatusEquipamento,
@@ -157,17 +158,17 @@ function EquipamentoModal({ linha, equip, specCampos, onClose }: {
           {/* Preços */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <CurrencyInput name="preco_brl" label="Preço moinho (R$)" defaultValue={equip?.preco_brl} />
-            <CurrencyInput name="preco_painel_220" label="Painel 220V (R$)" defaultValue={equip?.preco_painel_220} />
+            <CurrencyInput name="preco_painel_220" label={`${rotulosPainel(linha.nome).p220} (R$)`} defaultValue={equip?.preco_painel_220} />
           </div>
           <div style={{ maxWidth: 246 }}>
-            <CurrencyInput name="preco_painel_380" label="Painel 380V (R$)" defaultValue={equip?.preco_painel_380} />
+            <CurrencyInput name="preco_painel_380" label={`${rotulosPainel(linha.nome).p380} (R$)`} defaultValue={equip?.preco_painel_380} />
           </div>
 
           {/* Descrição do painel */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const }}>
               Descrição do painel
-              <span style={{ fontWeight: 400, color: "#b0bac9", textTransform: "none" as const }}> — usada para 220V e 380V</span>
+              <span style={{ fontWeight: 400, color: "#b0bac9", textTransform: "none" as const }}> — usada para {rotulosPainel(linha.nome).usoDescricao}</span>
             </label>
             <textarea name="descricao_painel" rows={2}
               defaultValue={equip?.descricao_painel ?? ""}
@@ -211,9 +212,9 @@ function EquipamentoModal({ linha, equip, specCampos, onClose }: {
 }
 
 // Mesmas condições que já definiam "Incompleto" — agora listadas, pra dizer o que falta.
-function listarPendencias(eq: Equipamento): string[] {
+function listarPendencias(eq: Equipamento, rotulos: RotulosPainel): string[] {
   const pendencias: string[] = [];
-  if (!eq.preco_painel_380) pendencias.push("preço do painel 380V");
+  if (!eq.preco_painel_380) pendencias.push(`preço do ${rotulos.p380.replace(/^Painel/, "painel")}`);
   if (!eq.specs || Object.keys(eq.specs).length === 0) pendencias.push("especificações técnicas");
   if (eq.imagens_count === 0) pendencias.push("imagem");
   return pendencias;
@@ -241,9 +242,10 @@ function SecaoTitulo({ children }: { children: React.ReactNode }) {
 }
 
 function EquipamentoCard({
-  eq, href, effectiveAdmin, isPending, onEditar, onEditarFoto, onDuplicar, onToggleStatus, onExcluir,
+  eq, rotulos, href, effectiveAdmin, isPending, onEditar, onEditarFoto, onDuplicar, onToggleStatus, onExcluir,
 }: {
   eq: Equipamento;
+  rotulos: RotulosPainel;
   href: string;
   effectiveAdmin: boolean;
   isPending: boolean;
@@ -259,7 +261,7 @@ function EquipamentoCard({
   const total220 = (moinho ?? 0) + (p220 ?? 0);
   const total380 = (moinho ?? 0) + (p380 ?? 0);
   const descontinuado = eq.status === "descontinuado";
-  const pendencias = listarPendencias(eq);
+  const pendencias = listarPendencias(eq, rotulos);
   const incompleto = pendencias.length > 0;
   const semPrecos = moinho == null && p220 == null && p380 == null;
   const temPainel = p220 != null || p380 != null;
@@ -424,15 +426,15 @@ function EquipamentoCard({
                 <div className="flex flex-col gap-1.5">
                   {p220 != null && (
                     <div className="flex items-center gap-2.5 rounded-lg border border-seibt-blue/20 bg-seibt-blue-light px-3 py-2">
-                      <span className="shrink-0 rounded-full bg-seibt-blue px-2 py-0.5 text-[11px] font-bold text-white">220V</span>
-                      <span className="min-w-0 flex-1 text-[12px] leading-tight text-slate-600">Total com painel 220V</span>
+                      <span className="shrink-0 rounded-full bg-seibt-blue px-2 py-0.5 text-[11px] font-bold text-white">{rotulos.selo220}</span>
+                      <span className="min-w-0 flex-1 text-[12px] leading-tight text-slate-600">Total com {rotulos.p220.replace(/^Painel/, "painel")}</span>
                       <span className="whitespace-nowrap text-[15px] font-bold tabular-nums text-seibt-navy">{fmt(total220)}</span>
                     </div>
                   )}
                   {p380 != null && (
                     <div className="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                      <span className="shrink-0 rounded-full bg-slate-600 px-2 py-0.5 text-[11px] font-bold text-white">380V</span>
-                      <span className="min-w-0 flex-1 text-[12px] leading-tight text-slate-600">Total com painel 380V</span>
+                      <span className="shrink-0 rounded-full bg-slate-600 px-2 py-0.5 text-[11px] font-bold text-white">{rotulos.selo380}</span>
+                      <span className="min-w-0 flex-1 text-[12px] leading-tight text-slate-600">Total com {rotulos.p380.replace(/^Painel/, "painel")}</span>
                       <span className="whitespace-nowrap text-[15px] font-bold tabular-nums text-seibt-navy">{fmt(total380)}</span>
                     </div>
                   )}
@@ -661,6 +663,7 @@ export function LinhaEquipamentosView({ isAdmin, linha, equipamentos, specCampos
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(290px, 100%), 1fr))", gap: 16 }}>
         {equipFiltrados.map(eq => (
           <EquipamentoCard
+            rotulos={rotulosPainel(linha.nome)}
             key={eq.id}
             eq={eq}
             href={`/produtos/linhas/${linha.id}/${eq.id}`}

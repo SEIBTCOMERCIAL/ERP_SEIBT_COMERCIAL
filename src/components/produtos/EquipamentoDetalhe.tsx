@@ -1,5 +1,6 @@
 "use client";
 
+import { rotulosPainel } from "@/lib/produtos/painel";
 import { useState, useTransition, useRef, useEffect } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -490,6 +491,7 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
   vinculos: VinculoPeca[];
   pecasCatalogo: PecaCatalogo[];
 }) {
+  const rot = rotulosPainel(linha.nome);
   const router = useRouter();
   const [tab, setTab] = useState<string>("specs");
   const [isPending, startTransition] = useTransition();
@@ -721,7 +723,7 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
                 <div style={{ padding: "12px 18px", borderBottom: `1px solid ${BORDER}`, background: BG, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                   <span>
                     <span style={{ fontSize: 11, fontWeight: 600, color: "#6B7B8D", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Descrição do painel</span>
-                    <span style={{ fontSize: 11, color: "#94A3B8", marginLeft: 8 }}>— usada no orçamento para 220V e 380V</span>
+                    <span style={{ fontSize: 11, color: "#94A3B8", marginLeft: 8 }}>— usada no orçamento para {rot.usoDescricao}</span>
                   </span>
                   {descPainelDraft.trim() && <CopyButton text={descPainelDraft} />}
                 </div>
@@ -808,8 +810,8 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
               )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, opacity: draft.solicitar ? 0.4 : 1, pointerEvents: draft.solicitar ? "none" : "auto" }}>
                 <div><div style={{ fontSize: 11, fontWeight: 600, color: "#6b7b8d", textTransform: "uppercase" as const, marginBottom: 6 }}>Moinho</div>{currInp(draft.brl, v => setDraft(d => ({ ...d, brl: v })))}</div>
-                <div><div style={{ fontSize: 11, fontWeight: 600, color: "#6b7b8d", textTransform: "uppercase" as const, marginBottom: 6 }}>Painel 220V</div>{currInp(draft.p220, v => setDraft(d => ({ ...d, p220: v })))}</div>
-                <div><div style={{ fontSize: 11, fontWeight: 600, color: "#6b7b8d", textTransform: "uppercase" as const, marginBottom: 6 }}>Painel 380V</div>{currInp(draft.p380, v => setDraft(d => ({ ...d, p380: v })))}</div>
+                <div><div style={{ fontSize: 11, fontWeight: 600, color: "#6b7b8d", textTransform: "uppercase" as const, marginBottom: 6 }}>{rot.p220}</div>{currInp(draft.p220, v => setDraft(d => ({ ...d, p220: v })))}</div>
+                <div><div style={{ fontSize: 11, fontWeight: 600, color: "#6b7b8d", textTransform: "uppercase" as const, marginBottom: 6 }}>{rot.p380}</div>{currInp(draft.p380, v => setDraft(d => ({ ...d, p380: v })))}</div>
               </div>
             </div>
           )}
@@ -829,12 +831,12 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
               </div>
               <div style={{ padding: "4px 18px" }}>
                 <PriceRow label="Moinho" value={editingPrices ? (parseCurr(draft.brl) ?? null) : equip.preco_brl} />
-                <PriceRow label="Painel 220V" value={editingPrices ? (parseCurr(draft.p220) ?? null) : equip.preco_painel_220} />
-                <PriceRow label="Painel 380V" value={editingPrices ? (parseCurr(draft.p380) ?? null) : equip.preco_painel_380} />
+                <PriceRow label={rot.p220} value={editingPrices ? (parseCurr(draft.p220) ?? null) : equip.preco_painel_220} />
+                <PriceRow label={rot.p380} value={editingPrices ? (parseCurr(draft.p380) ?? null) : equip.preco_painel_380} />
               </div>
               <div style={{ borderTop: `2px solid ${BORDER}`, padding: "4px 18px" }}>
-                <PriceRow label="Total Moinho + Painel 220V" bold value={editingPrices ? (brlVal + p220Val || null) : (((equip.preco_brl ?? 0) + (equip.preco_painel_220 ?? 0)) || null)} />
-                <PriceRow label="Total Moinho + Painel 380V" bold value={editingPrices ? (brlVal + p380Val || null) : (((equip.preco_brl ?? 0) + (equip.preco_painel_380 ?? 0)) || null)} />
+                <PriceRow label={`Total ${rot.compartilhado ? "Exaustor" : "Moinho"} + ${rot.p220}`} bold value={editingPrices ? (brlVal + p220Val || null) : (((equip.preco_brl ?? 0) + (equip.preco_painel_220 ?? 0)) || null)} />
+                <PriceRow label={`Total ${rot.compartilhado ? "Exaustor" : "Moinho"} + ${rot.p380}`} bold value={editingPrices ? (brlVal + p380Val || null) : (((equip.preco_brl ?? 0) + (equip.preco_painel_380 ?? 0)) || null)} />
               </div>
             </div>
           )}
