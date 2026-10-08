@@ -12,7 +12,7 @@ function SubmitBtn() {
     <button
       type="submit"
       disabled={pending}
-      className="flex items-center gap-1.5 h-8 px-4 rounded-lg bg-[#2C4F79] text-white text-[12px] font-medium hover:bg-[#1E3A5F] disabled:opacity-50 transition-colors"
+      className="flex items-center gap-1.5 h-10 px-5 rounded-lg bg-[#2C4F79] text-white text-[12px] font-medium hover:bg-[#1E3A5F] disabled:opacity-50 transition-colors"
     >
       {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
       Registrar
@@ -37,13 +37,13 @@ export function NovoFollowupForm({ propostaId, exigeProximaAcao = true }: { prop
       )}
 
       {/* Linha 1: canal + data + motivo */}
-      <div className="grid grid-cols-[140px_140px_1fr] gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[140px_140px_1fr]">
         <div className="flex flex-col gap-1">
           <label className="text-[11px] font-semibold text-muted-foreground">Canal *</label>
           <select
             name="canal"
             required
-            className="h-8 rounded-lg border border-input bg-background px-2.5 text-[12px] text-foreground outline-none"
+            className="h-9 rounded-lg border border-input bg-background px-2.5 text-[12px] text-foreground outline-none"
           >
             <option value="">Selecionar...</option>
             {[
@@ -61,11 +61,11 @@ export function NovoFollowupForm({ propostaId, exigeProximaAcao = true }: { prop
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[11px] font-semibold text-muted-foreground">Data do contato *</label>
-          <Input name="data_contato" type="date" defaultValue={today} required className="h-8 text-[12px]" />
+          <Input name="data_contato" type="date" defaultValue={today} required className="h-9 text-[12px]" />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[11px] font-semibold text-muted-foreground">Motivo</label>
-          <Input name="motivo" placeholder="Ex: Seguimento após envio da proposta" className="h-8 text-[12px]" />
+          <Input name="motivo" placeholder="Ex: Seguimento após envio da proposta" className="h-9 text-[12px]" />
         </div>
       </div>
 
@@ -103,14 +103,14 @@ export function NovoFollowupForm({ propostaId, exigeProximaAcao = true }: { prop
       {/* Linha 4: próxima ação */}
       <div className="bg-muted/30 rounded-lg border border-border p-3 flex flex-col gap-2">
         <p className="text-[11px] font-semibold text-muted-foreground">Próxima ação {exigeProximaAcao ? "* (obrigatória: proposta em acompanhamento)" : "(opcional nesta fase)"}</p>
-        <div className="grid grid-cols-[140px_160px_1fr] gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[140px_160px_1fr]">
           <div className="flex flex-col gap-1">
             <label className="text-[10px] text-muted-foreground">Data</label>
-            <Input name="proxima_acao_data" type="date" required={exigeProximaAcao} className="h-7 text-[12px]" />
+            <Input name="proxima_acao_data" type="date" required={exigeProximaAcao} className="h-9 text-[12px]" />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[10px] text-muted-foreground">Tipo</label>
-            <select name="proxima_acao_tipo" required={exigeProximaAcao} className="h-7 rounded-lg border border-input bg-background px-2 text-[12px] text-foreground outline-none">
+            <select name="proxima_acao_tipo" required={exigeProximaAcao} className="h-9 rounded-lg border border-input bg-background px-2 text-[12px] text-foreground outline-none">
               <option value="">Selecionar...</option>
               {[
                 "Ligar", "Enviar e-mail", "Enviar proposta revisada",
@@ -121,12 +121,12 @@ export function NovoFollowupForm({ propostaId, exigeProximaAcao = true }: { prop
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[10px] text-muted-foreground">Notas</label>
-            <Input name="proxima_acao_notas" placeholder="O que fazer..." className="h-7 text-[12px]" />
+            <Input name="proxima_acao_notas" placeholder="O que fazer..." className="h-9 text-[12px]" />
           </div>
         </div>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end max-sm:[&>button]:w-full max-sm:[&>button]:justify-center">
         <SubmitBtn />
       </div>
     </form>

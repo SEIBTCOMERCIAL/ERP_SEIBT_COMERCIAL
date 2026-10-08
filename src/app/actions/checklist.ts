@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { moagemParaBanco } from "@/lib/propostas/checklist";
+import { registrarHistorico } from "@/lib/propostas/crm-servidor";
 
 export interface ChecklistFormState {
   errors?: Record<string, string>;
@@ -67,6 +68,7 @@ export async function salvarChecklist(
 
   if (error) return { message: error.message };
 
+  await registrarHistorico(supabase, { propostaId: proposta_id, tipo: "checklist", descricao: "Checklist técnico preenchido", detalhes: { segmento: segmento_aplicacao, material } });
   revalidatePath(`/propostas/${proposta_id}`);
   return { success: true };
 }

@@ -4,8 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
-import { validarPrincipal } from "@/lib/propostas/crm-servidor";
-import { AVISO_ESTRUTURA_CRM, STATUS_COM_MOTIVO, STATUS_EM_ACOMPANHAMENTO, STATUS_ENCERRADOS, faltaEstruturaCrm, negocioDe } from "@/lib/propostas/crm";
+import { carregarEtapas, carregarMotivos, inserirPropostaComOrganizacao, usuarioAtual, validarPrincipal } from "@/lib/propostas/crm-servidor";
+import { AVISO_ESTRUTURA_CRM, STATUS_COM_MOTIVO, STATUS_EM_ACOMPANHAMENTO, STATUS_ENCERRADOS, categoriaMotivoDoStatus, faltaEstruturaCrm, negocioDe } from "@/lib/propostas/crm";
+import { etapaInicial, etapaSugeridaPorStatus, tipoEtapaDe } from "@/lib/propostas/funil";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SupabaseAny = any;
 
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -29,6 +33,7 @@ const propostaSchema = z.object({
   prazo_entrega:     z.string().optional(),
   validade_proposta: z.string().optional(),
   observacoes:       z.string().optional(),
+  descricao_livre:   z.string().optional(),
 });
 
 export type PropostaFormState = {
@@ -53,10 +58,14 @@ const itemSchema = z.object({
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 
-export async function criarProposta(
-  _prev: PropostaFormState,
-  formData: FormData
-): Promise<PropostaFormState> {
+export type GerarNumeroState = PropostaFormState & {
+  sucesso?: { id: string; numero: string };
+};
+
+type ResultadoCriacao = { id: string; numero: string } | PropostaFormState;
+
+/** Cria a proposta com mercado, classificação e etapa inicial. Usada pela criação normal e pelo "Gerar número". */
+async function criarPropostaNucleo(formData: FormData): Promise<ResultadoCriacao> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient() as any;
   const { data: { user } } = await supabase.auth.getUser();
@@ -89,6 +98,7 @@ export async function criarProposta(
     prazo_entrega:     formData.get("prazo_entrega") || undefined,
     validade_proposta: formData.get("validade_proposta") || undefined,
     observacoes:       formData.get("observacoes") || undefined,
+    descricao_livre:   formData.get("descricao_livre") || undefined,
   };
 
   const parsed = propostaSchema.safeParse(raw);
@@ -120,6 +130,13 @@ export async function criarProposta(
     return { message: "Seu perfil não está configurado no sistema. Execute o seed SQL no Supabase para registrar seu usuário." };
   }
 
+  // Toda proposta nova nasce na etapa inicial do funil (quando o funil já está configurado).
+  let etapaId = d.etapa_funil_id || null;
+  if (!etapaId) {
+    const { etapas } = await carregarEtapas(supabase);
+    etapaId = etapaInicial(etapas)?.id ?? null;
+  }
+
   const camposCrm = {
     mercado:           d.mercado,
     pais_destino:      d.mercado === "exportacao" ? d.pais_destino?.trim() || null : null,
@@ -138,88 +155,121 @@ export async function criarProposta(
       temperatura:       d.temperatura || null,
       responsavel_id:    d.responsavel_id || user.id,
       representante_id:  d.representante_id || null,
-      etapa_funil_id:    d.etapa_funil_id || null,
+      etapa_funil_id:    etapaId,
       condicao_pagamento: d.condicao_pagamento || null,
       prazo_entrega:     d.prazo_entrega || null,
       validade_proposta: d.validade_proposta || null,
       observacoes:       d.observacoes || null,
+      descricao_livre:   d.descricao_livre?.trim() || null,
   };
 
-  let { data: proposta, error } = await supabase
-    .from("propostas").insert({ ...dadosBase, ...camposCrm }).select("id").single();
+  const { data: proposta, error } = await inserirPropostaComOrganizacao(supabase, dadosBase, camposCrm);
 
-  // Banco ainda sem a estrutura do CRM (arquivo 022): grava sem os campos novos, desde que
-  // o usuário não tenha escolhido exportação nem proposta complementar.
-  if (error && faltaEstruturaCrm(error)) {
-    if (d.mercado !== "nacional" || d.papel !== "principal") return { message: AVISO_ESTRUTURA_CRM };
-    ({ data: proposta, error } = await supabase.from("propostas").insert(dadosBase).select("id").single());
-  }
-
-  if (error) {
-    if (error.message?.includes("row-level security") || error.code === "42501") {
+  if (error || !proposta) {
+    if (error?.message?.includes("row-level security") || error?.code === "42501") {
       return { message: `Sem permissão para criar proposta. Verifique se o seed SQL foi executado no Supabase (perfil: ${usuario?.perfil ?? "não encontrado"}, uid: ${user.id.slice(0,8)}...).` };
     }
-    return { message: "Erro ao criar proposta: " + error.message };
+    return { message: "Erro ao criar proposta: " + (error?.message ?? "sem resposta do banco") };
   }
 
   revalidatePath("/propostas");
-  redirect(`/propostas/${proposta.id}`);
+  return { id: proposta.id, numero: proposta.numero_completo ?? "" };
+}
+
+export async function criarProposta(
+  _prev: PropostaFormState,
+  formData: FormData
+): Promise<PropostaFormState> {
+  const resultado = await criarPropostaNucleo(formData);
+  if ("id" in resultado) redirect(`/propostas/${resultado.id}`);
+  return resultado;
+}
+
+/** "Gerar número de proposta": cria o cartão no funil já com o número, sem montar a proposta dentro do ERP. */
+export async function gerarNumeroProposta(
+  _prev: GerarNumeroState,
+  formData: FormData
+): Promise<GerarNumeroState> {
+  if (!String(formData.get("cliente_id") ?? "").trim()) return { message: "Selecione o cliente." };
+  if (!String(formData.get("descricao_livre") ?? "").trim()) return { message: "Informe o produto ou uma descrição inicial." };
+  const resultado = await criarPropostaNucleo(formData);
+  if ("id" in resultado) return { sucesso: { id: resultado.id, numero: resultado.numero } };
+  return resultado;
+}
+
+export interface DetalhesStatus {
+  /** Código do motivo (lista de perda, congelamento ou complementar, conforme o status). */
+  motivoCodigo?: string;
+  /** Observação explicando o motivo. */
+  motivoDetalhes?: string;
+  retomadaPrevista?: string;
+}
+
+function hojeISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+async function temProximaAcaoFutura(supabase: SupabaseAny, propostaId: string) {
+  const { data } = await supabase
+    .from("followups")
+    .select("id")
+    .eq("proposta_id", propostaId)
+    .not("proxima_acao_data", "is", null)
+    .gte("proxima_acao_data", hojeISO())
+    .limit(1)
+    .maybeSingle();
+  return Boolean(data);
 }
 
 export async function atualizarStatusProposta(
   propostaId: string,
   novoStatus: string,
-  detalhes?: {
-    motivoCodigo?: string;
-    motivoDetalhes?: string;
-    motivoCongelamento?: string;
-    retomadaPrevista?: string;
-  }
+  detalhes?: DetalhesStatus
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient() as any;
+  const usuario = await usuarioAtual(supabase);
+  if (!usuario) return { error: "Não autorizado." };
 
   // Antes do arquivo 022 as colunas do CRM não existem: trata como proposta principal simples.
   const leitura = await supabase
     .from("propostas")
-    .select("id, status, papel, proposta_principal_id")
+    .select("id, status, papel, proposta_principal_id, etapa_funil_id")
     .eq("id", propostaId)
     .maybeSingle();
   const estruturaCrm = !(leitura.error && faltaEstruturaCrm(leitura.error));
   const propostaAtual = estruturaCrm
     ? leitura.data
-    : (await supabase.from("propostas").select("id, status").eq("id", propostaId).maybeSingle()).data;
+    : (await supabase.from("propostas").select("id, status, etapa_funil_id").eq("id", propostaId).maybeSingle()).data;
   if (!propostaAtual) return { error: "Proposta não encontrada." };
 
   const precisaEstrutura = novoStatus === "cancelada" || novoStatus === "complementar_nao_selecionada" ||
     novoStatus === "stand_by" || STATUS_COM_MOTIVO.has(novoStatus);
   if (precisaEstrutura && !estruturaCrm) return { error: AVISO_ESTRUTURA_CRM };
 
-  const hoje = new Date().toISOString().split("T")[0];
+  const hoje = hojeISO();
 
   // Próxima ação obrigatória para propostas em acompanhamento.
-  if (STATUS_EM_ACOMPANHAMENTO.has(novoStatus)) {
-    const { data: proxima } = await supabase
-      .from("followups")
-      .select("id")
-      .eq("proposta_id", propostaId)
-      .not("proxima_acao_data", "is", null)
-      .gte("proxima_acao_data", hoje)
-      .limit(1)
-      .maybeSingle();
-    if (!proxima) {
-      return { error: "Registre um follow-up com a próxima ação (data a partir de hoje) antes de colocar a proposta em acompanhamento." };
-    }
+  if (STATUS_EM_ACOMPANHAMENTO.has(novoStatus) && !(await temProximaAcaoFutura(supabase, propostaId))) {
+    return { error: "Registre um follow-up com a próxima ação (data a partir de hoje) antes de colocar a proposta em acompanhamento." };
   }
 
-  if (STATUS_COM_MOTIVO.has(novoStatus) && (!detalhes?.motivoCodigo || !detalhes.motivoDetalhes?.trim())) {
-    return { error: "Informe o motivo e uma breve explicação para encerrar a proposta." };
+  // Motivo padronizado + observação (perda, desistência, cancelamento, complementar e congelamento).
+  const categoria = categoriaMotivoDoStatus(novoStatus);
+  if (categoria) {
+    const motivos = await carregarMotivos(supabase);
+    const codigo = detalhes?.motivoCodigo ?? "";
+    if (!codigo || !motivos.ativos[categoria].some((m) => m.codigo === codigo)) {
+      return { error: "Escolha um dos motivos da lista." };
+    }
+    if (!detalhes?.motivoDetalhes?.trim()) {
+      return { error: "Escreva uma observação explicando o motivo." };
+    }
   }
   if (novoStatus === "stand_by") {
-    if (!detalhes?.motivoCongelamento?.trim() || !detalhes.retomadaPrevista) {
-      return { error: "Informe o motivo do congelamento e a previsão de retomada." };
-    }
-    if (detalhes.retomadaPrevista < hoje) return { error: "A previsão de retomada não pode ser uma data passada." };
+    if (!detalhes?.retomadaPrevista) return { error: "Informe a data prevista de retomada." };
+    if (detalhes.retomadaPrevista < hoje) return { error: "A data prevista de retomada não pode ser uma data passada." };
   }
 
   // Alternativas do mesmo negócio (principal + complementares).
@@ -251,7 +301,8 @@ export async function atualizarStatusProposta(
     updates.motivo_encerramento_detalhes = detalhes?.motivoDetalhes?.trim();
   }
   if (novoStatus === "stand_by") {
-    updates.motivo_congelamento = detalhes?.motivoCongelamento?.trim();
+    updates.motivo_congelamento = detalhes?.motivoCodigo;
+    updates.motivo_congelamento_detalhes = detalhes?.motivoDetalhes?.trim();
     updates.retomada_prevista = detalhes?.retomadaPrevista;
   }
   // Reabrir ou retomar limpa o encerramento anterior.
@@ -262,15 +313,140 @@ export async function atualizarStatusProposta(
       updates.motivo_encerramento_detalhes = null;
       if (novoStatus !== "stand_by") {
         updates.motivo_congelamento = null;
+        updates.motivo_congelamento_detalhes = null;
         updates.retomada_prevista = null;
       }
     }
   }
-  const { error } = await supabase.from("propostas").update(updates).eq("id", propostaId);
+
+  // A etapa acompanha os status finais (ganho, perda, congelada) e a reabertura/retomada.
+  const saiuDeFinal = STATUS_ENCERRADOS.has(propostaAtual.status) || propostaAtual.status === "stand_by";
+  const entraEmFinal = STATUS_ENCERRADOS.has(novoStatus) || novoStatus === "stand_by";
+  if (entraEmFinal || saiuDeFinal) {
+    const { etapas } = await carregarEtapas(supabase);
+    const sugerida = etapaSugeridaPorStatus(novoStatus, etapas);
+    if (sugerida) updates.etapa_funil_id = sugerida.id;
+  }
+
+  let { error } = await supabase.from("propostas").update(updates).eq("id", propostaId);
+  // Banco sem o campo de observação do congelamento (arquivo 024): a observação vai junto do motivo.
+  if (error && faltaEstruturaCrm(error) && "motivo_congelamento_detalhes" in updates) {
+    const { motivo_congelamento_detalhes: obs, ...restante } = updates;
+    if (novoStatus === "stand_by" && obs) restante.motivo_congelamento = `${detalhes?.motivoCodigo} — ${obs}`;
+    ({ error } = await supabase.from("propostas").update(restante).eq("id", propostaId));
+  }
   if (error) return { error: faltaEstruturaCrm(error) ? AVISO_ESTRUTURA_CRM : error.message };
   revalidatePath(`/propostas/${propostaId}`);
   revalidatePath("/propostas");
   return { success: true };
+}
+
+export interface DetalhesMoverEtapa extends DetalhesStatus {
+  /** Próxima ação, quando a etapa de destino exige e a proposta ainda não tem uma. */
+  proximaAcao?: { data: string; tipo: string; notas?: string };
+}
+
+/** Move a proposta de etapa. Etapas de ganho, perda e congelamento também mudam o status. */
+export async function moverPropostaEtapa(
+  propostaId: string,
+  etapaId: string,
+  detalhes?: DetalhesMoverEtapa
+): Promise<{ error?: string; success?: boolean }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createClient() as any;
+  const usuario = await usuarioAtual(supabase);
+  if (!usuario) return { error: "Não autorizado." };
+
+  const { data: proposta } = await supabase
+    .from("propostas").select("id, status, etapa_funil_id").eq("id", propostaId).is("deleted_at", null).maybeSingle();
+  if (!proposta) return { error: "Proposta não encontrada." };
+  if (STATUS_ENCERRADOS.has(proposta.status)) {
+    return { error: "Esta proposta está encerrada. Para movê-la, reabra pelo menu de status." };
+  }
+
+  const { etapas } = await carregarEtapas(supabase);
+  const destino = etapas.find((e) => e.id === etapaId);
+  if (!destino) return { error: "Etapa não encontrada ou desativada." };
+  if (destino.id === proposta.etapa_funil_id) return { success: true };
+
+  const tipo = tipoEtapaDe(destino);
+  const statusDoTipo = tipo === "ganho" ? "vendida" : tipo === "perda" ? "perdida" : tipo === "congelamento" ? "stand_by" : null;
+
+  if (statusDoTipo) {
+    const r = await atualizarStatusProposta(propostaId, statusDoTipo, detalhes);
+    if (r.error) return r;
+    // Se existir mais de uma etapa do mesmo tipo, vale a que o usuário escolheu.
+    await supabase.from("propostas").update({ etapa_funil_id: destino.id }).eq("id", propostaId);
+    revalidatePath("/propostas");
+    return { success: true };
+  }
+
+  // Etapa inicial ou intermediária.
+  const exige = Boolean(destino.exige_proxima_acao);
+  if (exige && !(await temProximaAcaoFutura(supabase, propostaId))) {
+    const acao = detalhes?.proximaAcao;
+    if (!acao?.data || !acao.tipo?.trim()) {
+      return { error: `A etapa "${destino.nome}" exige uma próxima ação. Informe a data e o tipo da próxima ação.` };
+    }
+    if (acao.data < hojeISO()) return { error: "A próxima ação não pode ficar em uma data que já passou." };
+    const { error: errFollowup } = await supabase.from("followups").insert({
+      proposta_id: propostaId,
+      usuario_id: usuario.id,
+      data_contato: hojeISO(),
+      canal: "outro",
+      motivo: `Movida para a etapa ${destino.nome}`,
+      proxima_acao_data: acao.data,
+      proxima_acao_tipo: acao.tipo.trim(),
+      proxima_acao_notas: acao.notas?.trim() || null,
+    });
+    if (errFollowup) return { error: "Não foi possível registrar a próxima ação: " + errFollowup.message };
+  }
+
+  // Retomar uma proposta congelada ao movê-la para uma etapa aberta.
+  if (proposta.status === "stand_by") {
+    const r = await atualizarStatusProposta(propostaId, "em_negociacao");
+    if (r.error) return r;
+  }
+  const { error } = await supabase.from("propostas").update({ etapa_funil_id: destino.id }).eq("id", propostaId);
+  if (error) return { error: error.message };
+  revalidatePath(`/propostas/${propostaId}`);
+  revalidatePath("/propostas");
+  return { success: true };
+}
+
+/** Administrador: dá uma etapa válida às propostas antigas que ficaram sem etapa (ou com etapa desativada). */
+export async function atribuirEtapasPendentes(): Promise<{ error?: string; atribuidas?: number }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createClient() as any;
+  const usuario = await usuarioAtual(supabase);
+  if (usuario?.perfil !== "admin") return { error: "Somente o administrador pode organizar as propostas antigas." };
+
+  const { etapas } = await carregarEtapas(supabase);
+  if (!etapas.length) return { error: "Configure as etapas do funil antes de organizar as propostas." };
+  const ids = new Set(etapas.map((e) => e.id));
+
+  const { data, error } = await supabase
+    .from("propostas")
+    .select("id, status, etapa_funil_id")
+    .is("deleted_at", null)
+    .neq("status", "complementar_nao_selecionada");
+  if (error) return { error: error.message };
+
+  const porEtapa = new Map<string, string[]>();
+  for (const p of (data ?? []) as Array<{ id: string; status: string; etapa_funil_id: string | null }>) {
+    if (p.etapa_funil_id && ids.has(p.etapa_funil_id)) continue;
+    const alvo = etapaSugeridaPorStatus(p.status, etapas);
+    if (!alvo) continue;
+    porEtapa.set(alvo.id, [...(porEtapa.get(alvo.id) ?? []), p.id]);
+  }
+  let atribuidas = 0;
+  for (const [etapaId, propostaIds] of Array.from(porEtapa.entries())) {
+    const { error: errUpdate } = await supabase.from("propostas").update({ etapa_funil_id: etapaId }).in("id", propostaIds);
+    if (errUpdate) return { error: errUpdate.message, atribuidas };
+    atribuidas += propostaIds.length;
+  }
+  revalidatePath("/propostas");
+  return { atribuidas };
 }
 
 export async function atualizarEtapaProposta(

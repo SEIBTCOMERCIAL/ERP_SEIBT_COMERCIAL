@@ -26,7 +26,7 @@ export default async function ConfiguracoesPage() {
     );
   }
 
-  const [{ data: taxas }, { data: funis }, { data: etapas }, { data: prazosInatividade, error: erroPrazos }] = await Promise.all([
+  const [{ data: taxas }, { data: funis }, { data: etapasNovas, error: erroEtapas }, { data: prazosInatividade, error: erroPrazos }, { data: motivosRaw, error: erroMotivos }] = await Promise.all([
     supabase
       .from("taxas_cambio")
       .select("id, taxa, vigente_desde, criado_em")
@@ -34,12 +34,18 @@ export default async function ConfiguracoesPage() {
       .order("vigente_desde", { ascending: false })
       .limit(20),
     admin.from("funis").select("id, nome").is("usuario_id", null).order("nome"),
-    admin.from("etapas_funil").select("id, funil_id, nome, cor, ordem, ativo").order("ordem"),
+    admin.from("etapas_funil").select("id, funil_id, nome, cor, ordem, ativo, tipo, exige_proxima_acao").order("ordem"),
     admin
       .from("configuracoes_inatividade_proposta")
       .select("tipo, dias_alerta, dias_escalonamento_admin, atualizado_em")
       .order("tipo"),
+    admin.from("motivos_proposta").select("id, categoria, codigo, nome, ordem, ativo").order("ordem"),
   ]);
+
+  // Banco sem o arquivo 024: lê as etapas só com os campos antigos.
+  const etapas = erroEtapas
+    ? (await admin.from("etapas_funil").select("id, funil_id, nome, cor, ordem, ativo").order("ordem")).data
+    : etapasNovas;
 
   const taxaAtual = taxas?.[0]?.taxa ?? null;
   const historicoCambio = taxas ?? [];
@@ -50,6 +56,10 @@ export default async function ConfiguracoesPage() {
       historicoCambio={historicoCambio}
       funis={funis ?? []}
       etapas={etapas ?? []}
+      motivos={motivosRaw ?? []}
+      ehAdmin={perfil.perfil === "admin"}
+      funilPendente={Boolean(erroEtapas)}
+      motivosPendentes={Boolean(erroMotivos)}
       prazosInatividade={prazosInatividade ?? []}
       podeEditarPrazos={perfil.perfil === "admin"}
       prazosPendentes={faltaEstruturaCrm(erroPrazos)}

@@ -6,7 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { moagemParaBanco } from "@/lib/propostas/checklist";
 import { precoComDesconto } from "@/lib/propostas/revisao";
-import { inserirPropostaComOrganizacao, prepararOrganizacao, type OrganizacaoComercialInput } from "@/lib/propostas/crm-servidor";
+import { carregarEtapas, inserirPropostaComOrganizacao, prepararOrganizacao, type OrganizacaoComercialInput } from "@/lib/propostas/crm-servidor";
+import { etapaInicial } from "@/lib/propostas/funil";
 
 export interface ChecklistInput {
   segmento_aplicacao: string;
@@ -83,7 +84,9 @@ export async function criarPropostaPecas(
 
   // O número (0001/2026, 0002/2026…) é gerado pelo próprio banco ao gravar a
   // proposta (tabela sequencias_proposta) — um número novo a cada proposta criada.
+  const { etapas } = await carregarEtapas(supabase);
   const { data: proposta, error: propErr } = await inserirPropostaComOrganizacao(supabase, {
+      etapa_funil_id:     etapaInicial(etapas)?.id ?? null,
       tipo:               input.tipo ?? "pecas",
       moeda:              input.moeda,
       status:             "rascunho",

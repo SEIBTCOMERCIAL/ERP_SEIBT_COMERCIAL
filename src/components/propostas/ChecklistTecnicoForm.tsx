@@ -122,7 +122,7 @@ export function ChecklistTecnicoForm({ propostaId, checklist }: Props) {
           )}
         </div>
         {resumo.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px 16px", marginTop: 10, paddingTop: 10, borderTop: "1px solid #bbf7d0" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "6px 16px", marginTop: 10, paddingTop: 10, borderTop: "1px solid #bbf7d0" }}>
             {resumo.map(([rotulo, valor]) => (
               <div key={rotulo} style={{ fontSize: 12 }}>
                 <span style={{ color: "#6b7b8d" }}>{rotulo}: </span>
@@ -174,7 +174,7 @@ export function ChecklistTecnicoForm({ propostaId, checklist }: Props) {
 
         <div style={{
           display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr",
+          gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
           gap: 12,
           marginBottom: 16,
         }}>

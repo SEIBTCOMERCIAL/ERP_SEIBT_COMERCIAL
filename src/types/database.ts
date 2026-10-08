@@ -242,6 +242,9 @@ export interface EtapaFunil {
   ordem: number;
   cor: string;
   ativo: boolean;
+  /** inicial, intermediaria, ganho, perda ou congelamento (arquivo 024). */
+  tipo?: "inicial" | "intermediaria" | "ganho" | "perda" | "congelamento";
+  exige_proxima_acao?: boolean;
 }
 
 export interface ItemProposta {

@@ -14,8 +14,9 @@ export const STATUS_ENCERRADOS = new Set([
  * congelada usa a previsão de retomada no lugar da próxima ação. */
 export const STATUS_EM_ACOMPANHAMENTO = new Set(["enviada", "em_negociacao"]);
 
-/** Encerramentos que exigem motivo padronizado + explicação. */
-export const STATUS_COM_MOTIVO = new Set(["perdida", "desistencia", "cancelada"]);
+/** Encerramentos que exigem motivo padronizado + explicação. A alternativa não selecionada
+ * também precisa de motivo (usa a lista própria de motivos de proposta complementar). */
+export const STATUS_COM_MOTIVO = new Set(["perdida", "desistencia", "cancelada", "complementar_nao_selecionada"]);
 
 export const STATUS_LISTA = [
   "rascunho", "elaboracao", "aguardando_precificacao", "enviada", "em_negociacao", "stand_by",
@@ -51,20 +52,71 @@ export const TIPO_LABELS: Record<string, string> = {
   exportacao: "Exportação (antigo)",
 };
 
-/** Motivos padronizados de perda, desistência e cancelamento (confirmados pelo Lucas em 07/10/2026). */
-export const MOTIVOS_ENCERRAMENTO = [
-  { value: "preco", label: "Preço" },
-  { value: "prazo", label: "Prazo de entrega" },
-  { value: "concorrente", label: "Escolheu concorrente" },
-  { value: "cliente_desistiu", label: "Cliente desistiu" },
-  { value: "sem_retorno", label: "Sem retorno" },
-  { value: "projeto_cancelado", label: "Projeto cancelado" },
-  { value: "outro", label: "Outro" },
-] as const;
+export type CategoriaMotivo = "perda" | "congelamento" | "complementar";
+
+export interface MotivoOpcao {
+  codigo: string;
+  nome: string;
+}
+
+/** Motivos de partida. A lista oficial fica em Configurações (tabela motivos_proposta);
+ * estes valores valem enquanto o banco ainda não tem essa tabela. Perda: confirmada em 07/10/2026. */
+export const MOTIVOS_PADRAO: Record<CategoriaMotivo, MotivoOpcao[]> = {
+  perda: [
+    { codigo: "preco", nome: "Preço" },
+    { codigo: "prazo", nome: "Prazo de entrega" },
+    { codigo: "concorrente", nome: "Escolheu concorrente" },
+    { codigo: "cliente_desistiu", nome: "Cliente desistiu" },
+    { codigo: "sem_retorno", nome: "Sem retorno" },
+    { codigo: "projeto_cancelado", nome: "Projeto cancelado" },
+    { codigo: "outro", nome: "Outro" },
+  ],
+  congelamento: [
+    { codigo: "aguardando_decisao", nome: "Aguardando decisão do cliente" },
+    { codigo: "aguardando_financiamento", nome: "Aguardando financiamento" },
+    { codigo: "projeto_adiado", nome: "Projeto adiado pelo cliente" },
+    { codigo: "aguardando_definicao_tecnica", nome: "Aguardando definição técnica" },
+    { codigo: "outro", nome: "Outro" },
+  ],
+  complementar: [
+    { codigo: "outra_alternativa", nome: "Cliente escolheu outra alternativa da mesma negociação" },
+    { codigo: "outro", nome: "Outro" },
+  ],
+};
+
+export const CATEGORIAS_MOTIVO: Array<{ value: CategoriaMotivo; label: string; descricao: string }> = [
+  { value: "perda", label: "Perda, desistência e cancelamento", descricao: "Usados ao marcar a proposta como perdida, desistência ou cancelada." },
+  { value: "congelamento", label: "Congelamento", descricao: "Usados ao congelar uma proposta." },
+  { value: "complementar", label: "Proposta complementar", descricao: "Usados quando o cliente escolhe outra alternativa do mesmo negócio." },
+];
+
+/** Categoria de motivo usada por cada status (null = status sem motivo). */
+export function categoriaMotivoDoStatus(status: string): CategoriaMotivo | null {
+  if (status === "perdida" || status === "desistencia" || status === "cancelada") return "perda";
+  if (status === "complementar_nao_selecionada") return "complementar";
+  if (status === "stand_by") return "congelamento";
+  return null;
+}
+
+/** Compatibilidade com telas antigas: lista de motivos de perda no formato value/label. */
+export const MOTIVOS_ENCERRAMENTO = MOTIVOS_PADRAO.perda.map((m) => ({ value: m.codigo, label: m.nome }));
 
 export const MOTIVO_LABELS: Record<string, string> = Object.fromEntries(
-  MOTIVOS_ENCERRAMENTO.map((m) => [m.value, m.label])
+  (["perda", "congelamento", "complementar"] as CategoriaMotivo[])
+    .flatMap((c) => MOTIVOS_PADRAO[c])
+    .map((m) => [m.codigo, m.nome])
 );
+
+/** Tipos de etapa do funil configurável. */
+export const TIPOS_ETAPA = [
+  { value: "inicial", label: "Inicial", ajuda: "Onde nascem as propostas novas (só uma por funil)." },
+  { value: "intermediaria", label: "Intermediária", ajuda: "Etapas do meio da negociação." },
+  { value: "ganho", label: "Ganho", ajuda: "Mover para cá marca a proposta como vendida." },
+  { value: "perda", label: "Perda", ajuda: "Mover para cá exige motivo e marca como perdida." },
+  { value: "congelamento", label: "Congelamento", ajuda: "Mover para cá exige motivo e data de retomada." },
+] as const;
+
+export type TipoEtapa = (typeof TIPOS_ETAPA)[number]["value"];
 
 /** Prazo usado quando o tipo não tem configuração própria (PRD: "prazo padrão"). */
 export const DIAS_SEM_MOVIMENTACAO_PADRAO = 7;
