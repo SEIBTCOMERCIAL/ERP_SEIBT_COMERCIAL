@@ -308,7 +308,7 @@ export function EditarPropostaForm(p: Props) {
                 className={inputCls}
               />
               {jogosEncontrados.length > 0 && (
-                <div className="absolute left-5 right-5 z-20 mt-1 bg-card border border-border rounded-lg shadow-lg overflow-hidden">
+                <div className="mt-2 bg-card border border-border rounded-lg shadow-sm overflow-hidden">
                   {jogosEncontrados.map((j) => (
                     <button
                       key={j.id}
@@ -338,7 +338,7 @@ export function EditarPropostaForm(p: Props) {
               className={inputCls}
             />
             {resultados.length > 0 && (
-              <div className="absolute left-5 right-5 z-10 mt-1 bg-card border border-border rounded-lg shadow-lg overflow-hidden">
+              <div className="mt-2 bg-card border border-border rounded-lg shadow-sm overflow-hidden">
                 {resultados.map((pr) => (
                   <button
                     key={pr.id}
