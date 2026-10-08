@@ -90,30 +90,61 @@ export async function excluirJogoNavalha(jogoId: string): Promise<Resultado> {
   return { success: true };
 }
 
+export interface NovaNavalha {
+  codigo: string;
+  descricao: string;
+  /** Preço de tabela em reais (fica no cadastro da peça, onde também é reajustado). */
+  preco: number | null;
+  ipi: number;
+}
+
 export async function salvarItemJogoNavalha(
   jogoId: string,
-  item: { id?: string; produtoId: string; titulo: string; pecas: number; codigo: string }
+  item: { id?: string; produtoId: string; titulo: string; pecas: number; codigo: string; novaNavalha?: NovaNavalha }
 ): Promise<Resultado> {
   const auth = await exigirAdmin();
   if ("erro" in auth) return { error: auth.erro };
-  if (!item.produtoId) return { error: "Escolha a navalha do cadastro." };
   if (!item.titulo.trim()) return { error: "Escreva o título da linha." };
   if (!Number.isInteger(item.pecas) || item.pecas < 1) return { error: "O número de peças deve ser 1 ou mais." };
 
+  let produtoId = item.produtoId;
+  let codigoLinha = item.codigo.trim();
+
+  // Navalha ainda não cadastrada (ex.: outro material): cria no cadastro de peças, categoria Navalhas.
+  if (!produtoId && item.novaNavalha) {
+    const n = item.novaNavalha;
+    const codigo = n.codigo.trim();
+    const descricao = n.descricao.trim();
+    if (!codigo || !descricao) return { error: "Informe o código e a descrição da nova navalha." };
+    if (n.preco != null && n.preco < 0) return { error: "O preço não pode ser negativo." };
+    const { data: cat } = await auth.supabase.from("categorias_peca").select("id").ilike("nome", "navalha%").limit(1).maybeSingle();
+    const { data: nova, error: errNova } = await auth.supabase.from("produtos").insert({
+      codigo, descricao, categoria: "navalha", categoria_peca_id: cat?.id ?? null,
+      preco_brl: n.preco, ipi_pct: n.ipi, ativo: true, tem_variantes: false,
+    }).select("id").single();
+    if (errNova || !nova) {
+      return { error: errNova?.message?.includes("unique") ? `O código "${codigo}" já está cadastrado. Escolha a navalha na lista.` : msg(errNova ?? {}) };
+    }
+    produtoId = nova.id;
+    if (!codigoLinha) codigoLinha = codigo;
+  }
+  if (!produtoId) return { error: "Escolha a navalha do cadastro ou cadastre uma nova." };
+
   if (item.id) {
     const { error } = await auth.supabase.from("jogos_navalha_itens").update({
-      produto_id: item.produtoId, titulo: item.titulo.trim(), pecas: item.pecas, codigo: item.codigo.trim() || null,
+      produto_id: produtoId, titulo: item.titulo.trim(), pecas: item.pecas, codigo: codigoLinha || null,
     }).eq("id", item.id);
     if (error) return { error: msg(error) };
   } else {
     const { data: ultimo } = await auth.supabase.from("jogos_navalha_itens").select("ordem").eq("jogo_id", jogoId).order("ordem", { ascending: false }).limit(1).maybeSingle();
     const { error } = await auth.supabase.from("jogos_navalha_itens").insert({
-      jogo_id: jogoId, produto_id: item.produtoId, titulo: item.titulo.trim(), pecas: item.pecas,
-      codigo: item.codigo.trim() || null, ordem: (ultimo?.ordem ?? 0) + 1,
+      jogo_id: jogoId, produto_id: produtoId, titulo: item.titulo.trim(), pecas: item.pecas,
+      codigo: codigoLinha || null, ordem: (ultimo?.ordem ?? 0) + 1,
     });
     if (error) return { error: msg(error) };
   }
   atualizarTelas();
+  revalidatePath("/produtos", "layout");
   return { success: true };
 }
 

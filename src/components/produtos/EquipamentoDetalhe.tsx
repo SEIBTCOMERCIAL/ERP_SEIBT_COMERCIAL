@@ -578,9 +578,12 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
     ...cat,
     vinculos: vinculos.filter(v => v.peca.categoria_peca_id === cat.id),
   }));
+  // Navalhas: a aba mostra os jogos; os demais seguem as peças vinculadas.
+  const ehNavalha = (nome: string) => nome.toLowerCase().includes("navalha");
+  const totalAba = (c: { nome: string; vinculos: unknown[] }) => (ehNavalha(c.nome) ? jogos.length : c.vinculos.length);
   const abasCategorias = effectiveAdmin
     ? vinculosPorCategoria
-    : vinculosPorCategoria.filter(c => c.vinculos.length > 0);
+    : vinculosPorCategoria.filter(c => totalAba(c) > 0);
 
   const currInp = (val: string, set: (v: string) => void) => (
     <input type="text" value={val} onChange={e => set(e.target.value)}
@@ -598,7 +601,7 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
   ];
   const catTabs = abasCategorias.map(cat => ({
     key: cat.id,
-    label: `${cat.nome}${cat.vinculos.length ? ` (${cat.vinculos.length})` : ""}`,
+    label: `${cat.nome}${totalAba(cat) ? ` (${totalAba(cat)})` : ""}`,
   }));
   const allTabs = [...staticTabs, ...catTabs];
 
@@ -906,33 +909,29 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
       {/* ── Category tabs (peças) ── */}
       {abasCategorias.map(cat => (
         tab === cat.id && (
-          <div key={cat.id} style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-            {/* Navalhas: primeiro os jogos (como saem no orçamento), depois as peças vinculadas */}
-            {cat.nome.toLowerCase().includes("navalha") && (
-              <JogosNavalha
-                equipamentoId={equip.id}
-                jogos={jogos}
-                disponivel={jogosDisponivel}
-                isAdmin={effectiveAdmin}
-                navalhas={pecasCatalogo
-                  .filter((p) => p.categoria_peca_id === cat.id)
-                  .map((p) => ({ id: p.id, codigo: p.codigo, descricao: p.descricao, preco_brl: p.preco_brl, ipi_pct: p.ipi_pct }))}
-              />
-            )}
-            <div>
-              {cat.nome.toLowerCase().includes("navalha") && (
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: NAV, margin: "0 0 4px" }}>Peças vinculadas a este equipamento</h3>
-              )}
-              <PecaTab
-                categoria={cat}
-                vinculos={cat.vinculos}
-                pecasCatalogo={pecasCatalogo}
-                equipamentoId={equip.id}
-                linhaId={linha.id}
-                effectiveAdmin={effectiveAdmin}
-              />
-            </div>
-          </div>
+          cat.nome.toLowerCase().includes("navalha") ? (
+            // Navalhas: só os jogos (cada material é um jogo); as navalhas se cadastram dentro do jogo.
+            <JogosNavalha
+              key={cat.id}
+              equipamentoId={equip.id}
+              jogos={jogos}
+              disponivel={jogosDisponivel}
+              isAdmin={effectiveAdmin}
+              navalhas={pecasCatalogo
+                .filter((p) => p.categoria_peca_id === cat.id)
+                .map((p) => ({ id: p.id, codigo: p.codigo, descricao: p.descricao, preco_brl: p.preco_brl, ipi_pct: p.ipi_pct }))}
+            />
+          ) : (
+            <PecaTab
+              key={cat.id}
+              categoria={cat}
+              vinculos={cat.vinculos}
+              pecasCatalogo={pecasCatalogo}
+              equipamentoId={equip.id}
+              linhaId={linha.id}
+              effectiveAdmin={effectiveAdmin}
+            />
+          )
         )
       ))}
     </div>

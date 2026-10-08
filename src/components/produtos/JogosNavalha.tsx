@@ -36,11 +36,17 @@ function FormItem({
   jogoId, item, navalhas, onFechar,
 }: { jogoId: string; item?: JogoItem; navalhas: NavalhaCadastro[]; onFechar: () => void }) {
   const router = useRouter();
+  const [modo, setModo] = useState<"existente" | "nova">("existente");
   const [busca, setBusca] = useState("");
   const [produtoId, setProdutoId] = useState(item?.produtoId ?? "");
   const [titulo, setTitulo] = useState(item?.titulo ?? "");
   const [pecas, setPecas] = useState(String(item?.pecas ?? 1));
   const [codigo, setCodigo] = useState(item?.codigo ?? "");
+  // navalha nova
+  const [novoCodigo, setNovoCodigo] = useState("");
+  const [novaDescricao, setNovaDescricao] = useState("");
+  const [novoPreco, setNovoPreco] = useState("");
+  const [novoIpi, setNovoIpi] = useState("5.25");
   const [erro, setErro] = useState<string | null>(null);
   const [pendente, startTransition] = useTransition();
 
@@ -51,6 +57,7 @@ function FormItem({
     const cortada = lista.slice(0, 60);
     return atual && !cortada.some((n) => n.id === atual.id) ? [atual, ...cortada] : cortada;
   }, [busca, navalhas, produtoId]);
+  const escolhida = navalhas.find((n) => n.id === produtoId);
 
   function escolher(id: string) {
     setProdutoId(id);
@@ -63,8 +70,15 @@ function FormItem({
 
   function salvar() {
     setErro(null);
+    const preco = novoPreco.trim() ? Number(novoPreco.replace(/\./g, "").replace(",", ".")) : null;
+    if (modo === "nova" && preco != null && Number.isNaN(preco)) { setErro("Preço inválido."); return; }
     startTransition(async () => {
-      const r = await salvarItemJogoNavalha(jogoId, { id: item?.id, produtoId, titulo, pecas: Number(pecas), codigo });
+      const r = await salvarItemJogoNavalha(jogoId, {
+        id: item?.id,
+        produtoId: modo === "existente" ? produtoId : "",
+        titulo, pecas: Number(pecas), codigo,
+        novaNavalha: modo === "nova" ? { codigo: novoCodigo, descricao: novaDescricao, preco, ipi: Number(novoIpi.replace(",", ".")) || 0 } : undefined,
+      });
       if (r.error) setErro(r.error);
       else { router.refresh(); onFechar(); }
     });
@@ -72,15 +86,33 @@ function FormItem({
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-3">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="flex flex-col gap-1.5 sm:col-span-2">
+      <div className="flex overflow-hidden rounded-lg border border-border bg-card text-[12px] font-medium">
+        {([["existente", "Navalha já cadastrada"], ["nova", "Cadastrar navalha nova"]] as const).map(([v, r]) => (
+          <button key={v} type="button" onClick={() => setModo(v)} className={`flex-1 px-3 py-2 ${modo === v ? "bg-[#2C4F79] text-white" : "text-muted-foreground hover:bg-muted"}`}>{r}</button>
+        ))}
+      </div>
+
+      {modo === "existente" ? (
+        <div className="flex flex-col gap-1.5">
           <span className={rotulo}>Navalha do cadastro (o preço vem daqui) *</span>
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por código ou descrição..." className={campo} />
           <select value={produtoId} onChange={(e) => escolher(e.target.value)} className={campo}>
             <option value="">Selecione...</option>
             {opcoes.map((n) => <option key={n.id} value={n.id}>{n.codigo} — {n.descricao} ({n.preco_brl != null ? formatCurrency(n.preco_brl) : "sem preço"})</option>)}
           </select>
+          {escolhida && <p className="text-[11px] text-muted-foreground">Preço de tabela {escolhida.preco_brl != null ? formatCurrency(escolhida.preco_brl) : "não cadastrado"} · IPI {escolhida.ipi_pct}%. Para mudar o preço, use o Reajuste.</p>}
         </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className={rotulo}>Código da navalha *<input value={novoCodigo} onChange={(e) => setNovoCodigo(e.target.value)} placeholder="Ex.: 79700" className={campo} /></label>
+          <label className={rotulo}>Descrição no cadastro *<input value={novaDescricao} onChange={(e) => setNovaDescricao(e.target.value)} placeholder="Ex.: NAVALHA FIXA MGHS 800 A2 (aço rápido)" className={campo} /></label>
+          <label className={rotulo}>Preço de tabela (R$)<input value={novoPreco} onChange={(e) => setNovoPreco(e.target.value)} placeholder="Ex.: 1.727,00" inputMode="decimal" className={campo} /></label>
+          <label className={rotulo}>IPI (%)<input value={novoIpi} onChange={(e) => setNovoIpi(e.target.value)} inputMode="decimal" className={campo} /></label>
+          <p className="text-[11px] text-muted-foreground sm:col-span-2">A navalha nova entra no cadastro de peças (categoria Navalhas), onde o preço também pode ser reajustado depois.</p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className={`${rotulo} sm:col-span-2`}>Título da linha no orçamento *
           <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex.: NAVALHAS ROTORAS ESQ. MOINHO MGHS 800 A2" className={campo} />
         </label>
@@ -88,9 +120,10 @@ function FormItem({
           <input type="number" min={1} value={pecas} onChange={(e) => setPecas(e.target.value)} className={campo} />
         </label>
         <label className={rotulo}>Código no orçamento
-          <input value={codigo} onChange={(e) => setCodigo(e.target.value)} placeholder="Ex.: 79691" className={campo} />
+          <input value={codigo} onChange={(e) => setCodigo(e.target.value)} placeholder={modo === "nova" ? novoCodigo || "Ex.: 79691" : "Ex.: 79691"} className={campo} />
         </label>
       </div>
+      <p className="text-[11px] text-muted-foreground">No orçamento sai: <strong>{titulo || "TÍTULO"}</strong> (COMPOSTO POR {doisDigitos(Number(pecas) || 1)} PEÇAS) - <strong className="text-[#DC2626]">CÓD. {codigo || (modo === "nova" ? novoCodigo : "") || "…"}</strong></p>
       {erro && <p className="rounded-lg border border-red-200 bg-red-50 p-2 text-[12px] text-red-700">{erro}</p>}
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onFechar} className="h-9 rounded-lg border border-border px-3 text-[12px] font-medium">Cancelar</button>
