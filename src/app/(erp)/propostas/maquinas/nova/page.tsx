@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { buscarTodos } from "@/lib/supabase/buscar-todos";
 import { carregarPropostasPrincipais, carregarRepresentantes } from "@/lib/propostas/crm-servidor";
+import { carregarJogosParaCotacao } from "@/lib/propostas/jogos-servidor";
 import { NovaPropMaquinaForm } from "@/components/propostas/NovaPropMaquinaForm";
 import type { ProdutoComDetalhes } from "@/types/database";
 
@@ -65,6 +66,7 @@ export default async function NovaPropMaquinaPage() {
 
   const propostasPrincipais = await carregarPropostasPrincipais(supabase);
   const representantes = await carregarRepresentantes(supabase);
+  const { jogos: jogosNavalha, disponivel: jogosDisponivel } = await carregarJogosParaCotacao(supabase);
 
-  return <NovaPropMaquinaForm clientes={clientes} maquinas={maquinas} pecas={pecas} propostasPrincipais={propostasPrincipais} representantes={representantes} />;
+  return <NovaPropMaquinaForm clientes={clientes} maquinas={maquinas} pecas={pecas} propostasPrincipais={propostasPrincipais} representantes={representantes} jogosNavalha={jogosNavalha} jogosDisponivel={jogosDisponivel} />;
 }

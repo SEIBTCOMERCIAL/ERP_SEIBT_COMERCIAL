@@ -171,10 +171,35 @@ function detalhesXml(texto: string): string {
   return blocos.join("");
 }
 
+function rPrCor(negrito: boolean, cor?: string, tamanho = 20): string {
+  return `<w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>${negrito ? "<w:b/>" : ""}${cor ? `<w:color w:val="${cor}"/>` : ""}<w:sz w:val="${tamanho}"/><w:szCs w:val="${tamanho}"/></w:rPr>`;
+}
+
+function paragrafoTrechos(trechos: Array<{ texto: string; negrito: boolean; cor?: string }>): string {
+  const runs = trechos
+    .filter((t) => t.texto)
+    .map((t) => `<w:r>${rPrCor(t.negrito, t.cor)}<w:t xml:space="preserve">${esc(t.texto)}</w:t></w:r>`)
+    .join("");
+  return `<w:p><w:pPr><w:pStyle w:val="SemEspaamento"/>${rPr(false)}</w:pPr>${runs}</w:p>`;
+}
+
+/** Linha de jogo de navalhas: "TÍTULO (COMPOSTO POR 03 PEÇAS) - CÓD. 79691", com o título em negrito,
+ * o trecho entre parênteses normal e o código em vermelho, como nos modelos da SEIBT. */
+const LINHA_COM_CODIGO = /^(.*?)(\s*\([^()]*\))?\s+-\s+(C[ÓO]D\.?\s+.+)$/i;
+
 /** Peça/acessório: descrição + código em uma linha, e o complemento (se houver) abaixo. */
 function itemSimplesXml(titulo: string, texto: string | null): string {
   const linhas = (texto ?? "").replace(/\r\n/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
-  return [paragrafo(titulo), ...linhas.map((l) => paragrafo(l))].join("");
+  const m = titulo.match(LINHA_COM_CODIGO);
+  const principal = m
+    ? paragrafoTrechos([
+        { texto: m[1]!.trimEnd(), negrito: true },
+        { texto: m[2] ?? "", negrito: false },
+        { texto: " - ", negrito: true },
+        { texto: m[3]!, negrito: true, cor: "FF0000" },
+      ])
+    : paragrafo(titulo);
+  return [principal, ...linhas.map((l) => paragrafo(l))].join("");
 }
 
 // ── Preenchimento do modelo ───────────────────────────────────────────────────

@@ -1,6 +1,8 @@
 "use client";
 
 import { rotulosPainel } from "@/lib/produtos/painel";
+import { JogosNavalhaSecao } from "./JogosNavalhaSecao";
+import { chaveItem, type Jogo } from "@/lib/propostas/jogos-navalha";
 import { useState, useTransition } from "react";
 import {
   Check, ChevronRight, ChevronLeft, AlertCircle, Plus, Minus,
@@ -28,6 +30,8 @@ interface Props {
   /** Propostas abertas e principais (para vincular uma complementar). */
   propostasPrincipais: Array<{ id: string; numero_completo: string; cliente_id: string | null }>;
   representantes: Array<{ id: string; nome: string }>;
+  jogosNavalha: Jogo[];
+  jogosDisponivel: boolean;
   clientes: ClienteSimples[];
   maquinas: ProdutoComDetalhes[];
   pecas: ProdutoComDetalhes[];
@@ -104,7 +108,7 @@ function temPainel(m: ProdutoComDetalhes): boolean {
   return precoPainel(m, "220") != null || precoPainel(m, "380") != null;
 }
 
-export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrincipais, representantes }: Props) {
+export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrincipais, representantes, jogosNavalha, jogosDisponivel }: Props) {
   const [organizacao, setOrganizacao] = useState<OrganizacaoComercialValor>(ORGANIZACAO_PADRAO);
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -200,8 +204,8 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
 
   const addToCart = (prod: ProdutoComDetalhes) => {
     setCart((prev) => {
-      const existing = prev.find((i) => i.produto_id === prod.id);
-      if (existing) return prev.map((i) => i.produto_id === prod.id ? { ...i, quantidade: i.quantidade + 1 } : i);
+      const existing = prev.find((i) => !i.chave && i.produto_id === prod.id);
+      if (existing) return prev.map((i) => !i.chave && i.produto_id === prod.id ? { ...i, quantidade: i.quantidade + 1 } : i);
       return [...prev, {
         produto_id: prod.id, variante_id: null,
         codigo: prod.codigo, descricao: prod.descricao,
@@ -212,7 +216,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
 
   const updateQty = (prodId: string, delta: number) => {
     setCart((prev) => prev
-      .map((i) => i.produto_id === prodId ? { ...i, quantidade: Math.max(0, i.quantidade + delta) } : i)
+      .map((i) => !i.chave && i.produto_id === prodId ? { ...i, quantidade: Math.max(0, i.quantidade + delta) } : i)
       .filter((i) => i.quantidade > 0)
     );
   };
@@ -244,7 +248,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
   const allCartItems: CartItemInput[] = [
     ...itensMaquina,
     ...cart,
-  ].map((i) => ({ ...i, desconto_pct: descontos[i.produto_id] ?? 0 }));
+  ].map((i) => ({ ...i, desconto_pct: descontos[chaveItem(i)] ?? 0 }));
 
   const precoFinal = (i: CartItemInput) => precoComDesconto(i.preco_unitario, i.desconto_pct);
   const subtotal = allCartItems.reduce((a, i) => a + precoFinal(i) * i.quantidade, 0);
@@ -614,6 +618,13 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, color: NAV, marginBottom: 4 }}>Itens Adicionais</div>
               <div style={{ fontSize: 13, color: "#6b7b8d", marginBottom: 16 }}>Adicione quantas navalhas, peneiras e peças quiser, cada uma com a sua quantidade. Equipamentos (esteira, exaustor, silo...) escolha no passo anterior.</div>
+              <JogosNavalhaSecao
+                jogos={jogosNavalha}
+                disponivel={jogosDisponivel}
+                cart={cart}
+                setCart={setCart}
+                equipamentoIds={escolhidas.map((e) => e.id)}
+              />
               <input
                 value={pecaSearch} onChange={(e) => { setPecaSearch(e.target.value); setPecasVisiveis(40); }}
                 placeholder="Buscar peças por código ou descrição..."
@@ -638,7 +649,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
                 </thead>
                 <tbody>
                   {pecasFiltradas.slice(0, pecasVisiveis).map((p) => {
-                    const inCart = cart.find((i) => i.produto_id === p.id);
+                    const inCart = cart.find((i) => !i.chave && i.produto_id === p.id);
                     return (
                       <tr key={p.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
                         <td style={{ padding: "8px 12px", fontFamily: "monospace", fontSize: 12, color: "#dc2626" }}>{p.codigo}</td>
@@ -741,7 +752,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
                             value={item.desconto_pct ?? 0}
                             onChange={(e) => {
                               const v = Math.min(100, Math.max(0, Number(e.target.value.replace(",", ".")) || 0));
-                              setDescontos((prev) => ({ ...prev, [item.produto_id]: v }));
+                              setDescontos((prev) => ({ ...prev, [chaveItem(item)]: v }));
                             }}
                             style={{ width: 68, padding: "6px 8px", border: `1px solid ${(item.desconto_pct ?? 0) > 0 ? "#16a34a" : BORDER}`, borderRadius: 6, fontSize: 13, textAlign: "center" }}
                           />
@@ -854,9 +865,9 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7b8d", textTransform: "uppercase" as const, marginBottom: 6 }}>Peças / Acessórios ({cart.length})</div>
               {cart.map((item) => (
-                <div key={item.produto_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                <div key={chaveItem(item)} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
                   <span style={{ color: "#374151" }}>{item.descricao.slice(0, 28)}{item.descricao.length > 28 ? "…" : ""} ×{item.quantidade}</span>
-                  <span style={{ fontWeight: 600 }}>{formatCurrency(precoComDesconto(item.preco_unitario, descontos[item.produto_id]) * item.quantidade)}</span>
+                  <span style={{ fontWeight: 600 }}>{formatCurrency(precoComDesconto(item.preco_unitario, descontos[chaveItem(item)]) * item.quantidade)}</span>
                 </div>
               ))}
             </div>

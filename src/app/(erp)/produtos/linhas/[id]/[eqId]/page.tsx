@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { EquipamentoDetalhe } from "@/components/produtos/EquipamentoDetalhe";
+import { carregarJogosDoEquipamento } from "@/lib/propostas/jogos-servidor";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,8 @@ export default async function EquipamentoPage({ params }: { params: any }) {
 
   if (!linha || !equip) notFound();
 
+  const { jogos, disponivel: jogosDisponivel } = await carregarJogosDoEquipamento(supabase, params.eqId);
+
   const specCampos: { id: string; nome: string; ordem: number }[] = rawCampos ?? [];
   const categorias: { id: string; nome: string; ordem: number }[] = rawCategorias ?? [];
 
@@ -95,6 +98,8 @@ export default async function EquipamentoPage({ params }: { params: any }) {
       categorias={categorias}
       vinculos={vinculos}
       pecasCatalogo={pecasCatalogo}
+      jogos={jogos}
+      jogosDisponivel={jogosDisponivel}
     />
   );
 }

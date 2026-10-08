@@ -102,7 +102,8 @@ export async function carregarDadosDocx(
     const equipamento = ehEquipamento(it);
     const ehPrincipal = it === principal;
     const codigo = it.produto?.codigo ?? "";
-    const titulo = !equipamento && codigo && !it.descricao.includes(codigo)
+    const jaTemCodigo = /C[ÓO]D\.?\s/i.test(it.descricao);
+    const titulo = !equipamento && codigo && !jaTemCodigo && !it.descricao.includes(codigo)
       ? `${it.descricao} - CÓD. ${codigo}`
       : ehPrincipal || !equipamento ? it.descricao : removerPainelDoTitulo(it.descricao);
     const texto = it.observacao?.trim() || null;

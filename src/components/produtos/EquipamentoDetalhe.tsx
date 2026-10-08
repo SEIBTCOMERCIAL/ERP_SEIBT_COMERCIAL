@@ -1,6 +1,8 @@
 "use client";
 
 import { rotulosPainel } from "@/lib/produtos/painel";
+import { JogosNavalha } from "@/components/produtos/JogosNavalha";
+import type { Jogo } from "@/lib/propostas/jogos-navalha";
 import { useState, useTransition, useRef, useEffect } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -481,7 +483,7 @@ function PecaTab({ categoria, vinculos, pecasCatalogo, equipamentoId, linhaId, e
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos, categorias, vinculos, pecasCatalogo }: {
+export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos, categorias, vinculos, pecasCatalogo, jogos, jogosDisponivel }: {
   isAdmin: boolean;
   linha: Linha;
   equip: Equip;
@@ -490,6 +492,8 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
   categorias: CategoriaPeca[];
   vinculos: VinculoPeca[];
   pecasCatalogo: PecaCatalogo[];
+  jogos: Jogo[];
+  jogosDisponivel: boolean;
 }) {
   const rot = rotulosPainel(linha.nome);
   const router = useRouter();
@@ -902,15 +906,33 @@ export function EquipamentoDetalhe({ isAdmin, linha, equip, arquivos, specCampos
       {/* ── Category tabs (peças) ── */}
       {abasCategorias.map(cat => (
         tab === cat.id && (
-          <PecaTab
-            key={cat.id}
-            categoria={cat}
-            vinculos={cat.vinculos}
-            pecasCatalogo={pecasCatalogo}
-            equipamentoId={equip.id}
-            linhaId={linha.id}
-            effectiveAdmin={effectiveAdmin}
-          />
+          <div key={cat.id} style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+            {/* Navalhas: primeiro os jogos (como saem no orçamento), depois as peças vinculadas */}
+            {cat.nome.toLowerCase().includes("navalha") && (
+              <JogosNavalha
+                equipamentoId={equip.id}
+                jogos={jogos}
+                disponivel={jogosDisponivel}
+                isAdmin={effectiveAdmin}
+                navalhas={pecasCatalogo
+                  .filter((p) => p.categoria_peca_id === cat.id)
+                  .map((p) => ({ id: p.id, codigo: p.codigo, descricao: p.descricao, preco_brl: p.preco_brl, ipi_pct: p.ipi_pct }))}
+              />
+            )}
+            <div>
+              {cat.nome.toLowerCase().includes("navalha") && (
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: NAV, margin: "0 0 4px" }}>Peças vinculadas a este equipamento</h3>
+              )}
+              <PecaTab
+                categoria={cat}
+                vinculos={cat.vinculos}
+                pecasCatalogo={pecasCatalogo}
+                equipamentoId={equip.id}
+                linhaId={linha.id}
+                effectiveAdmin={effectiveAdmin}
+              />
+            </div>
+          </div>
         )
       ))}
     </div>

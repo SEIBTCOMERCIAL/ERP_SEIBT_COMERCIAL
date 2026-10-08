@@ -3,6 +3,8 @@
 import { useState, useMemo, useTransition, useRef } from "react";
 import { Search, X, Plus, Minus, Upload, Check, ChevronRight, Building2, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { JogosNavalhaSecao } from "./JogosNavalhaSecao";
+import { chaveItem, type Jogo } from "@/lib/propostas/jogos-navalha";
 import { OrganizacaoComercialCampos, ORGANIZACAO_PADRAO, validarOrganizacao, type OrganizacaoComercialValor } from "./OrganizacaoComercialCampos";
 import { criarPropostaPecas, type CartItemInput } from "@/app/actions/propostas-pecas";
 import type { MaquinaCliente, ProdutoComDetalhes, Categoriaproduto } from "@/types/database";
@@ -23,6 +25,8 @@ interface Props {
   /** Propostas abertas e principais (para vincular uma complementar). */
   propostasPrincipais: Array<{ id: string; numero_completo: string; cliente_id: string | null }>;
   representantes: Array<{ id: string; nome: string }>;
+  jogosNavalha: Jogo[];
+  jogosDisponivel: boolean;
   clientes: ClienteSimples[];
   produtos: ProdutoComDetalhes[];
   taxaDolar: number;
@@ -83,7 +87,7 @@ function StepperBar({ step }: { step: Step }) {
   );
 }
 
-export function NovaPropPecasForm({ clientes, produtos, taxaDolar, propostasPrincipais, representantes }: Props) {
+export function NovaPropPecasForm({ clientes, produtos, taxaDolar, propostasPrincipais, representantes, jogosNavalha, jogosDisponivel }: Props) {
   const [organizacao, setOrganizacao] = useState<OrganizacaoComercialValor>(ORGANIZACAO_PADRAO);
   const [step, setStep] = useState<Step>(1);
   const [moeda, setMoeda] = useState<"BRL" | "USD">("BRL");
@@ -149,9 +153,9 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar, propostasPrin
     const qty = getQty(produto.id);
     const preco = moeda === "BRL" ? (produto.preco_brl ?? 0) : (produto.preco_usd ?? (produto.preco_brl ?? 0) / taxaDolar);
     setCart((prev) => {
-      const existing = prev.find((i) => i.produto_id === produto.id);
+      const existing = prev.find((i) => !i.chave && i.produto_id === produto.id);
       if (existing) {
-        return prev.map((i) => i.produto_id === produto.id ? { ...i, quantidade: qty } : i);
+        return prev.map((i) => !i.chave && i.produto_id === produto.id ? { ...i, quantidade: qty } : i);
       }
       return [...prev, {
         produto_id:    produto.id,
@@ -166,12 +170,12 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar, propostasPrin
   }
 
   function removeFromCart(prodId: string) {
-    setCart((prev) => prev.filter((i) => i.produto_id !== prodId));
+    setCart((prev) => prev.filter((i) => chaveItem(i) !== prodId));
   }
 
   function updateCartQty(prodId: string, delta: number) {
     setCart((prev) => prev.map((i) => {
-      if (i.produto_id !== prodId) return i;
+      if (chaveItem(i) !== prodId) return i;
       const newQty = Math.max(1, i.quantidade + delta);
       return { ...i, quantidade: newQty };
     }));
@@ -194,7 +198,7 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar, propostasPrin
 
   function updateCartDesconto(prodId: string, valor: number) {
     const v = Math.min(100, Math.max(0, valor));
-    setCart((prev) => prev.map((i) => (i.produto_id === prodId ? { ...i, desconto_pct: v } : i)));
+    setCart((prev) => prev.map((i) => (chaveItem(i) === prodId ? { ...i, desconto_pct: v } : i)));
   }
 
   const precoItem = (i: CartItemInput) => precoComDesconto(i.preco_unitario, i.desconto_pct);
@@ -598,6 +602,18 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar, propostasPrin
                 </div>
               </div>
 
+              <div className="px-4 pt-4">
+                <JogosNavalhaSecao
+                  jogos={jogosNavalha}
+                  disponivel={jogosDisponivel}
+                  cart={cart}
+                  setCart={setCart}
+                  buscaInicial={maquinaSel?.modelo ?? ""}
+                  moeda={moeda}
+                  taxaDolar={taxaDolar}
+                />
+              </div>
+
               {/* Products table */}
               <table className="w-full text-[12px]">
                 <thead>
@@ -612,7 +628,7 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar, propostasPrin
                 </thead>
                 <tbody>
                   {produtosFiltrados().map((p) => {
-                    const inCart = cart.some((i) => i.produto_id === p.id);
+                    const inCart = cart.some((i) => !i.chave && i.produto_id === p.id);
                     const preco = moeda === "BRL" ? (p.preco_brl ?? 0) : (p.preco_usd ?? (p.preco_brl ?? 0) / taxaDolar);
                     const qty = getQty(p.id);
                     return (
@@ -721,7 +737,7 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar, propostasPrin
               <div className="mb-5">
                 <p className="text-[11px] font-bold uppercase text-[#6B7B8D] mb-3">Itens selecionados</p>
                 {cart.map((item) => (
-                  <div key={item.produto_id} className="flex items-center justify-between gap-3 py-2.5 border-b border-[#F1F5F9] last:border-0">
+                  <div key={chaveItem(item)} className="flex items-center justify-between gap-3 py-2.5 border-b border-[#F1F5F9] last:border-0">
                     <div className="min-w-0">
                       <p className="text-[12px] font-semibold text-[#1A1A1A]">{item.descricao}</p>
                       <p className="text-[10px] text-[#6B7B8D]">
@@ -734,7 +750,7 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar, propostasPrin
                         <input
                           type="number" min={0} max={100} step={0.5}
                           value={item.desconto_pct ?? 0}
-                          onChange={(e) => updateCartDesconto(item.produto_id, Number(e.target.value.replace(",", ".")) || 0)}
+                          onChange={(e) => updateCartDesconto(chaveItem(item), Number(e.target.value.replace(",", ".")) || 0)}
                           className={cn(
                             "w-16 h-7 rounded-md border px-2 text-[12px] text-center outline-none focus:border-[#2074B9]",
                             (item.desconto_pct ?? 0) > 0 ? "border-[#16A34A] text-[#15803D] font-semibold" : "border-[#E2E8F0]"
@@ -850,23 +866,23 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar, propostasPrin
                 <p className="px-4 py-6 text-[11px] text-[#B0BAC9] italic">Adicione peças do catálogo</p>
               ) : (
                 cart.map((item) => (
-                  <div key={item.produto_id} className="px-4 py-3 border-b border-[#F1F5F9]">
+                  <div key={chaveItem(item)} className="px-4 py-3 border-b border-[#F1F5F9]">
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1 min-w-0">
                         <p className="text-[12px] font-semibold text-[#1A1A1A] truncate">{item.descricao}</p>
                         <p className="text-[10px] text-[#6B7B8D]">CÓD. {item.codigo}</p>
                       </div>
-                      <button onClick={() => removeFromCart(item.produto_id)} className="ml-2 shrink-0 text-[#B0BAC9] hover:text-[#DC2626] transition-colors">
+                      <button onClick={() => removeFromCart(chaveItem(item))} className="ml-2 shrink-0 text-[#B0BAC9] hover:text-[#DC2626] transition-colors">
                         <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center border border-[#E2E8F0] rounded-lg overflow-hidden">
-                        <button onClick={() => updateCartQty(item.produto_id, -1)} className="w-6 h-6 flex items-center justify-center hover:bg-[#F1F5F9] text-[#6B7B8D]">
+                        <button onClick={() => updateCartQty(chaveItem(item), -1)} className="w-6 h-6 flex items-center justify-center hover:bg-[#F1F5F9] text-[#6B7B8D]">
                           <Minus className="h-2.5 w-2.5" />
                         </button>
                         <span className="w-8 text-center text-[11px] font-mono font-semibold border-x border-[#E2E8F0]">{item.quantidade}</span>
-                        <button onClick={() => updateCartQty(item.produto_id, 1)} className="w-6 h-6 flex items-center justify-center hover:bg-[#F1F5F9] text-[#6B7B8D]">
+                        <button onClick={() => updateCartQty(chaveItem(item), 1)} className="w-6 h-6 flex items-center justify-center hover:bg-[#F1F5F9] text-[#6B7B8D]">
                           <Plus className="h-2.5 w-2.5" />
                         </button>
                       </div>

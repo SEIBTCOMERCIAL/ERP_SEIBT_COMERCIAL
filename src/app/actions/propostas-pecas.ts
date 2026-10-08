@@ -33,6 +33,8 @@ export interface CartItemInput {
   observacao?: string | null;
   /** Desconto % sobre o preço de tabela (preco_unitario). */
   desconto_pct?: number;
+  /** Identifica a linha na tela (linhas de jogos de navalhas podem repetir a mesma peça). Não é gravada. */
+  chave?: string;
 }
 
 export interface CriarPropostaPecasInput {

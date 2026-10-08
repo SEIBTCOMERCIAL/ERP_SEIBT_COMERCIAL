@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { buscarTodos } from "@/lib/supabase/buscar-todos";
 import { carregarPropostasPrincipais, carregarRepresentantes } from "@/lib/propostas/crm-servidor";
+import { carregarJogosParaCotacao } from "@/lib/propostas/jogos-servidor";
 import { NovaPropPecasForm } from "@/components/propostas/NovaPropPecasForm";
 import type { ProdutoComDetalhes } from "@/types/database";
 
@@ -80,11 +81,14 @@ export default async function NovaPropostaPecasPage() {
 
   const propostasPrincipais = await carregarPropostasPrincipais(supabase);
   const representantes = await carregarRepresentantes(supabase);
+  const { jogos: jogosNavalha, disponivel: jogosDisponivel } = await carregarJogosParaCotacao(supabase);
 
   return (
     <NovaPropPecasForm
       propostasPrincipais={propostasPrincipais}
       representantes={representantes}
+      jogosNavalha={jogosNavalha}
+      jogosDisponivel={jogosDisponivel}
       clientes={clientes}
       produtos={produtos}
       taxaDolar={taxaDolar}
