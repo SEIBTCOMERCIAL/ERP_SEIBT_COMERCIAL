@@ -93,7 +93,7 @@ export async function criarPropostaPecas(
       cliente_id:         input.cliente_id,
       maquina_id:         input.maquina_id || null,
       responsavel_id:     user.id,
-      representante_id:   representante?.id ?? null,
+      representante_id:   input.organizacao?.representante_id || representante?.id || null,
       condicao_pagamento: input.condicao_pagamento || null,
       prazo_entrega:      input.prazo_entrega || null,
       validade_proposta:  input.validade_proposta || null,

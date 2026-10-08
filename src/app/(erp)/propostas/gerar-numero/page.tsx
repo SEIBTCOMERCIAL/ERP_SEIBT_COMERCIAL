@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { carregarPropostasPrincipais } from "@/lib/propostas/crm-servidor";
+import { carregarPropostasPrincipais, carregarRepresentantes } from "@/lib/propostas/crm-servidor";
 import { GerarNumeroForm } from "@/components/propostas/GerarNumeroForm";
 
 export const metadata: Metadata = { title: "Gerar número de proposta" };
@@ -10,9 +10,10 @@ export const metadata: Metadata = { title: "Gerar número de proposta" };
 export default async function GerarNumeroPage({ searchParams }: { searchParams: { cliente_id?: string } }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient() as any;
-  const [{ data: clientes }, propostasPrincipais] = await Promise.all([
+  const [{ data: clientes }, propostasPrincipais, representantes] = await Promise.all([
     supabase.from("clientes").select("id, razao_social, cnpj, cidade, estado").is("deleted_at", null).order("razao_social").limit(5000),
     carregarPropostasPrincipais(supabase),
+    carregarRepresentantes(supabase),
   ]);
 
   return (
@@ -29,6 +30,7 @@ export default async function GerarNumeroPage({ searchParams }: { searchParams: 
       <GerarNumeroForm
         clientes={(clientes ?? []) as Array<{ id: string; razao_social: string; cnpj: string | null; cidade: string | null; estado: string | null }>}
         propostasPrincipais={propostasPrincipais}
+        representantes={representantes}
         clientePreSelecionado={searchParams.cliente_id ?? null}
       />
     </div>

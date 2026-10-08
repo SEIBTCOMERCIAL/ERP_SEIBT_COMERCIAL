@@ -83,7 +83,7 @@ function matchesAlerta(a: Alertas, alerta?: string) {
 
 function filtrar(
   propostas: PropostaResumo[], clientes: Map<string, ClienteResumo>, alertas: Map<string, Alertas>,
-  sp: SearchParams, janelaRecente: boolean
+  sp: SearchParams, janelaRecente: boolean, usuarioDoRepresentante: Map<string, string | null>
 ) {
   const termo = sp.q?.trim().toLocaleLowerCase("pt-BR");
   const termoDigitos = soDigitos(sp.q);
@@ -104,7 +104,11 @@ function filtrar(
     }
     if (sp.tipo && p.tipo !== sp.tipo) return false;
     if (sp.mercado && mercadoDe(p) !== sp.mercado) return false;
-    if (sp.responsavel && p.responsavel_id !== sp.responsavel) return false;
+    // "Usuário": propostas que ele conduz como responsável ou que acompanha como representante.
+    if (sp.responsavel) {
+      const comoRepresentante = p.representante_id ? usuarioDoRepresentante.get(p.representante_id) === sp.responsavel : false;
+      if (p.responsavel_id !== sp.responsavel && !comoRepresentante) return false;
+    }
     if (sp.representante && p.representante_id !== sp.representante) return false;
     if (sp.temperatura && p.temperatura !== sp.temperatura) return false;
     if (!matchesAlerta(alertas.get(p.id)!, sp.alerta)) return false;
@@ -132,7 +136,7 @@ export default async function PropostasPage({ searchParams }: { searchParams: Se
     consultaPropostas(`${CAMPOS_BASE}, ${CAMPOS_CRM}`),
     supabase.from("usuarios").select("id, nome").in("perfil", ["admin", "vendedor_interno", "representante"]).eq("ativo", true).order("nome"),
     supabase.from("configuracoes_inatividade_proposta").select("tipo, dias_alerta"),
-    supabase.from("representantes").select("id, nome, ativo").order("nome"),
+    supabase.from("representantes").select("id, nome, ativo, usuario_id").order("nome"),
     carregarEtapas(supabase),
     carregarMotivos(supabase),
     usuarioAtual(supabase),
@@ -148,7 +152,9 @@ export default async function PropostasPage({ searchParams }: { searchParams: Se
 
   const propostas = (propostasRaw ?? []) as PropostaResumo[];
   const vendedores = (vendedoresResult.data ?? []) as Array<{ id: string; nome: string }>;
-  const representantesTodos = (representantesResult.data ?? []) as Array<{ id: string; nome: string; ativo: boolean }>;
+  const representantesTodos = (representantesResult.data ?? []) as Array<{ id: string; nome: string; ativo: boolean; usuario_id: string | null }>;
+  const usuarioDoRepresentante = new Map(representantesTodos.map((r) => [r.id, r.usuario_id]));
+  const nomeRepresentante = new Map(representantesTodos.map((r) => [r.id, r.nome]));
   const clienteIds = Array.from(new Set(propostas.map((p) => p.cliente_id).filter((id): id is string => Boolean(id))));
   const propostaIds = propostas.map((p) => p.id);
 
@@ -187,8 +193,8 @@ export default async function PropostasPage({ searchParams }: { searchParams: Se
   const alertas = new Map(propostas.map((p) => [p.id, calcularAlertas(p, acompanhamentos.get(p.id), prazosPorTipo)]));
 
   // Indicadores não dependem da janela de 30 dias do quadro.
-  const paraIndicadores = filtrar(propostas, clientesMap, alertas, searchParams, false);
-  const noQuadro = filtrar(propostas, clientesMap, alertas, searchParams, true);
+  const paraIndicadores = filtrar(propostas, clientesMap, alertas, searchParams, false, usuarioDoRepresentante);
+  const noQuadro = filtrar(propostas, clientesMap, alertas, searchParams, true, usuarioDoRepresentante);
 
   const ind = indicadoresPorMoeda(paraIndicadores);
   const abertas = paraIndicadores.filter((p) => STATUS_ABERTOS.has(p.status));
@@ -245,6 +251,7 @@ export default async function PropostasPage({ searchParams }: { searchParams: Se
       moeda: p.moeda,
       valor_total: p.valor_total,
       responsavel_nome: p.responsavel_id ? vendedoresMap.get(p.responsavel_id) ?? null : null,
+      representante_nome: p.representante_id ? nomeRepresentante.get(p.representante_id) ?? null : null,
       ultima_movimentacao: ultimaMovimentacao(p, acomp),
       proxima_acao: proxima?.proxima_acao_data ? `${formatDate(proxima.proxima_acao_data)} · ${proxima.proxima_acao_tipo ?? "Ação"}` : null,
       proxima_acao_data: proxima?.proxima_acao_data ?? null,
@@ -401,7 +408,7 @@ function Filtros({ searchParams, vendedores, representantes }: { searchParams: S
         <option value="exportacao">Exportação</option>
       </select>
       <select name="responsavel" aria-label="Responsável" defaultValue={searchParams.responsavel ?? ""} className={selectCls}>
-        <option value="">Todos responsáveis</option>
+        <option value="">Todos os usuários (responsável ou representante)</option>
         {vendedores.map((v) => <option key={v.id} value={v.id}>{v.nome}</option>)}
       </select>
       <select name="representante" aria-label="Representante" defaultValue={searchParams.representante ?? ""} className={selectCls}>

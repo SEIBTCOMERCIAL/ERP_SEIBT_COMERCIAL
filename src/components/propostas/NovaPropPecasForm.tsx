@@ -22,6 +22,7 @@ interface ClienteSimples {
 interface Props {
   /** Propostas abertas e principais (para vincular uma complementar). */
   propostasPrincipais: Array<{ id: string; numero_completo: string; cliente_id: string | null }>;
+  representantes: Array<{ id: string; nome: string }>;
   clientes: ClienteSimples[];
   produtos: ProdutoComDetalhes[];
   taxaDolar: number;
@@ -82,7 +83,7 @@ function StepperBar({ step }: { step: Step }) {
   );
 }
 
-export function NovaPropPecasForm({ clientes, produtos, taxaDolar, propostasPrincipais }: Props) {
+export function NovaPropPecasForm({ clientes, produtos, taxaDolar, propostasPrincipais, representantes }: Props) {
   const [organizacao, setOrganizacao] = useState<OrganizacaoComercialValor>(ORGANIZACAO_PADRAO);
   const [step, setStep] = useState<Step>(1);
   const [moeda, setMoeda] = useState<"BRL" | "USD">("BRL");
@@ -748,7 +749,7 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar, propostasPrin
 
               <div className="mb-5 rounded-xl border border-[#E2E8F0] p-4">
                 <p className="text-[11px] font-bold uppercase text-[#6B7B8D] mb-3">Organização comercial</p>
-                <OrganizacaoComercialCampos valor={organizacao} onChange={setOrganizacao} clienteId={clienteSel?.id ?? null} propostasPrincipais={propostasPrincipais} />
+                <OrganizacaoComercialCampos valor={organizacao} onChange={setOrganizacao} clienteId={clienteSel?.id ?? null} propostasPrincipais={propostasPrincipais} representantes={representantes} />
               </div>
               <p className="text-[11px] text-[#6B7B8D] mb-2">
                 Modelo do Word: <span className="font-semibold text-[#2C4F79]">{modeloWord === "navalhas" ? "Proposta de Navalhas" : "Proposta de Peneiras / Peças"}</span>

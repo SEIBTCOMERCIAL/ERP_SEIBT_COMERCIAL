@@ -11,6 +11,8 @@ export interface OrganizacaoComercialInput {
   pais_destino?: string | null;
   papel?: Papel;
   proposta_principal_id?: string | null;
+  /** Representante que acompanha a proposta (opcional). */
+  representante_id?: string | null;
 }
 
 /** Confere se a proposta escolhida pode ser a principal de uma complementar. */
@@ -160,4 +162,10 @@ export async function registrarHistorico(
   } catch {
     // O histórico nunca deve impedir a ação principal.
   }
+}
+
+/** Representantes ativos, para escolher quem acompanha a proposta. */
+export async function carregarRepresentantes(supabase: SupabaseAny): Promise<Array<{ id: string; nome: string }>> {
+  const { data } = await supabase.from("representantes").select("id, nome").eq("ativo", true).order("nome");
+  return (data ?? []) as Array<{ id: string; nome: string }>;
 }

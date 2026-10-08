@@ -22,6 +22,7 @@ export interface KanbanCard {
   moeda: string;
   valor_total: number | null;
   responsavel_nome: string | null;
+  representante_nome: string | null;
   /** Última movimentação (ISO). */
   ultima_movimentacao: string;
   proxima_acao: string | null;
@@ -150,7 +151,7 @@ function Card({
         {card.responsavel_nome ? (
           <div className="flex min-w-0 items-center gap-1.5">
             <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#2074B9] text-[9px] font-bold text-white">{getInitials(card.responsavel_nome).slice(0, 1)}</div>
-            <span className="truncate text-[11px] text-muted-foreground">{card.responsavel_nome}</span>
+            <span className="truncate text-[11px] text-muted-foreground">{card.responsavel_nome}{card.representante_nome ? ` · Rep.: ${card.representante_nome}` : ""}</span>
           </div>
         ) : <span />}
         {!card.bloqueada && (

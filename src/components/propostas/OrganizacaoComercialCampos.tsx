@@ -7,6 +7,8 @@ export interface OrganizacaoComercialValor {
   pais_destino: string;
   papel: Papel;
   proposta_principal_id: string;
+  /** Representante que acompanha (vazio = nenhum). */
+  representante_id: string;
 }
 
 export const ORGANIZACAO_PADRAO: OrganizacaoComercialValor = {
@@ -14,6 +16,7 @@ export const ORGANIZACAO_PADRAO: OrganizacaoComercialValor = {
   pais_destino: "",
   papel: "principal",
   proposta_principal_id: "",
+  representante_id: "",
 };
 
 /** Erro de preenchimento, ou null quando está tudo certo. */
@@ -35,11 +38,14 @@ export function OrganizacaoComercialCampos({
   onChange,
   clienteId,
   propostasPrincipais,
+  representantes,
 }: {
   valor: OrganizacaoComercialValor;
   onChange: (v: OrganizacaoComercialValor) => void;
   clienteId: string | null;
   propostasPrincipais: Array<{ id: string; numero_completo: string; cliente_id: string | null }>;
+  /** Quando informado, mostra a escolha do representante que acompanha a proposta. */
+  representantes?: Array<{ id: string; nome: string }>;
 }) {
   const doCliente = propostasPrincipais.filter((p) => clienteId && p.cliente_id === clienteId);
   const set = (parcial: Partial<OrganizacaoComercialValor>) => onChange({ ...valor, ...parcial });
@@ -81,6 +87,16 @@ export function OrganizacaoComercialCampos({
             <option value="">{doCliente.length ? "Selecione..." : "Nenhuma proposta aberta deste cliente"}</option>
             {doCliente.map((p) => <option key={p.id} value={p.id}>{p.numero_completo}</option>)}
           </select>
+        </label>
+      )}
+      {representantes && representantes.length > 0 && (
+        <label className="flex flex-col gap-1 sm:col-span-2">
+          <span className={rotulo}>Representante que vai acompanhar</span>
+          <select value={valor.representante_id} onChange={(e) => set({ representante_id: e.target.value })} className={campo}>
+            <option value="">Nenhum (só eu acompanho)</option>
+            {representantes.map((r) => <option key={r.id} value={r.id}>{r.nome}</option>)}
+          </select>
+          <span className="text-[11px] text-muted-foreground">O representante escolhido passa a ver a proposta e pode registrar follow-ups.</span>
         </label>
       )}
     </div>

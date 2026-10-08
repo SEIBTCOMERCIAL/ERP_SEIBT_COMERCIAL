@@ -29,10 +29,11 @@ function Enviar() {
 }
 
 export function GerarNumeroForm({
-  clientes, propostasPrincipais, clientePreSelecionado,
+  clientes, propostasPrincipais, representantes, clientePreSelecionado,
 }: {
   clientes: ClienteOpcao[];
   propostasPrincipais: Array<{ id: string; numero_completo: string; cliente_id: string | null }>;
+  representantes: Array<{ id: string; nome: string }>;
   clientePreSelecionado: string | null;
 }) {
   const [estado, action] = useFormState<GerarNumeroState, FormData>(gerarNumeroProposta, {});
@@ -100,6 +101,7 @@ export function GerarNumeroForm({
       <input type="hidden" name="pais_destino" value={organizacao.pais_destino} />
       <input type="hidden" name="papel" value={organizacao.papel} />
       <input type="hidden" name="proposta_principal_id" value={organizacao.proposta_principal_id} />
+      <input type="hidden" name="representante_id" value={organizacao.representante_id} />
 
       {(erroLocal || estado.message) && (
         <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-[12px] text-red-700">{erroLocal ?? estado.message}</p>
@@ -140,7 +142,7 @@ export function GerarNumeroForm({
 
       <div className="rounded-xl border border-border p-3 sm:p-4">
         <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Mercado e classificação</p>
-        <OrganizacaoComercialCampos valor={organizacao} onChange={setOrganizacao} clienteId={clienteId || null} propostasPrincipais={propostasPrincipais} />
+        <OrganizacaoComercialCampos valor={organizacao} onChange={setOrganizacao} clienteId={clienteId || null} propostasPrincipais={propostasPrincipais} representantes={representantes} />
       </div>
 
       <label className={rotulo}>Produto ou descrição inicial *

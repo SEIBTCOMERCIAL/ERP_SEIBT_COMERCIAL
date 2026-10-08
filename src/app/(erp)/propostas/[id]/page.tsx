@@ -11,6 +11,8 @@ import { montarNomeArquivo } from "@/lib/propostas/docx-dados";
 import type { Proposta, ItemProposta, ChecklistTecnico } from "@/types/database";
 import { ChecklistTecnicoForm } from "@/components/propostas/ChecklistTecnicoForm";
 import { GerarDocxBtn } from "@/components/propostas/GerarDocxBtn";
+import { ExcluirPropostaBtn } from "@/components/propostas/ExcluirPropostaBtn";
+import { RepresentanteProposta } from "@/components/propostas/RepresentanteProposta";
 import { OrganizacaoPropostaForm } from "@/components/propostas/OrganizacaoPropostaForm";
 import { AnexosProposta, type AnexoView } from "@/components/propostas/AnexosProposta";
 import { ObservacoesTecnicas, NovaObservacaoNegociacao } from "@/components/propostas/ObservacoesNegociacao";
@@ -134,7 +136,7 @@ export default async function DetalhePropostaPage({ params }: { params: { id: st
   const idsUsuarios = Array.from(new Set([
     ...followups.map((f) => f.usuario_id), ...anexosRaw.map((a) => a.enviado_por),
   ].filter((v): v is string => Boolean(v))));
-  const [{ data: nomesRaw }, links, cliente, responsavel, representante, principal, alternativasRaw, principaisRaw] = await Promise.all([
+  const [{ data: nomesRaw }, links, cliente, responsavel, principal, alternativasRaw, principaisRaw, { data: representantesRaw }] = await Promise.all([
     idsUsuarios.length ? supabase.from("usuarios").select("id, nome").in("id", idsUsuarios) : Promise.resolve({ data: [] }),
     gerarLinksAnexos(anexosRaw.map((a) => a.storage_path)),
     proposta.cliente_id
@@ -142,9 +144,6 @@ export default async function DetalhePropostaPage({ params }: { params: { id: st
       : Promise.resolve(null),
     proposta.responsavel_id
       ? supabase.from("usuarios").select("id, nome, perfil").eq("id", proposta.responsavel_id).maybeSingle().then((r: { data: unknown }) => r.data)
-      : Promise.resolve(null),
-    proposta.representante_id
-      ? supabase.from("representantes").select("id, nome").eq("id", proposta.representante_id).maybeSingle().then((r: { data: unknown }) => r.data)
       : Promise.resolve(null),
     proposta.proposta_principal_id
       ? supabase.from("propostas").select("id, numero_completo").eq("id", proposta.proposta_principal_id).maybeSingle().then((r: { data: unknown }) => r.data)
@@ -157,17 +156,22 @@ export default async function DetalhePropostaPage({ params }: { params: { id: st
     proposta.cliente_id && estruturaCrm
       ? supabase.from("propostas").select("id, numero_completo, status").eq("cliente_id", proposta.cliente_id).eq("papel", "principal").neq("id", proposta.id).is("deleted_at", null).order("criado_em", { ascending: false }).then((r: { data: unknown }) => r.data)
       : Promise.resolve([]),
+    supabase.from("representantes").select("id, nome, ativo").order("nome"),
   ]);
 
   const nomes = new Map(((nomesRaw ?? []) as Array<{ id: string; nome: string }>).map((u) => [u.id, u.nome]));
   const clienteInfo = cliente as { id: string; razao_social: string; cnpj: string | null; cidade: string | null; estado: string | null; pais: string | null } | null;
   const responsavelInfo = responsavel as { id: string; nome: string; perfil: string } | null;
-  const representanteInfo = representante as { id: string; nome: string } | null;
   const propostaPrincipal = principal as { id: string; numero_completo: string } | null;
   const alternativas = ((alternativasRaw ?? []) as Array<{ id: string; numero_completo: string; status: string; papel: string }>).filter((a) => a.id !== proposta.id);
   const propostasPrincipais = ((principaisRaw ?? []) as Array<{ id: string; numero_completo: string; status: string }>)
     .filter((p) => !STATUS_ENCERRADOS.has(p.status) || p.id === proposta.proposta_principal_id);
 
+  const representantesLista = ((representantesRaw ?? []) as Array<{ id: string; nome: string; ativo: boolean }>)
+    .filter((r) => r.ativo || r.id === proposta.representante_id)
+    .map((r) => ({ id: r.id, nome: r.nome }));
+  // Quem pode trocar o representante: administrador, ou o vendedor interno responsável pela proposta.
+  const podeEditarRepresentante = usuario?.perfil === "admin" || (usuario?.perfil === "vendedor_interno" && proposta.responsavel_id === usuario.id);
   const encerrada = STATUS_ENCERRADOS.has(proposta.status);
   const moeda = proposta.moeda === "USD" ? "USD" : "BRL";
   const hoje = hojeISO();
@@ -281,6 +285,7 @@ export default async function DetalhePropostaPage({ params }: { params: { id: st
           <Link href={`/propostas/${proposta.id}/editar`} className="flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-[12px] font-medium transition-colors hover:border-[#2074B9]">
             <Edit className="h-3.5 w-3.5" />Editar
           </Link>
+          {usuario?.perfil === "admin" && <ExcluirPropostaBtn propostaId={proposta.id} numero={proposta.numero_completo} />}
         </div>
       </header>
 
@@ -486,10 +491,13 @@ export default async function DetalhePropostaPage({ params }: { params: { id: st
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2074B9] text-[11px] font-bold text-white">{getInitials(responsavelInfo.nome)}</div>
                   <div className="min-w-0">
                     <p className="truncate text-[13px] font-semibold text-foreground">{responsavelInfo.nome}</p>
-                    {representanteInfo && <p className="truncate text-[11px] text-muted-foreground">Representante: {representanteInfo.nome}</p>}
                   </div>
                 </div>
               ) : <p className="text-[12px] text-muted-foreground">—</p>}
+            </div>
+            <div className="border-t border-border pt-4">
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Representante</p>
+              <RepresentanteProposta propostaId={proposta.id} atualId={proposta.representante_id ?? null} representantes={representantesLista} podeEditar={podeEditarRepresentante} />
             </div>
           </div>
 

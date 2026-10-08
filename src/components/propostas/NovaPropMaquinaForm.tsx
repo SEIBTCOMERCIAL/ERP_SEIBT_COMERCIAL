@@ -26,6 +26,7 @@ interface ClienteSimples {
 interface Props {
   /** Propostas abertas e principais (para vincular uma complementar). */
   propostasPrincipais: Array<{ id: string; numero_completo: string; cliente_id: string | null }>;
+  representantes: Array<{ id: string; nome: string }>;
   clientes: ClienteSimples[];
   maquinas: ProdutoComDetalhes[];
   pecas: ProdutoComDetalhes[];
@@ -80,7 +81,7 @@ function temPainel(m: ProdutoComDetalhes): boolean {
   return precoPainel(m, "220") != null || precoPainel(m, "380") != null;
 }
 
-export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrincipais }: Props) {
+export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrincipais, representantes }: Props) {
   const [organizacao, setOrganizacao] = useState<OrganizacaoComercialValor>(ORGANIZACAO_PADRAO);
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -567,7 +568,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
               <div style={{ fontSize: 13, color: "#6b7b8d", marginBottom: 16 }}>Revise os itens e informe as condições da proposta.</div>
               <div style={{ background: "#fff", borderRadius: 10, border: `1px solid ${BORDER}`, padding: 20, marginBottom: 16 }}>
                 <div style={{ fontWeight: 700, fontSize: 13, color: NAV, marginBottom: 10 }}>Organização comercial</div>
-                <OrganizacaoComercialCampos valor={organizacao} onChange={setOrganizacao} clienteId={clienteId || null} propostasPrincipais={propostasPrincipais} />
+                <OrganizacaoComercialCampos valor={organizacao} onChange={setOrganizacao} clienteId={clienteId || null} propostasPrincipais={propostasPrincipais} representantes={representantes} />
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, background: "#fff", borderRadius: 10, border: `1px solid ${BORDER}`, padding: 20, marginBottom: 16 }}>
                 {[

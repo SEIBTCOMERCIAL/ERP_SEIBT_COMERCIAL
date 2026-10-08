@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { registrarAuditoria } from "./auditoria";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
@@ -205,6 +206,8 @@ export interface DetalhesStatus {
   retomadaPrevista?: string;
 }
 
+const SEM_PERMISSAO_ALTERAR = "Você não tem permissão para alterar esta proposta. Peça ao responsável ou ao administrador.";
+
 function hojeISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -328,14 +331,15 @@ export async function atualizarStatusProposta(
     if (sugerida) updates.etapa_funil_id = sugerida.id;
   }
 
-  let { error } = await supabase.from("propostas").update(updates).eq("id", propostaId);
+  let { data: alteradas, error } = await supabase.from("propostas").update(updates).eq("id", propostaId).select("id");
   // Banco sem o campo de observação do congelamento (arquivo 024): a observação vai junto do motivo.
   if (error && faltaEstruturaCrm(error) && "motivo_congelamento_detalhes" in updates) {
     const { motivo_congelamento_detalhes: obs, ...restante } = updates;
     if (novoStatus === "stand_by" && obs) restante.motivo_congelamento = `${detalhes?.motivoCodigo} — ${obs}`;
-    ({ error } = await supabase.from("propostas").update(restante).eq("id", propostaId));
+    ({ data: alteradas, error } = await supabase.from("propostas").update(restante).eq("id", propostaId).select("id"));
   }
   if (error) return { error: faltaEstruturaCrm(error) ? AVISO_ESTRUTURA_CRM : error.message };
+  if (!alteradas?.length) return { error: SEM_PERMISSAO_ALTERAR };
   revalidatePath(`/propostas/${propostaId}`);
   revalidatePath("/propostas");
   return { success: true };
@@ -407,8 +411,9 @@ export async function moverPropostaEtapa(
     const r = await atualizarStatusProposta(propostaId, "em_negociacao");
     if (r.error) return r;
   }
-  const { error } = await supabase.from("propostas").update({ etapa_funil_id: destino.id }).eq("id", propostaId);
+  const { data: movidas, error } = await supabase.from("propostas").update({ etapa_funil_id: destino.id }).eq("id", propostaId).select("id");
   if (error) return { error: error.message };
+  if (!movidas?.length) return { error: SEM_PERMISSAO_ALTERAR };
   revalidatePath(`/propostas/${propostaId}`);
   revalidatePath("/propostas");
   return { success: true };
@@ -462,6 +467,29 @@ export async function atualizarEtapaProposta(
   if (error) throw new Error(error.message);
   revalidatePath(`/propostas/${propostaId}`);
   revalidatePath("/propostas");
+}
+
+/** Define quem é o representante que acompanha a proposta; ele passa a enxergá-la no sistema. */
+export async function definirRepresentanteProposta(
+  propostaId: string,
+  representanteId: string | null
+): Promise<{ error?: string; success?: boolean }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createClient() as any;
+  const usuario = await usuarioAtual(supabase);
+  if (!usuario) return { error: "Não autorizado." };
+  if (representanteId && !z.string().uuid().safeParse(representanteId).success) return { error: "Representante inválido." };
+
+  if (representanteId) {
+    const { data: rep } = await supabase.from("representantes").select("id").eq("id", representanteId).eq("ativo", true).maybeSingle();
+    if (!rep) return { error: "Representante não encontrado ou inativo." };
+  }
+  const { data, error } = await supabase.from("propostas").update({ representante_id: representanteId }).eq("id", propostaId).select("id");
+  if (error) return { error: error.message };
+  if (!data?.length) return { error: SEM_PERMISSAO_ALTERAR };
+  revalidatePath(`/propostas/${propostaId}`);
+  revalidatePath("/propostas");
+  return { success: true };
 }
 
 export async function transferirResponsavel(
@@ -610,14 +638,34 @@ export async function removerItem(itemId: string, propostaId: string) {
   revalidatePath(`/propostas/${propostaId}`);
 }
 
-export async function excluirProposta(propostaId: string) {
+/** Somente administrador. A proposta sai do sistema (funil, listas e indicadores), mas os dados ficam guardados no banco. */
+export async function excluirProposta(propostaId: string): Promise<{ error?: string; success?: boolean }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient() as any;
-  const { error } = await supabase
-    .from("propostas")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", propostaId);
-  if (error) throw new Error(error.message);
+  const usuario = await usuarioAtual(supabase);
+  if (usuario?.perfil !== "admin") return { error: "Somente o administrador pode excluir propostas." };
+
+  const { data: proposta } = await supabase
+    .from("propostas").select("id, numero_completo").eq("id", propostaId).is("deleted_at", null).maybeSingle();
+  if (!proposta) return { error: "Proposta não encontrada." };
+
+  // Uma proposta principal com alternativas complementares não pode sumir sozinha.
+  const { data: dependentes, error: errDep } = await supabase
+    .from("propostas").select("numero_completo").eq("proposta_principal_id", propostaId).is("deleted_at", null);
+  if (!errDep && dependentes?.length) {
+    const lista = (dependentes as Array<{ numero_completo: string }>).map((d) => d.numero_completo).join(", ");
+    return { error: `Esta proposta é a principal de: ${lista}. Exclua ou desvincule as complementares antes.` };
+  }
+
+  const { data: excluidas, error } = await supabase
+    .from("propostas").update({ deleted_at: new Date().toISOString() }).eq("id", propostaId).select("id");
+  if (error) return { error: error.message };
+  if (!excluidas?.length) return { error: SEM_PERMISSAO_ALTERAR };
+
+  await registrarAuditoria({
+    acao: "excluir_proposta", entidade: "propostas", entidade_id: propostaId, entidade_referencia: proposta.numero_completo,
+  });
   revalidatePath("/propostas");
-  redirect("/propostas");
+  revalidatePath("/clientes");
+  return { success: true };
 }
