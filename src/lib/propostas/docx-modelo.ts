@@ -199,7 +199,9 @@ function itemSimplesXml(titulo: string, texto: string | null): string {
         { texto: m[3]!, negrito: true, cor: "FF0000" },
       ])
     : paragrafo(titulo);
-  return [principal, ...linhas.map((l) => paragrafo(l))].join("");
+  // Linhas de jogo de navalhas ganham uma linha em branco embaixo, como nos modelos da SEIBT.
+  const respiro = m && m[2] ? [paragrafo("")] : [];
+  return [principal, ...linhas.map((l) => paragrafo(l)), ...respiro].join("");
 }
 
 // ── Preenchimento do modelo ───────────────────────────────────────────────────
