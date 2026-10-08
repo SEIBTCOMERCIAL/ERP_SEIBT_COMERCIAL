@@ -6,6 +6,9 @@ import { tituloComSeparador } from "@/lib/produto-titulo";
 
 export type VoltagemPainel = "220" | "380";
 
+/** Exaustores: o painel é "compartilhado" ou "dedicado" (no lugar de 220V/380V). */
+export type TipoPainelExaustor = "compartilhado" | "dedicado";
+
 /** Início do bloco do painel dentro da descrição ("PAINEL ELÉTRICO ADEQUADO..."). */
 const INICIO_PAINEL = /^[ \t]*PAINEL\s+EL[ÉE]TRICO/im;
 
@@ -52,7 +55,7 @@ function formatarReais(valor: number): string {
  */
 export function montarDescritivoMaquina(
   maquina: { codigo: string; descricao?: string | null; descricao_painel?: string | null },
-  painel: { voltagem: VoltagemPainel; preco: number } | null
+  painel: { voltagem: VoltagemPainel; preco: number; tipo?: TipoPainelExaustor } | null
 ): string | null {
   const titulo = tituloComSeparador(maquina.codigo);
   const partes = separarDescritivo(maquina.descricao, maquina.descricao_painel);
@@ -60,12 +63,14 @@ export function montarDescritivoMaquina(
 
   if (!painel) return base;
 
-  const v = `${painel.voltagem}V`;
+  // Exaustor: "PAINEL COMPARTILHADO" / "PAINEL DEDICADO"; demais equipamentos: a voltagem (220V / 380V).
+  const nomePainel = painel.tipo ? `PAINEL ${painel.tipo.toUpperCase()}` : `${painel.voltagem}V`;
   const blocoPainel = partes.painel
-    ? partes.painel.replace(/220\s*V?\s*OU\s*380\s*V?/gi, v)
-    : `PAINEL ELÉTRICO ADEQUADO A NORMA DE SEGURANÇA NR 12 – ${v} (COM LAUDO TÉCNICO)`;
+    ? partes.painel.replace(/220\s*V?\s*OU\s*380\s*V?/gi, nomePainel)
+    : `PAINEL ELÉTRICO ADEQUADO A NORMA DE SEGURANÇA NR 12 – ${nomePainel} (COM LAUDO TÉCNICO)`;
   const ehMoinho = /^MGHS|MOINHO/i.test(maquina.codigo) || /MOINHO/i.test(base ?? "");
-  const linhaValor = `- Valor Painel NR 12 ${formatarReais(painel.preco)} – INCLUSO NO VALOR DO ${ehMoinho ? "MOINHO" : "EQUIPAMENTO"}`;
+  const rotuloValor = painel.tipo ? `Painel ${painel.tipo === "dedicado" ? "Dedicado" : "Compartilhado"}` : "Painel";
+  const linhaValor = `- Valor ${rotuloValor} NR 12 ${formatarReais(painel.preco)} – INCLUSO NO VALOR DO ${ehMoinho ? "MOINHO" : "EQUIPAMENTO"}`;
 
   return `${base ?? titulo}\n\n${blocoPainel}\n${linhaValor}`;
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { rotulosPainel } from "@/lib/produtos/painel";
 import { useState, useTransition } from "react";
 import {
   Check, ChevronRight, ChevronLeft, AlertCircle, Plus, Minus,
@@ -78,6 +79,20 @@ const OPCOES_PAINEL: { valor: OpcaoPainel; label: string }[] = [
   { valor: "220", label: "Com painel 220V" },
   { valor: "380", label: "Com painel 380V" },
 ];
+
+/** Exaustor: o painel é compartilhado (campo 220V do cadastro) ou dedicado (campo 380V); sem voltagem. */
+function tipoPainelDe(m: ProdutoComDetalhes, opcao: OpcaoPainel | null): "compartilhado" | "dedicado" | undefined {
+  if (!rotulosPainel(m.linha).compartilhado) return undefined;
+  return opcao === "220" ? "compartilhado" : opcao === "380" ? "dedicado" : undefined;
+}
+
+/** Texto da opção de painel na tela, conforme o equipamento. */
+function rotuloOpcaoPainel(m: ProdutoComDetalhes, op: { valor: OpcaoPainel; label: string }): string {
+  if (op.valor === "sem") return op.label;
+  const r = rotulosPainel(m.linha);
+  if (!r.compartilhado) return op.label;
+  return `Com ${r.p220.toLowerCase().replace("compartilhado", op.valor === "220" ? "compartilhado" : "dedicado")}`;
+}
 
 /** Preço do painel na voltagem pedida; null quando não há preço cadastrado. */
 function precoPainel(m: ProdutoComDetalhes, voltagem: "220" | "380"): number | null {
@@ -213,11 +228,12 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
     if (!m) return [];
     const volt = e.painel === "220" || e.painel === "380" ? e.painel : null;
     const precoPnl = volt ? precoPainel(m, volt) : null;
-    const incluso = volt && precoPnl != null ? { voltagem: volt, preco: precoPnl } : null;
+    const tipoPnl = tipoPainelDe(m, e.painel);
+    const incluso = volt && precoPnl != null ? { voltagem: volt, preco: precoPnl, tipo: tipoPnl } : null;
     return [{
       produto_id: m.id, variante_id: null,
       codigo: m.codigo,
-      descricao: tituloComSeparador(m.codigo) + (incluso ? ` + painel NR-12 ${incluso.voltagem}V` : ""),
+      descricao: tituloComSeparador(m.codigo) + (incluso ? (incluso.tipo ? ` + painel ${incluso.tipo}` : ` + painel NR-12 ${incluso.voltagem}V`) : ""),
       observacao: montarDescritivoMaquina(m, incluso),
       preco_unitario: (m.preco_brl ?? 0) + (incluso?.preco ?? 0),
       ipi_pct: m.ipi_pct, quantidade: e.quantidade,
@@ -527,7 +543,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
                                 Painel elétrico NR-12 <span style={{ color: "#dc2626" }}>*</span>
                               </div>
                               <div style={{ fontSize: 11, color: "#6b7b8d", margin: "2px 0 8px" }}>
-                                Voltagem informada no checklist: {checklist.voltagem || "—"}
+                                {rotulosPainel(m.linha).compartilhado ? "Painel compartilhado (valor menor) ou dedicado (valor maior)" : `Voltagem informada no checklist: ${checklist.voltagem || "—"}`}
                               </div>
                               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                                 {OPCOES_PAINEL.map((op) => {
@@ -557,7 +573,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
                                           background: ativo ? BLUE : "#fff",
                                           boxShadow: ativo ? "inset 0 0 0 2px #fff" : "none",
                                         }} />
-                                        {op.label}
+                                        {rotuloOpcaoPainel(m, op)}
                                       </span>
                                       {op.valor !== "sem" && (
                                         <span style={{ whiteSpace: "nowrap", fontWeight: 700, color: indisponivel ? "#9ca3af" : NAV }}>
@@ -821,7 +837,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
                   <div key={e.id} style={{ paddingBottom: 8, marginBottom: 8, borderBottom: "1px solid #bfdbfe" }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "#1e3a5f" }}>{e.quantidade > 1 ? `${e.quantidade}× ` : ""}{tituloComSeparador(m.codigo)}</div>
                     <div style={{ fontSize: 12, marginTop: 2, color: e.painel === null && temPainel(m) ? "#b45309" : "#6b7b8d", fontWeight: e.painel === null && temPainel(m) ? 600 : 400 }}>
-                      {e.painel === null && temPainel(m) ? "Painel: escolher (com ou sem)" : volt ? `+ Painel NR-12 ${volt}V (incluso)` : "Sem painel"}
+                      {e.painel === null && temPainel(m) ? "Painel: escolher (com ou sem)" : volt ? (tipoPainelDe(m, e.painel) ? `+ Painel ${tipoPainelDe(m, e.painel)} (incluso)` : `+ Painel NR-12 ${volt}V (incluso)`) : "Sem painel"}
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 4, fontSize: 12 }}>
                       <span style={{ color: "#1e3a5f", fontWeight: 700 }}>Valor na proposta{desconto > 0 ? ` (−${desconto}%)` : ""}</span>
