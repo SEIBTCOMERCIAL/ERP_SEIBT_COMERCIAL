@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, Snowflake } from "lucide-react";
 import { formatCurrency, formatDate, getInitials } from "@/lib/utils";
 import { PropostaStatusBadge, PropostaTipoBadge, TemperaturaBadge } from "./StatusBadge";
@@ -71,6 +72,7 @@ function Card({
   arrastando: boolean;
   aoArrastar: (id: string | null) => void;
 }) {
+  const router = useRouter();
   const congelada = card.status === "stand_by";
   const ganha = card.status === "vendida";
   const perdida = ["perdida", "desistencia", "cancelada"].includes(card.status);
@@ -87,7 +89,17 @@ function Card({
       draggable={!card.bloqueada}
       onDragStart={(e) => { e.dataTransfer.setData("text/plain", card.id); e.dataTransfer.effectAllowed = "move"; aoArrastar(card.id); }}
       onDragEnd={() => aoArrastar(null)}
-      className={`rounded-xl border border-l-4 border-border ${borda} ${fundo} p-3 transition-shadow hover:shadow-md ${arrastando ? "opacity-40" : ""} ${card.bloqueada ? "" : "cursor-grab active:cursor-grabbing"}`}
+      onClick={(e) => {
+        // O cartão inteiro abre a proposta; links e o seletor "Mover…" mantêm a função própria.
+        if ((e.target as HTMLElement).closest("a, select, option, button")) return;
+        router.push(`/propostas/${card.id}`);
+      }}
+      role="link"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && e.target === e.currentTarget) router.push(`/propostas/${card.id}`);
+      }}
+      className={`rounded-xl border border-l-4 border-border ${borda} ${fundo} p-3 transition-shadow hover:shadow-md ${arrastando ? "opacity-40" : ""} cursor-pointer`}
     >
       <div className="flex items-start justify-between gap-2">
         <Link href={`/propostas/${card.id}`} className="font-mono text-[12px] font-bold text-[#2074B9] hover:underline">{card.numero_completo}</Link>
