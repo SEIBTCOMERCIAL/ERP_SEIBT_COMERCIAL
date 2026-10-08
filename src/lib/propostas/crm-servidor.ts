@@ -2,6 +2,7 @@
 
 import { AVISO_ESTRUTURA_CRM, MOTIVOS_PADRAO, STATUS_ENCERRADOS, faltaEstruturaCrm, type CategoriaMotivo, type Mercado, type MotivoOpcao, type Papel } from "./crm";
 import type { EtapaFunil } from "./funil";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseAny = any;
@@ -164,8 +165,49 @@ export async function registrarHistorico(
   }
 }
 
-/** Representantes ativos, para escolher quem acompanha a proposta. */
+/** Prefixo do valor de um usuário com perfil "representante" que ainda não tem cadastro em Representantes. */
+export const PREFIXO_USUARIO_REPRESENTANTE = "usuario:";
+
+/**
+ * Representantes para escolher quem acompanha a proposta: os cadastrados em Representantes e também os
+ * usuários do ERP com perfil "representante" (o cadastro em Representantes é criado na primeira escolha).
+ */
 export async function carregarRepresentantes(supabase: SupabaseAny): Promise<Array<{ id: string; nome: string }>> {
-  const { data } = await supabase.from("representantes").select("id, nome").eq("ativo", true).order("nome");
-  return (data ?? []) as Array<{ id: string; nome: string }>;
+  const [{ data: reps }, { data: usuarios }] = await Promise.all([
+    supabase.from("representantes").select("id, nome, usuario_id").eq("ativo", true).order("nome"),
+    supabase.from("usuarios").select("id, nome").eq("perfil", "representante").eq("ativo", true).order("nome"),
+  ]);
+  const lista = ((reps ?? []) as Array<{ id: string; nome: string; usuario_id: string | null }>).map((r) => ({ id: r.id, nome: r.nome, usuarioId: r.usuario_id }));
+  const vinculados = new Set(lista.map((r) => r.usuarioId).filter(Boolean));
+  const semCadastro = ((usuarios ?? []) as Array<{ id: string; nome: string }>)
+    .filter((u) => !vinculados.has(u.id))
+    .map((u) => ({ id: `${PREFIXO_USUARIO_REPRESENTANTE}${u.id}`, nome: u.nome, usuarioId: u.id }));
+  return [...lista, ...semCadastro]
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
+    .map(({ id, nome }) => ({ id, nome }));
+}
+
+/**
+ * Converte o valor escolhido na tela no id do cadastro em Representantes. Para um usuário com perfil
+ * "representante" ainda sem cadastro, cria o cadastro ligado ao usuário (assim ele passa a ver as
+ * propostas em que for escolhido). Retorna null para "sem representante".
+ */
+export async function resolverRepresentante(valor: string | null | undefined): Promise<{ id: string | null; erro?: string }> {
+  const v = (valor ?? "").trim();
+  if (!v) return { id: null };
+  if (!v.startsWith(PREFIXO_USUARIO_REPRESENTANTE)) return { id: v };
+
+  const usuarioId = v.slice(PREFIXO_USUARIO_REPRESENTANTE.length);
+  const admin = createAdminClient();
+  const { data: usuario } = await admin.from("usuarios").select("id, nome, perfil, ativo").eq("id", usuarioId).maybeSingle();
+  if (!usuario || usuario.perfil !== "representante") return { id: null, erro: "Representante não encontrado." };
+
+  const { data: existente } = await admin.from("representantes").select("id").eq("usuario_id", usuarioId).limit(1).maybeSingle();
+  if (existente) return { id: existente.id };
+
+  const { data: novo, error } = await admin.from("representantes")
+    .insert({ nome: usuario.nome, tipo: "externo", usuario_id: usuarioId, ativo: true })
+    .select("id").single();
+  if (error || !novo) return { id: null, erro: "Não foi possível cadastrar o representante: " + (error?.message ?? "") };
+  return { id: novo.id };
 }

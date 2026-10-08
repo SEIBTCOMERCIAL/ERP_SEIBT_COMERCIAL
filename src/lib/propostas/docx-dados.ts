@@ -142,7 +142,7 @@ export async function carregarDadosDocx(
     contato: (proposta.contato_nome ?? contato?.nome ?? "").trim(),
     telefone: (proposta.contato_telefone ?? contato?.telefone ?? "").trim(),
     email: (proposta.contato_email ?? contato?.email ?? "").trim(),
-    cc: (representante?.nome ?? "SEIBT").trim(),
+    cc: representante?.nome?.trim() ? `SEIBT – ${representante.nome.trim().toUpperCase()}` : "SEIBT",
     checklist: {
       segmento: checklist?.segmento_aplicacao ?? "",
       produto: checklist?.produto_final ?? "",

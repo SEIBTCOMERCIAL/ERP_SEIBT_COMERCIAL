@@ -5,7 +5,7 @@ import { registrarAuditoria } from "./auditoria";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
-import { carregarEtapas, carregarMotivos, inserirPropostaComOrganizacao, usuarioAtual, validarPrincipal } from "@/lib/propostas/crm-servidor";
+import { carregarEtapas, carregarMotivos, inserirPropostaComOrganizacao, resolverRepresentante, usuarioAtual, validarPrincipal } from "@/lib/propostas/crm-servidor";
 import { AVISO_ESTRUTURA_CRM, STATUS_COM_MOTIVO, STATUS_EM_ACOMPANHAMENTO, STATUS_ENCERRADOS, categoriaMotivoDoStatus, faltaEstruturaCrm, negocioDe } from "@/lib/propostas/crm";
 import { etapaInicial, etapaSugeridaPorStatus, tipoEtapaDe } from "@/lib/propostas/funil";
 
@@ -79,6 +79,9 @@ async function criarPropostaNucleo(formData: FormData): Promise<ResultadoCriacao
     supabase.from("representantes").select("id").eq("usuario_id", user.id).eq("ativo", true).limit(1).maybeSingle(),
   ]);
 
+  const repEscolhido = await resolverRepresentante(String(formData.get("representante_id") ?? ""));
+  if (repEscolhido.erro) return { message: repEscolhido.erro };
+
   const raw = {
     tipo:              formData.get("tipo"),
     mercado:           formData.get("mercado") || "nacional",
@@ -93,7 +96,7 @@ async function criarPropostaNucleo(formData: FormData): Promise<ResultadoCriacao
     canal_origem:      formData.get("canal_origem") || null,
     temperatura:       formData.get("temperatura") || null,
     responsavel_id:    formData.get("responsavel_id") || user.id,
-    representante_id:  formData.get("representante_id") || representanteDoUsuario?.id || null,
+    representante_id:  repEscolhido.id || representanteDoUsuario?.id || null,
     etapa_funil_id:    formData.get("etapa_funil_id") || null,
     condicao_pagamento: formData.get("condicao_pagamento") || undefined,
     prazo_entrega:     formData.get("prazo_entrega") || undefined,
@@ -478,8 +481,17 @@ export async function definirRepresentanteProposta(
   const supabase = createClient() as any;
   const usuario = await usuarioAtual(supabase);
   if (!usuario) return { error: "Não autorizado." };
-  if (representanteId && !z.string().uuid().safeParse(representanteId).success) return { error: "Representante inválido." };
+  // Quem troca o representante: administrador ou o vendedor interno responsável (a regra do banco confere de novo).
+  const { data: atual } = await supabase.from("propostas").select("responsavel_id").eq("id", propostaId).maybeSingle();
+  if (!atual) return { error: "Proposta não encontrada." };
+  if (usuario.perfil !== "admin" && !(usuario.perfil === "vendedor_interno" && atual.responsavel_id === usuario.id)) {
+    return { error: SEM_PERMISSAO_ALTERAR };
+  }
 
+  const resolvido = await resolverRepresentante(representanteId);
+  if (resolvido.erro) return { error: resolvido.erro };
+  representanteId = resolvido.id;
+  if (representanteId && !z.string().uuid().safeParse(representanteId).success) return { error: "Representante inválido." };
   if (representanteId) {
     const { data: rep } = await supabase.from("representantes").select("id").eq("id", representanteId).eq("ativo", true).maybeSingle();
     if (!rep) return { error: "Representante não encontrado ou inativo." };

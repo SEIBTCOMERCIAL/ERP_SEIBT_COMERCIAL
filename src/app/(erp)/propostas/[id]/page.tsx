@@ -18,7 +18,7 @@ import { AnexosProposta, type AnexoView } from "@/components/propostas/AnexosPro
 import { ObservacoesTecnicas, NovaObservacaoNegociacao } from "@/components/propostas/ObservacoesNegociacao";
 import { HistoricoNegociacao, type EventoHistorico } from "@/components/propostas/HistoricoNegociacao";
 import { STATUS_ENCERRADOS, STATUS_EM_ACOMPANHAMENTO, TIPO_LABELS, faltaEstruturaCrm, mercadoDe } from "@/lib/propostas/crm";
-import { carregarEtapas, carregarMotivos, usuarioAtual } from "@/lib/propostas/crm-servidor";
+import { carregarEtapas, carregarMotivos, carregarRepresentantes, usuarioAtual } from "@/lib/propostas/crm-servidor";
 import { gerarLinksAnexos } from "@/lib/propostas/anexos-servidor";
 import { hojeISO, diasAte } from "@/lib/propostas/alertas";
 import { DIAS_ALERTA_VALIDADE } from "@/lib/propostas/crm";
@@ -158,6 +158,7 @@ export default async function DetalhePropostaPage({ params }: { params: { id: st
       : Promise.resolve([]),
     supabase.from("representantes").select("id, nome, ativo").order("nome"),
   ]);
+  const representantesEscolha = await carregarRepresentantes(supabase);
 
   const nomes = new Map(((nomesRaw ?? []) as Array<{ id: string; nome: string }>).map((u) => [u.id, u.nome]));
   const clienteInfo = cliente as { id: string; razao_social: string; cnpj: string | null; cidade: string | null; estado: string | null; pais: string | null } | null;
@@ -167,9 +168,11 @@ export default async function DetalhePropostaPage({ params }: { params: { id: st
   const propostasPrincipais = ((principaisRaw ?? []) as Array<{ id: string; numero_completo: string; status: string }>)
     .filter((p) => !STATUS_ENCERRADOS.has(p.status) || p.id === proposta.proposta_principal_id);
 
-  const representantesLista = ((representantesRaw ?? []) as Array<{ id: string; nome: string; ativo: boolean }>)
-    .filter((r) => r.ativo || r.id === proposta.representante_id)
-    .map((r) => ({ id: r.id, nome: r.nome }));
+  // Opções: representantes ativos e usuários com perfil "representante"; o atual entra mesmo se estiver inativo.
+  const repAtual = ((representantesRaw ?? []) as Array<{ id: string; nome: string; ativo: boolean }>).find((r) => r.id === proposta.representante_id);
+  const representantesLista = repAtual && !representantesEscolha.some((r) => r.id === repAtual.id)
+    ? [{ id: repAtual.id, nome: repAtual.nome }, ...representantesEscolha]
+    : representantesEscolha;
   // Quem pode trocar o representante: administrador, ou o vendedor interno responsável pela proposta.
   const podeEditarRepresentante = usuario?.perfil === "admin" || (usuario?.perfil === "vendedor_interno" && proposta.responsavel_id === usuario.id);
   const encerrada = STATUS_ENCERRADOS.has(proposta.status);
