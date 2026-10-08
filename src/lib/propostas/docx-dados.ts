@@ -5,6 +5,7 @@
 
 import type { DadosDocxProposta, ItemDocx, ModeloProposta } from "./docx-modelo";
 import { moagemRotulo } from "./checklist";
+import { ehMoinho, removerPainelDoTexto, removerPainelDoTitulo } from "./descritivo-maquina";
 
 const FUSO = "America/Sao_Paulo";
 
@@ -87,17 +88,29 @@ export async function carregarDadosDocx(
     produto: { codigo: string; categoria: string } | null;
   };
 
-  const itensDocx: ItemDocx[] = ((itens ?? []) as ItemBanco[]).map((it): ItemDocx => {
+  const itensBancoLista = (itens ?? []) as ItemBanco[];
+  const ehEquipamento = (it: ItemBanco) => it.produto?.categoria === "maquina" && !/^painel el[ée]trico/i.test(it.descricao);
+
+  // Com vários itens, o painel e as observações de NR-12 aparecem só no moinho (ou, sem moinho,
+  // no primeiro equipamento). Os demais equipamentos saem sem o bloco do painel; o preço do painel
+  // escolhido continua no valor do item.
+  const equipamentos = itensBancoLista.filter(ehEquipamento);
+  const principal = equipamentos.find((it) => ehMoinho(it.produto?.codigo, it.descricao)) ?? equipamentos[0] ?? null;
+
+  const itensDocx: ItemDocx[] = itensBancoLista.map((it): ItemDocx => {
     const ipi = Number(it.ipi_pct ?? 0);
-    const ehMaquina = it.produto?.categoria === "maquina" && !/^painel el[ée]trico/i.test(it.descricao);
+    const equipamento = ehEquipamento(it);
+    const ehPrincipal = it === principal;
     const codigo = it.produto?.codigo ?? "";
-    const titulo = !ehMaquina && codigo && !it.descricao.includes(codigo)
+    const titulo = !equipamento && codigo && !it.descricao.includes(codigo)
       ? `${it.descricao} - CÓD. ${codigo}`
-      : it.descricao;
+      : ehPrincipal || !equipamento ? it.descricao : removerPainelDoTitulo(it.descricao);
+    const texto = it.observacao?.trim() || null;
     return {
       titulo,
-      texto: it.observacao?.trim() || null,
-      maquina: ehMaquina,
+      texto: texto && equipamento && !ehPrincipal ? removerPainelDoTexto(texto) || null : texto,
+      completo: equipamento,
+      maquina: ehPrincipal,
       quantidade: it.quantidade,
       precoUnitario: Number(it.preco_unitario),
       ipiPct: ipi,
@@ -109,7 +122,7 @@ export async function carregarDadosDocx(
   const nomeCliente = (cliente?.razao_social ?? cliente?.nome_fantasia ?? "").trim();
   const responsavelNome = (responsavel?.nome ?? "Departamento Comercial").trim();
 
-  const itensBanco = (itens ?? []) as ItemBanco[];
+  const itensBanco = itensBancoLista;
   const modelo: ModeloProposta =
     proposta.tipo === "maquina" ? "maquina"
     : itensBanco.some((it) => it.produto?.categoria === "navalha") ? "navalhas"

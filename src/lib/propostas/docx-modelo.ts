@@ -22,7 +22,9 @@ export interface ItemDocx {
   titulo: string;
   /** Texto completo da coluna DETALHES (descrição do moinho + painel). */
   texto: string | null;
-  /** Item principal da máquina: recebe a nota e a observação de NR-12 do modelo. */
+  /** Equipamento: o texto sai completo (descrição + tabela de especificações). */
+  completo: boolean;
+  /** Item principal da proposta (o moinho): único que recebe a nota e a observação de NR-12 do modelo. */
   maquina: boolean;
   quantidade: number;
   precoUnitario: number;
@@ -209,7 +211,7 @@ export function gerarDocxProposta(modelo: Buffer, dados: DadosDocxProposta): Buf
     voltagem: dados.checklist.voltagem,
     itens: dados.itens.map((it, idx) => ({
       item: doisDigitos(idx + 1),
-      detalhes: it.maquina
+      detalhes: it.completo
         ? (it.texto ? detalhesXml(it.texto) : paragrafo(it.titulo, true))
         : itemSimplesXml(it.titulo, it.texto),
       maquina: it.maquina,

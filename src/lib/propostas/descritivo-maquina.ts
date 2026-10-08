@@ -75,6 +75,31 @@ export function montarDescritivoMaquina(
   return `${base ?? titulo}\n\n${blocoPainel}\n${linhaValor}`;
 }
 
+/** O item é um moinho? (código MGHS/RCX ou "moinho" no nome). */
+export function ehMoinho(codigo: string | null | undefined, descricao?: string | null): boolean {
+  return /^(MGHS|RCX)/i.test((codigo ?? "").trim()) || /moinho/i.test(`${codigo ?? ""} ${descricao ?? ""}`);
+}
+
+/**
+ * Tira do texto do item o bloco do painel ("PAINEL ELÉTRICO ..." e "- Valor Painel ...").
+ * Usado nos itens que não são o moinho: o painel só é descrito uma vez, no moinho.
+ */
+export function removerPainelDoTexto(texto: string): string {
+  const t = texto.replace(/\r\n/g, "\n");
+  const i = t.search(INICIO_PAINEL);
+  const semBloco = i >= 0 ? t.slice(0, i) : t;
+  return semBloco
+    .split("\n")
+    .filter((l) => !/^\s*-\s*Valor\s+Painel/i.test(l))
+    .join("\n")
+    .trimEnd();
+}
+
+/** Tira do título o complemento " + painel ..." (o preço do painel continua no valor do item). */
+export function removerPainelDoTitulo(titulo: string): string {
+  return titulo.replace(/\s*\+\s*painel[^+]*$/i, "").trim();
+}
+
 /** Iniciais para a assinatura, ex.: "Lucas Moreira Concencia" → "LMC". */
 export function iniciaisAssinatura(nome: string): string {
   return nome
