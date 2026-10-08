@@ -27,6 +27,8 @@ export interface ItemDocx {
   /** Item principal da proposta (o moinho): único que recebe a nota e a observação de NR-12 do modelo. */
   maquina: boolean;
   quantidade: number;
+  /** Preço de tabela (antes do desconto/acréscimo) — usado só na versão interna. */
+  precoTabela?: number | null;
   precoUnitario: number;
   ipiPct: number;
   total: number;
@@ -206,7 +208,32 @@ function itemSimplesXml(titulo: string, texto: string | null): string {
 
 // ── Preenchimento do modelo ───────────────────────────────────────────────────
 
-export function gerarDocxProposta(modelo: Buffer, dados: DadosDocxProposta): Buffer {
+/** Marca o preço que vai destacado (amarelo) na versão interna; removida depois de aplicar o destaque. */
+const MARCA_INTERNA = "\u00A7\u00A7";
+
+const percentualAjuste = (v: number) =>
+  `${Math.abs(v).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
+
+/** Preço da coluna PREÇO UNIT.: na versão interna, quando houve acréscimo ou desconto, mostra
+ * "tabela / + 15% / final" (como no modelo INTERNO da SEIBT); na versão do cliente, só o preço final. */
+function textoPreco(it: ItemDocx, interna: boolean): string {
+  const tabela = Number(it.precoTabela ?? 0);
+  if (!interna || !(tabela > 0) || Math.abs(tabela - it.precoUnitario) < 0.005) return dinheiro(it.precoUnitario);
+  const pct = Math.round((it.precoUnitario / tabela - 1) * 10000) / 100;
+  return `${MARCA_INTERNA}${dinheiro(tabela)}\n${pct > 0 ? "+" : "-"} ${percentualAjuste(pct)}\n${dinheiro(it.precoUnitario)}`;
+}
+
+/** Destaca em amarelo os preços marcados da versão interna (todas as linhas do parágrafo do preço). */
+function destacarPrecosInternos(xml: string): string {
+  const destacado = xml.replace(/<w:p\b[^>]*>(?:(?!<\/w:p>)[\s\S])*?<\/w:p>/g, (paragrafo) =>
+    paragrafo.includes(MARCA_INTERNA)
+      ? paragrafo.replace(/<\/w:rPr>/g, '<w:highlight w:val="yellow"/></w:rPr>')
+      : paragrafo
+  );
+  return destacado.split(MARCA_INTERNA).join("");
+}
+
+export function gerarDocxProposta(modelo: Buffer, dados: DadosDocxProposta, opcoes: { interna?: boolean } = {}): Buffer {
   const doc = new Docxtemplater(new PizZip(modelo), {
     paragraphLoop: true,
     linebreaks: true,
@@ -243,7 +270,7 @@ export function gerarDocxProposta(modelo: Buffer, dados: DadosDocxProposta): Buf
         : itemSimplesXml(it.titulo, it.texto),
       maquina: it.maquina,
       qtd: doisDigitos(it.quantidade),
-      preco: dinheiro(it.precoUnitario),
+      preco: textoPreco(it, Boolean(opcoes.interna)),
       ipi: percentual(it.ipiPct),
       total: dinheiro(it.total),
     })),
@@ -256,5 +283,10 @@ export function gerarDocxProposta(modelo: Buffer, dados: DadosDocxProposta): Buf
     iniciais: iniciaisAssinatura(dados.responsavel),
   });
 
-  return doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
+  const zip = doc.getZip();
+  if (opcoes.interna) {
+    const xml = zip.file("word/document.xml")?.asText();
+    if (xml) zip.file("word/document.xml", destacarPrecosInternos(xml));
+  }
+  return zip.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
 }

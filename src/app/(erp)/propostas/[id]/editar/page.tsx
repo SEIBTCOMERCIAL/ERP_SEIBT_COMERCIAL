@@ -5,6 +5,7 @@ import { EditarPropostaForm, type ProdutoParaAdicionar } from "@/components/prop
 import type { ItemEdicao } from "@/app/actions/propostas-editar";
 import type { ChecklistInput } from "@/app/actions/propostas-pecas";
 import { moagemRotulo } from "@/lib/propostas/checklist";
+import { ajusteDoPreco } from "@/lib/propostas/revisao";
 import { carregarJogosParaCotacao } from "@/lib/propostas/jogos-servidor";
 
 export const dynamic = "force-dynamic";
@@ -52,14 +53,15 @@ export default async function EditarPropostaPage({ params }: { params: { id: str
   };
   const itensIniciais: ItemEdicao[] = ((itens ?? []) as ItemBanco[]).map((it) => {
     const tabela = Number(it.preco_tabela ?? 0) > 0 ? Number(it.preco_tabela) : Number(it.preco_unitario);
-    const desconto = tabela > 0 ? Math.round((1 - Number(it.preco_unitario) / tabela) * 10000) / 100 : 0;
+    const { desconto, acrescimo } = ajusteDoPreco(tabela, Number(it.preco_unitario));
     return {
       produto_id: it.produto_id,
       descricao: it.descricao,
       observacao: it.observacao,
       quantidade: it.quantidade,
       preco_tabela: tabela,
-      desconto_pct: Math.max(0, desconto),
+      desconto_pct: desconto,
+      acrescimo_pct: acrescimo,
       ipi_pct: Number(it.ipi_pct ?? 0),
     };
   });

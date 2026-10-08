@@ -58,7 +58,7 @@ export async function carregarDadosDocx(
       : Promise.resolve({ data: [] }),
     supabase
       .from("itens_proposta")
-      .select("descricao, quantidade, preco_unitario, ipi_pct, total, observacao, produto:produtos(codigo, categoria)")
+      .select("descricao, quantidade, preco_tabela, preco_unitario, ipi_pct, total, observacao, produto:produtos(codigo, categoria)")
       .eq("proposta_id", propostaId)
       .order("ordem"),
     supabase
@@ -81,6 +81,7 @@ export async function carregarDadosDocx(
   type ItemBanco = {
     descricao: string;
     quantidade: number;
+    preco_tabela: number | null;
     preco_unitario: number;
     ipi_pct: number | null;
     total: number | null;
@@ -113,6 +114,7 @@ export async function carregarDadosDocx(
       completo: equipamento,
       maquina: ehPrincipal,
       quantidade: it.quantidade,
+      precoTabela: it.preco_tabela != null ? Number(it.preco_tabela) : null,
       precoUnitario: Number(it.preco_unitario),
       ipiPct: ipi,
       total: Number(it.total ?? it.quantidade * it.preco_unitario * (1 + ipi / 100)),

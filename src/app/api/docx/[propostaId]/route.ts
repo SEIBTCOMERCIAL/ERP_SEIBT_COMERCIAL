@@ -128,7 +128,7 @@ function formatMoney(value: number | null | undefined, moeda = "BRL"): string {
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: { propostaId: string } }
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -153,12 +153,15 @@ export async function GET(
     const carregado = await carregarDadosDocx(supabase, params.propostaId);
     if (!carregado) return new Response("Proposta não encontrada", { status: 404 });
     const modelo = await readFile(path.join(process.cwd(), "templates", ARQUIVO_MODELO[carregado.modelo]));
-    const arquivo = gerarDocxProposta(modelo, carregado.dados);
-    const nomeAscii = carregado.nomeArquivo.normalize("NFD").replace(/[^\x20-\x7E]/g, "");
+    // ?versao=interna: mostra a margem/desconto de cada item (uso interno); padrão: versão do cliente.
+    const interna = new URL(req.url).searchParams.get("versao") === "interna";
+    const arquivo = gerarDocxProposta(modelo, carregado.dados, { interna });
+    const nomeArquivo = interna ? carregado.nomeArquivo.replace(/\.docx$/i, " - INTERNO.docx") : carregado.nomeArquivo;
+    const nomeAscii = nomeArquivo.normalize("NFD").replace(/[^\x20-\x7E]/g, "");
     return new Response(new Uint8Array(arquivo), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="${nomeAscii}"; filename*=UTF-8''${encodeURIComponent(carregado.nomeArquivo)}`,
+        "Content-Disposition": `attachment; filename="${nomeAscii}"; filename*=UTF-8''${encodeURIComponent(nomeArquivo)}`,
       },
     });
   }

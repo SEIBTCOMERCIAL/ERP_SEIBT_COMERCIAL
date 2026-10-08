@@ -9,7 +9,7 @@ import { OrganizacaoComercialCampos, ORGANIZACAO_PADRAO, validarOrganizacao, typ
 import { criarPropostaPecas, type CartItemInput } from "@/app/actions/propostas-pecas";
 import type { MaquinaCliente, ProdutoComDetalhes, Categoriaproduto } from "@/types/database";
 import { createClient } from "@/lib/supabase/client";
-import { precoComDesconto } from "@/lib/propostas/revisao";
+import { precoComAjuste } from "@/lib/propostas/revisao";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -203,10 +203,16 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar, propostasPrin
 
   function updateCartDesconto(prodId: string, valor: number) {
     const v = Math.min(100, Math.max(0, valor));
-    setCart((prev) => prev.map((i) => (chaveItem(i) === prodId ? { ...i, desconto_pct: v } : i)));
+    setCart((prev) => prev.map((i) => (chaveItem(i) === prodId ? { ...i, desconto_pct: v, acrescimo_pct: v > 0 ? 0 : i.acrescimo_pct } : i)));
   }
 
-  const precoItem = (i: CartItemInput) => precoComDesconto(i.preco_unitario, i.desconto_pct);
+  // Acréscimo % (margem): usa-se desconto OU acréscimo em cada item.
+  function updateCartAcrescimo(prodId: string, valor: number) {
+    const v = Math.min(1000, Math.max(0, valor));
+    setCart((prev) => prev.map((i) => (chaveItem(i) === prodId ? { ...i, acrescimo_pct: v, desconto_pct: v > 0 ? 0 : i.desconto_pct } : i)));
+  }
+
+  const precoItem = (i: CartItemInput) => precoComAjuste(i.preco_unitario, i.desconto_pct, i.acrescimo_pct);
   const subtotal = cart.reduce((s, i) => s + precoItem(i) * i.quantidade, 0);
   const ipiTotal = cart.reduce((s, i) => s + precoItem(i) * i.quantidade * (i.ipi_pct / 100), 0);
   const total = subtotal + ipiTotal;
@@ -764,6 +770,18 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar, propostasPrin
                           className={cn(
                             "w-16 h-7 rounded-md border px-2 text-[12px] text-center outline-none focus:border-[#2074B9]",
                             (item.desconto_pct ?? 0) > 0 ? "border-[#16A34A] text-[#15803D] font-semibold" : "border-[#E2E8F0]"
+                          )}
+                        />
+                      </label>
+                      <label className="flex items-center gap-1.5 text-[10px] font-semibold uppercase text-[#6B7B8D]" title="Margem sobre o preço de tabela. O cliente vê só o preço final; a % aparece no Word interno.">
+                        Acrésc. %
+                        <input
+                          type="number" min={0} max={1000} step={0.5}
+                          value={item.acrescimo_pct ?? 0}
+                          onChange={(e) => updateCartAcrescimo(chaveItem(item), Number(e.target.value.replace(",", ".")) || 0)}
+                          className={cn(
+                            "w-16 h-7 rounded-md border px-2 text-[12px] text-center outline-none focus:border-[#2074B9]",
+                            (item.acrescimo_pct ?? 0) > 0 ? "border-[#D97706] text-[#B45309] font-semibold" : "border-[#E2E8F0]"
                           )}
                         />
                       </label>

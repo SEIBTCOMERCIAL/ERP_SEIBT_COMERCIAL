@@ -14,7 +14,7 @@ import { formatCurrency } from "@/lib/utils";
 import { compararPorTamanho, tituloComSeparador } from "@/lib/produto-titulo";
 import { montarDescritivoMaquina } from "@/lib/propostas/descritivo-maquina";
 import { ROTULOS_MOAGEM } from "@/lib/propostas/checklist";
-import { precoComDesconto } from "@/lib/propostas/revisao";
+import { precoComAjuste } from "@/lib/propostas/revisao";
 import { OrganizacaoComercialCampos, ORGANIZACAO_PADRAO, validarOrganizacao, type OrganizacaoComercialValor } from "./OrganizacaoComercialCampos";
 import { criarPropostaPecas, type CartItemInput } from "@/app/actions/propostas-pecas";
 
@@ -136,6 +136,8 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
   const [cart, setCart] = useState<CartItemInput[]>([]);
   // Desconto % por item (chave = produto), editado no resumo final
   const [descontos, setDescontos] = useState<Record<string, number>>({});
+  // Acréscimo % (margem) por item: usa-se desconto OU acréscimo em cada item.
+  const [acrescimos, setAcrescimos] = useState<Record<string, number>>({});
   const [pecaSearch, setPecaSearch] = useState("");
   const [pecaTipo, setPecaTipo] = useState("");
   const [pecasVisiveis, setPecasVisiveis] = useState(40);
@@ -251,9 +253,9 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
   const allCartItems: CartItemInput[] = [
     ...itensMaquina,
     ...cart,
-  ].map((i) => ({ ...i, desconto_pct: descontos[chaveItem(i)] ?? 0 }));
+  ].map((i) => ({ ...i, desconto_pct: descontos[chaveItem(i)] ?? 0, acrescimo_pct: acrescimos[chaveItem(i)] ?? 0 }));
 
-  const precoFinal = (i: CartItemInput) => precoComDesconto(i.preco_unitario, i.desconto_pct);
+  const precoFinal = (i: CartItemInput) => precoComAjuste(i.preco_unitario, i.desconto_pct, i.acrescimo_pct);
   const subtotal = allCartItems.reduce((a, i) => a + precoFinal(i) * i.quantidade, 0);
   const ipiTotal = allCartItems.reduce((a, i) => a + precoFinal(i) * i.quantidade * (i.ipi_pct / 100), 0);
 
@@ -738,7 +740,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr style={{ background: BG }}>
-                      {["Descrição", "Qtd", "Preço tabela", "Desc. %", "Preço final", "Total"].map((h) => (
+                      {["Descrição", "Qtd", "Preço tabela", "Desc. %", "Acrésc. %", "Preço final", "Total"].map((h) => (
                         <th key={h} style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, textAlign: "left", borderBottom: `1px solid ${BORDER}`, color: "#374151", textTransform: "uppercase" as const }}>{h}</th>
                       ))}
                     </tr>
@@ -761,8 +763,22 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
                             onChange={(e) => {
                               const v = Math.min(100, Math.max(0, Number(e.target.value.replace(",", ".")) || 0));
                               setDescontos((prev) => ({ ...prev, [chaveItem(item)]: v }));
+                              if (v > 0) setAcrescimos((prev) => ({ ...prev, [chaveItem(item)]: 0 }));
                             }}
                             style={{ width: 68, padding: "6px 8px", border: `1px solid ${(item.desconto_pct ?? 0) > 0 ? "#16a34a" : BORDER}`, borderRadius: 6, fontSize: 13, textAlign: "center" }}
+                          />
+                        </td>
+                        <td style={{ padding: "6px 8px", width: 84 }}>
+                          <input
+                            type="number" min={0} max={1000} step={0.5}
+                            value={item.acrescimo_pct ?? 0}
+                            onChange={(e) => {
+                              const v = Math.min(1000, Math.max(0, Number(e.target.value.replace(",", ".")) || 0));
+                              setAcrescimos((prev) => ({ ...prev, [chaveItem(item)]: v }));
+                              if (v > 0) setDescontos((prev) => ({ ...prev, [chaveItem(item)]: 0 }));
+                            }}
+                            title="Margem sobre o preço de tabela. O cliente vê só o preço final; a % aparece no Word interno."
+                            style={{ width: 68, padding: "6px 8px", border: `1px solid ${(item.acrescimo_pct ?? 0) > 0 ? "#d97706" : BORDER}`, borderRadius: 6, fontSize: 13, textAlign: "center" }}
                           />
                         </td>
                         <td style={{ padding: "10px 12px", fontSize: 13, textAlign: "right", fontWeight: 600 }}>{formatCurrency(precoFinal(item))}</td>
@@ -852,6 +868,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
                 if (!m || !item) return null;
                 const volt = e.painel === "220" || e.painel === "380" ? e.painel : null;
                 const desconto = descontos[e.id] ?? 0;
+                const acrescimo = acrescimos[e.id] ?? 0;
                 return (
                   <div key={e.id} style={{ paddingBottom: 8, marginBottom: 8, borderBottom: "1px solid #bfdbfe" }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "#1e3a5f" }}>{e.quantidade > 1 ? `${e.quantidade}× ` : ""}{tituloComSeparador(m.codigo)}</div>
@@ -859,8 +876,8 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
                       {e.painel === null && temPainel(m) ? "Painel: escolher (com ou sem)" : volt ? (tipoPainelDe(m, e.painel) ? `+ Painel ${tipoPainelDe(m, e.painel)} (incluso)` : `+ Painel NR-12 ${volt}V (incluso)`) : "Sem painel"}
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 4, fontSize: 12 }}>
-                      <span style={{ color: "#1e3a5f", fontWeight: 700 }}>Valor na proposta{desconto > 0 ? ` (−${desconto}%)` : ""}</span>
-                      <span style={{ fontWeight: 800, color: NAV }}>{formatCurrency(precoComDesconto(item.preco_unitario, desconto) * item.quantidade)}</span>
+                      <span style={{ color: "#1e3a5f", fontWeight: 700 }}>Valor na proposta{desconto > 0 ? ` (−${desconto}%)` : acrescimo > 0 ? ` (+${acrescimo}%)` : ""}</span>
+                      <span style={{ fontWeight: 800, color: NAV }}>{formatCurrency(precoComAjuste(item.preco_unitario, desconto, acrescimo) * item.quantidade)}</span>
                     </div>
                   </div>
                 );
@@ -875,7 +892,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
               {cart.map((item) => (
                 <div key={chaveItem(item)} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
                   <span style={{ color: "#374151" }}>{item.descricao.slice(0, 28)}{item.descricao.length > 28 ? "…" : ""} ×{item.quantidade}</span>
-                  <span style={{ fontWeight: 600 }}>{formatCurrency(precoComDesconto(item.preco_unitario, descontos[chaveItem(item)]) * item.quantidade)}</span>
+                  <span style={{ fontWeight: 600 }}>{formatCurrency(precoComAjuste(item.preco_unitario, descontos[chaveItem(item)], acrescimos[chaveItem(item)]) * item.quantidade)}</span>
                 </div>
               ))}
             </div>

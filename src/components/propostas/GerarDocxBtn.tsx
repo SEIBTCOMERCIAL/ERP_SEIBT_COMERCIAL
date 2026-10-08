@@ -25,14 +25,18 @@ export function GerarDocxBtn({ propostaId, nomeArquivo, checklistCompleto = true
   const [estado, setEstado] = useState<"livre" | "gerando" | "salvo" | "erro">("livre");
   const [mensagem, setMensagem] = useState("");
   const url = `/api/docx/${propostaId}`;
+  const urlInterna = `${url}?versao=interna`;
+  const nomeInterno = nomeArquivo.replace(/\.docx$/i, " - INTERNO.docx");
 
-  const salvarEmPasta = async () => {
+  const salvarEmPasta = async (interna = false) => {
+    const endereco = interna ? urlInterna : url;
+    const nome = interna ? nomeInterno : nomeArquivo;
     const janela = (window as unknown as { showSaveFilePicker?: JanelaSalvar }).showSaveFilePicker;
     if (!janela) {
       // Navegador sem a janela "Salvar como": baixa normalmente.
       const a = document.createElement("a");
-      a.href = url;
-      a.download = nomeArquivo;
+      a.href = endereco;
+      a.download = nome;
       a.click();
       return;
     }
@@ -41,7 +45,7 @@ export function GerarDocxBtn({ propostaId, nomeArquivo, checklistCompleto = true
     try {
       // A janela precisa abrir logo no clique; o Word é gerado depois de escolher a pasta.
       arquivo = await janela({
-        suggestedName: nomeArquivo,
+        suggestedName: nome,
         id: "propostas-seibt", // o navegador lembra a última pasta usada
         startIn: "documents",
         types: [{ description: "Documento do Word", accept: { [TIPO_DOCX]: [".docx"] } }],
@@ -53,7 +57,7 @@ export function GerarDocxBtn({ propostaId, nomeArquivo, checklistCompleto = true
     setEstado("gerando");
     setMensagem("");
     try {
-      const resp = await fetch(url);
+      const resp = await fetch(endereco);
       if (!resp.ok) throw new Error(await resp.text());
       const conteudo = await resp.blob();
       const escrita = await arquivo.createWritable();
@@ -86,7 +90,7 @@ export function GerarDocxBtn({ propostaId, nomeArquivo, checklistCompleto = true
       )}
       <button
         type="button"
-        onClick={salvarEmPasta}
+        onClick={() => salvarEmPasta(false)}
         disabled={estado === "gerando"}
         style={{
           display: "inline-flex",
@@ -105,7 +109,30 @@ export function GerarDocxBtn({ propostaId, nomeArquivo, checklistCompleto = true
         }}
       >
         <FolderOpen size={14} />
-        {estado === "gerando" ? "Gerando Word..." : "Salvar Word (escolher pasta)"}
+        {estado === "gerando" ? "Gerando Word..." : "Salvar Word do cliente (escolher pasta)"}
+      </button>
+      <button
+        type="button"
+        onClick={() => salvarEmPasta(true)}
+        disabled={estado === "gerando"}
+        title="Mostra o preço de tabela, a % de acréscimo ou desconto e o preço final de cada item"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          padding: "7px 14px",
+          background: "#fff",
+          border: "1px solid #D97706",
+          borderRadius: 8,
+          fontSize: 12,
+          fontWeight: 600,
+          color: "#B45309",
+          cursor: estado === "gerando" ? "wait" : "pointer",
+        }}
+      >
+        <FolderOpen size={14} />
+        Salvar Word INTERNO (com margem)
       </button>
       <a
         href={url}

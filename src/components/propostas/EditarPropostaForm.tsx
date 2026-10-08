@@ -7,7 +7,7 @@ import { formatCurrency } from "@/lib/utils";
 import { tituloComSeparador } from "@/lib/produto-titulo";
 import { montarDescritivoMaquina } from "@/lib/propostas/descritivo-maquina";
 import { ROTULOS_MOAGEM } from "@/lib/propostas/checklist";
-import { numeroComRevisao, precoComDesconto, proximaRevisao } from "@/lib/propostas/revisao";
+import { numeroComRevisao, precoComAjuste, proximaRevisao } from "@/lib/propostas/revisao";
 import { salvarEdicaoProposta, type ItemEdicao } from "@/app/actions/propostas-editar";
 import type { ChecklistInput } from "@/app/actions/propostas-pecas";
 import { descricaoLinhaJogo, idsNavalhasEmJogos, totalJogo, type Jogo } from "@/lib/propostas/jogos-navalha";
@@ -103,6 +103,7 @@ export function EditarPropostaForm(p: Props) {
         quantidade: i.pecas,
         preco_tabela: i.preco ?? 0,
         desconto_pct: 0,
+        acrescimo_pct: 0,
         ipi_pct: i.ipi,
       })),
     ]);
@@ -134,6 +135,7 @@ export function EditarPropostaForm(p: Props) {
         quantidade: 1,
         preco_tabela: pr.preco_brl ?? 0,
         desconto_pct: 0,
+        acrescimo_pct: 0,
         ipi_pct: Number(pr.ipi_pct ?? 0),
       },
     ]);
@@ -141,14 +143,14 @@ export function EditarPropostaForm(p: Props) {
   };
 
   const linhas = itens.map((it) => {
-    const preco = precoComDesconto(it.preco_tabela, it.desconto_pct);
+    const preco = precoComAjuste(it.preco_tabela, it.desconto_pct, it.acrescimo_pct);
     const semIpi = preco * it.quantidade;
     return { it, preco, semIpi, total: semIpi * (1 + it.ipi_pct / 100) };
   });
   const subtotal = linhas.reduce((s, l) => s + l.semIpi, 0);
   const total = linhas.reduce((s, l) => s + l.total, 0);
 
-  const salvar = () => {
+  const salvar = (novaRevisao: boolean) => {
     setErro(null);
     let checklistEnvio: ChecklistInput | null = null;
     if (checklist) {
@@ -171,6 +173,7 @@ export function EditarPropostaForm(p: Props) {
           quantidade: it.quantidade,
           preco_tabela: it.preco_tabela,
           desconto_pct: it.desconto_pct,
+          acrescimo_pct: it.acrescimo_pct,
           ipi_pct: it.ipi_pct,
         })),
         condicao_pagamento: condicao,
@@ -178,6 +181,7 @@ export function EditarPropostaForm(p: Props) {
         validade_proposta: validade || null,
         observacoes,
         checklist: checklistEnvio,
+        novaRevisao,
       });
       if (res?.error) setErro(res.error);
     });
@@ -198,15 +202,24 @@ export function EditarPropostaForm(p: Props) {
           <p className="text-[18px] font-bold text-foreground">Editar proposta <span className="font-mono">{p.numeroCompleto}</span></p>
           <p className="text-[12px] text-muted-foreground mt-0.5">
             {p.clienteNome && <>{p.clienteNome} · </>}
-            Ao salvar, a proposta passa a ser <span className="font-mono font-bold text-[#2C4F79]">{proximoNumero}</span>
+            <strong>Salvar</strong> mantém o número {p.numeroCompleto}; <strong>Salvar como {proximoNumero}</strong> gera uma nova revisão.
           </p>
         </div>
         <Link href={`/propostas/${p.propostaId}`} className="h-9 px-4 rounded-lg border border-border text-[13px] font-semibold text-muted-foreground hover:bg-muted flex items-center">
           Cancelar
         </Link>
         <button
-          onClick={salvar}
+          onClick={() => salvar(false)}
           disabled={salvando}
+          title="Salva as alterações sem mudar o número da proposta"
+          className="h-9 px-4 rounded-lg border border-[#2C4F79] bg-card text-[#2C4F79] hover:bg-[#EFF6FF] disabled:opacity-50 text-[13px] font-semibold"
+        >
+          {salvando ? "Salvando..." : "Salvar"}
+        </button>
+        <button
+          onClick={() => salvar(true)}
+          disabled={salvando}
+          title="Salva como nova revisão da proposta (próxima letra)"
           className="h-9 px-4 rounded-lg bg-[#2C4F79] hover:bg-[#1E3A5F] disabled:opacity-50 text-white text-[13px] font-semibold"
         >
           {salvando ? "Salvando..." : `Salvar como ${proximoNumero}`}
@@ -229,7 +242,7 @@ export function EditarPropostaForm(p: Props) {
           <table className="w-full">
             <thead>
               <tr className="bg-muted/40">
-                {["", "Descrição", "Qtd", "Preço tabela", "Desc. %", "Preço final", "IPI", "Total c/ IPI", ""].map((h, i) => (
+                {["", "Descrição", "Qtd", "Preço tabela", "Desc. %", "Acrésc. %", "Preço final", "IPI", "Total c/ IPI", ""].map((h, i) => (
                   <th key={i} className="px-2.5 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground border-b border-border">{h}</th>
                 ))}
               </tr>
@@ -271,8 +284,17 @@ export function EditarPropostaForm(p: Props) {
                     <input
                       type="number" min={0} max={100} step={0.5}
                       value={it.desconto_pct}
-                      onChange={(e) => alterar(it.chave, { desconto_pct: Math.min(100, Math.max(0, numero(e.target.value))) })}
+                      onChange={(e) => { const v = Math.min(100, Math.max(0, numero(e.target.value))); alterar(it.chave, v > 0 ? { desconto_pct: v, acrescimo_pct: 0 } : { desconto_pct: v }); }}
                       className={`${inputCls} text-center ${it.desconto_pct > 0 ? "border-[#16A34A] text-[#15803D] font-semibold" : ""}`}
+                    />
+                  </td>
+                  <td className="px-2.5 py-2 w-[80px]">
+                    <input
+                      type="number" min={0} max={1000} step={0.5}
+                      value={it.acrescimo_pct}
+                      title="Margem sobre o preço de tabela. O cliente vê só o preço final; a % aparece no Word interno."
+                      onChange={(e) => { const v = Math.min(1000, Math.max(0, numero(e.target.value))); alterar(it.chave, v > 0 ? { acrescimo_pct: v, desconto_pct: 0 } : { acrescimo_pct: v }); }}
+                      className={`${inputCls} text-center ${it.acrescimo_pct > 0 ? "border-[#D97706] text-[#B45309] font-semibold" : ""}`}
                     />
                   </td>
                   <td className="px-2.5 py-2 w-[120px] font-mono text-[12px] font-semibold pt-3.5">{formatCurrency(preco)}</td>
@@ -288,11 +310,11 @@ export function EditarPropostaForm(p: Props) {
             </tbody>
             <tfoot>
               <tr className="bg-muted/20">
-                <td colSpan={7} className="px-3 py-2 text-right text-[11px] font-semibold text-muted-foreground">Subtotal s/ IPI</td>
+                <td colSpan={8} className="px-3 py-2 text-right text-[11px] font-semibold text-muted-foreground">Subtotal s/ IPI</td>
                 <td colSpan={2} className="px-2.5 py-2 font-mono text-[12px] font-bold">{formatCurrency(subtotal)}</td>
               </tr>
               <tr className="bg-muted/30">
-                <td colSpan={7} className="px-3 py-2 text-right text-[11px] font-semibold text-muted-foreground">Total c/ IPI</td>
+                <td colSpan={8} className="px-3 py-2 text-right text-[11px] font-semibold text-muted-foreground">Total c/ IPI</td>
                 <td colSpan={2} className="px-2.5 py-2 font-mono text-[13px] font-bold text-foreground">{formatCurrency(total)}</td>
               </tr>
             </tfoot>

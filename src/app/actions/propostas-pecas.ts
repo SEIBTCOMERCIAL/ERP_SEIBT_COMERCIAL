@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { moagemParaBanco } from "@/lib/propostas/checklist";
-import { precoComDesconto } from "@/lib/propostas/revisao";
+import { precoComAjuste } from "@/lib/propostas/revisao";
 import { carregarEtapas, inserirPropostaComOrganizacao, prepararOrganizacao, type OrganizacaoComercialInput } from "@/lib/propostas/crm-servidor";
 import { etapaInicial } from "@/lib/propostas/funil";
 
@@ -33,6 +33,8 @@ export interface CartItemInput {
   observacao?: string | null;
   /** Desconto % sobre o preço de tabela (preco_unitario). */
   desconto_pct?: number;
+  /** Acréscimo % (margem) sobre o preço de tabela. Aparece só na versão interna do Word. */
+  acrescimo_pct?: number;
   /** Identifica a linha na tela (linhas de jogos de navalhas podem repetir a mesma peça). Não é gravada. */
   chave?: string;
 }
@@ -115,7 +117,7 @@ export async function criarPropostaPecas(
   // preco_tabela = preço de lista; preco_unitario = preço final com o desconto do item
   // (o banco recalcula desconto_pct e total a partir desses dois).
   const itensPrepared = input.itens.map((item, idx) => {
-    const precoFinal = precoComDesconto(item.preco_unitario, item.desconto_pct);
+    const precoFinal = precoComAjuste(item.preco_unitario, item.desconto_pct, item.acrescimo_pct);
     return {
       proposta_id:    propostaId,
       produto_id:     item.produto_id,

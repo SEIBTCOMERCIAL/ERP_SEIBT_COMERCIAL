@@ -27,3 +27,22 @@ export function precoComDesconto(precoTabela: number, descontoPct: number | null
   const d = Math.min(100, Math.max(0, Number(descontoPct) || 0));
   return Math.round(precoTabela * (1 - d / 100) * 100) / 100;
 }
+
+/** Preço final do item com desconto % ou acréscimo % (margem) sobre o preço de tabela, em centavos.
+ * Usa-se um dos dois por item; se vierem os dois, aplica o acréscimo e depois o desconto. */
+export function precoComAjuste(
+  precoTabela: number,
+  descontoPct: number | null | undefined,
+  acrescimoPct: number | null | undefined
+): number {
+  const d = Math.min(100, Math.max(0, Number(descontoPct) || 0));
+  const a = Math.max(0, Number(acrescimoPct) || 0);
+  return Math.round(precoTabela * (1 + a / 100) * (1 - d / 100) * 100) / 100;
+}
+
+/** Desconto ou acréscimo (%) a partir do preço de tabela e do preço final gravados. */
+export function ajusteDoPreco(precoTabela: number, precoFinal: number): { desconto: number; acrescimo: number } {
+  if (!(precoTabela > 0)) return { desconto: 0, acrescimo: 0 };
+  const pct = Math.round((precoFinal / precoTabela - 1) * 10000) / 100;
+  return pct > 0 ? { desconto: 0, acrescimo: pct } : { desconto: Math.max(0, -pct), acrescimo: 0 };
+}
