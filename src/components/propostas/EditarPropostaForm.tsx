@@ -10,6 +10,7 @@ import { ROTULOS_MOAGEM } from "@/lib/propostas/checklist";
 import { numeroComRevisao, precoComDesconto, proximaRevisao } from "@/lib/propostas/revisao";
 import { salvarEdicaoProposta, type ItemEdicao } from "@/app/actions/propostas-editar";
 import type { ChecklistInput } from "@/app/actions/propostas-pecas";
+import { descricaoLinhaJogo, idsNavalhasEmJogos, totalJogo, type Jogo } from "@/lib/propostas/jogos-navalha";
 
 export interface ProdutoParaAdicionar {
   id: string;
@@ -33,6 +34,8 @@ interface Props {
   observacoesIniciais: string;
   checklistInicial: ChecklistInput | null;
   produtos: ProdutoParaAdicionar[];
+  jogosNavalha: Jogo[];
+  jogosDisponivel: boolean;
 }
 
 type ItemTela = ItemEdicao & { chave: string; textoAberto: boolean };
@@ -62,18 +65,49 @@ export function EditarPropostaForm(p: Props) {
   const [observacoes, setObservacoes] = useState(p.observacoesIniciais);
   const [checklist, setChecklist] = useState<ChecklistInput | null>(p.checklistInicial);
   const [busca, setBusca] = useState("");
+  const [buscaJogo, setBuscaJogo] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, startTransition] = useTransition();
 
   const proximoNumero = numeroComRevisao(p.numeroCompleto, proximaRevisao(p.revisaoAtual));
 
+  // Navalhas com jogo cadastrado entram só pelo jogo (formato do orçamento).
+  const navalhasEmJogo = useMemo(() => (p.jogosDisponivel ? idsNavalhasEmJogos(p.jogosNavalha) : new Set<string>()), [p.jogosDisponivel, p.jogosNavalha]);
+
   const resultados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     if (q.length < 2) return [];
     return p.produtos
+      .filter((pr) => !(pr.categoria === "navalha" && navalhasEmJogo.has(pr.id)))
       .filter((pr) => pr.codigo.toLowerCase().includes(q) || pr.descricao.toLowerCase().includes(q))
       .slice(0, 8);
-  }, [busca, p.produtos]);
+  }, [busca, p.produtos, navalhasEmJogo]);
+
+  const jogosEncontrados = useMemo(() => {
+    const q = buscaJogo.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return p.jogosNavalha
+      .filter((j) => `${j.equipamentoCodigo} ${j.nome} ${j.material ?? ""}`.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [buscaJogo, p.jogosNavalha]);
+
+  const adicionarJogo = (jogo: Jogo) => {
+    setItens((prev) => [
+      ...prev,
+      ...jogo.itens.map((i) => ({
+        chave: novaChave(),
+        textoAberto: false,
+        produto_id: i.produtoId,
+        descricao: descricaoLinhaJogo(i, jogo.material),
+        observacao: null,
+        quantidade: i.pecas,
+        preco_tabela: i.preco ?? 0,
+        desconto_pct: 0,
+        ipi_pct: i.ipi,
+      })),
+    ]);
+    setBuscaJogo("");
+  };
 
   const alterar = (chave: string, campos: Partial<ItemTela>) =>
     setItens((prev) => prev.map((it) => (it.chave === chave ? { ...it, ...campos } : it)));
@@ -263,6 +297,37 @@ export function EditarPropostaForm(p: Props) {
               </tr>
             </tfoot>
           </table>
+
+          {p.jogosDisponivel && (
+            <div className="px-5 py-4 border-t border-border bg-muted/20 relative">
+              <label className={rotuloCls}>Adicionar jogo de navalhas</label>
+              <input
+                value={buscaJogo}
+                onChange={(e) => setBuscaJogo(e.target.value)}
+                placeholder="Buscar jogo pelo modelo do moinho (ex.: MGHS 800 A2)..."
+                className={inputCls}
+              />
+              {jogosEncontrados.length > 0 && (
+                <div className="absolute left-5 right-5 z-20 mt-1 bg-card border border-border rounded-lg shadow-lg overflow-hidden">
+                  {jogosEncontrados.map((j) => (
+                    <button
+                      key={j.id}
+                      type="button"
+                      onClick={() => adicionarJogo(j)}
+                      className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left text-[12px] hover:bg-muted border-b border-border last:border-0"
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <Plus className="h-3.5 w-3.5 text-[#2074B9] shrink-0" />
+                        <span className="truncate"><strong>{j.equipamentoCodigo}</strong> · jogo {j.nome}{j.material ? ` (${j.material})` : ""} · {j.itens.length} linhas</span>
+                      </span>
+                      <span className="font-mono font-semibold shrink-0">{formatCurrency(totalJogo(j))}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <p className="mt-1 text-[11px] text-muted-foreground">As linhas do jogo entram com o número de peças e o código, no formato do orçamento. Navalhas com jogo não aparecem na busca de itens abaixo.</p>
+            </div>
+          )}
 
           <div className="px-5 py-4 border-t border-border bg-muted/20 relative">
             <label className={rotuloCls}>Adicionar item</label>

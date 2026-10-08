@@ -2,7 +2,7 @@
 
 import { rotulosPainel } from "@/lib/produtos/painel";
 import { JogosNavalhaSecao } from "./JogosNavalhaSecao";
-import { chaveItem, type Jogo } from "@/lib/propostas/jogos-navalha";
+import { chaveItem, idsNavalhasEmJogos, type Jogo } from "@/lib/propostas/jogos-navalha";
 import { useState, useTransition } from "react";
 import {
   Check, ChevronRight, ChevronLeft, AlertCircle, Plus, Minus,
@@ -175,8 +175,11 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
     { valor: "peneira", rotulo: "Peneiras" },
     { valor: "outros", rotulo: "Outras peças" },
   ];
+  // Navalhas com jogo cadastrado entram só pelo jogo (formato do orçamento).
+  const navalhasEmJogo = jogosDisponivel ? idsNavalhasEmJogos(jogosNavalha) : new Set<string>();
   const pecasFiltradas = pecas.filter((p) => {
     const q = pecaSearch.toLowerCase();
+    if (p.categoria === "navalha" && navalhasEmJogo.has(p.id)) return false;
     if (pecaTipo === "navalha" && p.categoria !== "navalha") return false;
     if (pecaTipo === "peneira" && p.categoria !== "peneira") return false;
     if (pecaTipo === "outros" && (p.categoria === "navalha" || p.categoria === "peneira")) return false;
@@ -639,6 +642,11 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
                 ))}
                 {cart.length > 0 && <span style={{ marginLeft: "auto", alignSelf: "center", fontSize: 12, fontWeight: 600, color: NAV }}>{cart.length} {cart.length === 1 ? "item adicionado" : "itens adicionados"}</span>}
               </div>
+              {navalhasEmJogo.size > 0 && (pecaTipo === "" || pecaTipo === "navalha") && (
+                <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "#1e3a5f", marginBottom: 12 }}>
+                  As navalhas que têm jogo cadastrado não aparecem nesta lista: adicione pela seção <strong>Jogos de navalhas</strong>, acima. Assim elas saem no orçamento no formato combinado (com peças e código).
+                </div>
+              )}
               <table style={{ width: "100%", borderCollapse: "collapse", background: "#fff", borderRadius: 8, overflow: "hidden", border: `1px solid ${BORDER}` }}>
                 <thead>
                   <tr style={{ background: NAV }}>

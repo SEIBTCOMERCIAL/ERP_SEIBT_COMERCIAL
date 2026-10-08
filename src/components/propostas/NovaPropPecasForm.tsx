@@ -4,7 +4,7 @@ import { useState, useMemo, useTransition, useRef } from "react";
 import { Search, X, Plus, Minus, Upload, Check, ChevronRight, Building2, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { JogosNavalhaSecao } from "./JogosNavalhaSecao";
-import { chaveItem, type Jogo } from "@/lib/propostas/jogos-navalha";
+import { chaveItem, idsNavalhasEmJogos, type Jogo } from "@/lib/propostas/jogos-navalha";
 import { OrganizacaoComercialCampos, ORGANIZACAO_PADRAO, validarOrganizacao, type OrganizacaoComercialValor } from "./OrganizacaoComercialCampos";
 import { criarPropostaPecas, type CartItemInput } from "@/app/actions/propostas-pecas";
 import type { MaquinaCliente, ProdutoComDetalhes, Categoriaproduto } from "@/types/database";
@@ -140,6 +140,11 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar, propostasPrin
       ? produtos.filter((p) => p.modelos_compat.some((m) => maquinaSel.modelo && m.includes(maquinaSel.modelo.split(" ")[0])))
       : produtos;
     if (catTab !== "todos") list = list.filter((p) => p.categoria === catTab);
+    // Navalhas com jogo cadastrado entram só pelo jogo (formato do orçamento).
+    if (jogosDisponivel) {
+      const emJogo = idsNavalhasEmJogos(jogosNavalha);
+      list = list.filter((p) => !(p.categoria === "navalha" && emJogo.has(p.id)));
+    }
     if (partSearch.trim()) {
       const q = partSearch.toLowerCase();
       list = list.filter((p) => p.codigo.toLowerCase().includes(q) || p.descricao.toLowerCase().includes(q));
@@ -612,6 +617,11 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar, propostasPrin
                   moeda={moeda}
                   taxaDolar={taxaDolar}
                 />
+                {jogosDisponivel && jogosNavalha.length > 0 && (catTab === "todos" || catTab === "navalha") && (
+                  <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "#1e3a5f", marginBottom: 12 }}>
+                  As navalhas que têm jogo cadastrado não aparecem nesta lista: adicione pela seção <strong>Jogos de navalhas</strong>, acima. Assim elas saem no orçamento no formato combinado (com peças e código).
+                </div>
+                )}
               </div>
 
               {/* Products table */}

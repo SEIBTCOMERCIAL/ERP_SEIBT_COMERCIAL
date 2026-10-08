@@ -5,6 +5,7 @@ import { EditarPropostaForm, type ProdutoParaAdicionar } from "@/components/prop
 import type { ItemEdicao } from "@/app/actions/propostas-editar";
 import type { ChecklistInput } from "@/app/actions/propostas-pecas";
 import { moagemRotulo } from "@/lib/propostas/checklist";
+import { carregarJogosParaCotacao } from "@/lib/propostas/jogos-servidor";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +79,7 @@ export default async function EditarPropostaPage({ params }: { params: { id: str
     : null;
 
   const produtos = (rawProdutos ?? []) as ProdutoParaAdicionar[];
+  const { jogos: jogosNavalha, disponivel: jogosDisponivel } = await carregarJogosParaCotacao(supabase);
 
   return (
     <EditarPropostaForm
@@ -92,6 +94,8 @@ export default async function EditarPropostaPage({ params }: { params: { id: str
       observacoesIniciais={proposta.observacoes ?? ""}
       checklistInicial={checklistInicial}
       produtos={produtos}
+      jogosNavalha={jogosNavalha}
+      jogosDisponivel={jogosDisponivel}
     />
   );
 }

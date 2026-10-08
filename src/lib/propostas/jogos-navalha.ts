@@ -70,3 +70,9 @@ export function itensDoJogo(
     };
   });
 }
+
+/** Navalhas que fazem parte de algum jogo: na cotação elas entram pelo jogo (no formato do orçamento),
+ * não pela lista solta de peças. */
+export function idsNavalhasEmJogos(jogos: Jogo[]): Set<string> {
+  return new Set(jogos.flatMap((j) => j.itens.map((i) => i.produtoId)));
+}
