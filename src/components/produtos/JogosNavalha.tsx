@@ -21,13 +21,13 @@ const campo = "h-9 w-full rounded-lg border border-border bg-background px-3 tex
 const rotulo = "flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground";
 const doisDigitos = (n: number) => String(n).padStart(2, "0");
 
-/** Linha no formato do orçamento: título em negrito, "(COMPOSTO POR 03 PEÇAS)" normal e o código em vermelho. */
+/** Linha do jogo na tela de cadastro: texto comum do ERP (negrito e vermelho só valem no Word do orçamento). */
 function LinhaOrcamento({ item }: { item: JogoItem }) {
   return (
-    <span className="text-[13px] leading-snug">
-      <strong className="text-foreground">{item.titulo}</strong>{" "}
-      <span className="text-foreground">(COMPOSTO POR {doisDigitos(item.pecas)} {item.pecas === 1 ? "PEÇA" : "PEÇAS"})</span>
-      {item.codigo && <strong className="text-[#DC2626]"> - CÓD. {item.codigo}</strong>}
+    <span className="text-[13px] leading-snug text-foreground">
+      {item.titulo}{" "}
+      <span className="text-muted-foreground">(composto por {doisDigitos(item.pecas)} {item.pecas === 1 ? "peça" : "peças"})</span>
+      {item.codigo && <span className="ml-1 font-mono text-[12px] text-muted-foreground">· cód. {item.codigo}</span>}
     </span>
   );
 }
@@ -123,7 +123,7 @@ function FormItem({
           <input value={codigo} onChange={(e) => setCodigo(e.target.value)} placeholder={modo === "nova" ? novoCodigo || "Ex.: 79691" : "Ex.: 79691"} className={campo} />
         </label>
       </div>
-      <p className="text-[11px] text-muted-foreground">No orçamento sai: <strong>{titulo || "TÍTULO"}</strong> (COMPOSTO POR {doisDigitos(Number(pecas) || 1)} PEÇAS) - <strong className="text-[#DC2626]">CÓD. {codigo || (modo === "nova" ? novoCodigo : "") || "…"}</strong></p>
+      <p className="text-[11px] text-muted-foreground">No orçamento (Word) sai: {titulo || "TÍTULO"} (COMPOSTO POR {doisDigitos(Number(pecas) || 1)} PEÇAS) - CÓD. {codigo || (modo === "nova" ? novoCodigo : "") || "…"}</p>
       {erro && <p className="rounded-lg border border-red-200 bg-red-50 p-2 text-[12px] text-red-700">{erro}</p>}
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onFechar} className="h-9 rounded-lg border border-border px-3 text-[12px] font-medium">Cancelar</button>

@@ -206,7 +206,7 @@ export default async function DetalhePropostaPage({ params }: { params: { id: st
         cliente: clienteInfo?.razao_social ?? "", cidade: clienteInfo?.cidade ?? "", uf: clienteInfo?.estado ?? "",
         tipo: proposta.tipo,
         itens: (itensRaw ?? []) as { descricao: string; quantidade: number; produto: { codigo: string; categoria: string } | null }[],
-        numero: proposta.numero, revisao: proposta.revisao,
+        numero: proposta.numero, numeroCompleto: proposta.numero_completo, revisao: proposta.revisao,
       })
     : `proposta_${proposta.numero_completo.replace(/\//g, "-")}.docx`;
 

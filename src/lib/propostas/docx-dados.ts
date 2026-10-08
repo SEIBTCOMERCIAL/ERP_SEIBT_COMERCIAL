@@ -166,6 +166,7 @@ export async function carregarDadosDocx(
     tipo: proposta.tipo,
     itens: itensBanco,
     numero: proposta.numero,
+    numeroCompleto: proposta.numero_completo,
     revisao: proposta.revisao,
   });
 
@@ -184,6 +185,8 @@ export function montarNomeArquivo(p: {
   tipo: string;
   itens: { descricao: string; quantidade: number; produto: { codigo: string; categoria: string } | null }[];
   numero: number;
+  /** Número completo da proposta (ex.: "SB01/2026" ou "1177/2026 A"); quando informado, vale no lugar de `numero`. */
+  numeroCompleto?: string | null;
   revisao: string | null;
 }): string {
   const ehMaquina = p.tipo === "maquina";
@@ -193,7 +196,9 @@ export function montarNomeArquivo(p: {
     ? `${String(principal.quantidade).padStart(2, "0")} ${ehMaquina ? principal.produto?.codigo ?? principal.descricao : principal.descricao}`
       + (outros > 0 ? ` + ${outros} ${outros === 1 ? "ITEM" : "ITENS"}` : "")
     : "";
-  const numero = String(p.numero).padStart(4, "0") + (p.revisao ? ` ${p.revisao}` : "");
+  // "SB01/2026" → "SB01"; "1177/2026 A" → "1177" (a letra da revisão vem de `revisao`).
+  const base = p.numeroCompleto?.replace(/\/.*$/, "").replace(/\s+[A-Z]+$/i, "").trim() || String(p.numero).padStart(4, "0");
+  const numero = base + (p.revisao ? ` ${p.revisao}` : "");
   return limparNomeArquivo(
     [p.cliente.trim().toUpperCase(), p.cidade.trim().toUpperCase(), p.uf.trim().toUpperCase(), equipamento.toUpperCase(), numero]
       .filter(Boolean)
