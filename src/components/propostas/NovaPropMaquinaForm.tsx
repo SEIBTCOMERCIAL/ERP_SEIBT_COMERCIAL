@@ -12,6 +12,7 @@ import { compararPorTamanho, tituloComSeparador } from "@/lib/produto-titulo";
 import { montarDescritivoMaquina } from "@/lib/propostas/descritivo-maquina";
 import { ROTULOS_MOAGEM } from "@/lib/propostas/checklist";
 import { precoComDesconto } from "@/lib/propostas/revisao";
+import { OrganizacaoComercialCampos, ORGANIZACAO_PADRAO, validarOrganizacao, type OrganizacaoComercialValor } from "./OrganizacaoComercialCampos";
 import { criarPropostaPecas, type CartItemInput } from "@/app/actions/propostas-pecas";
 
 interface ClienteSimples {
@@ -23,6 +24,8 @@ interface ClienteSimples {
 }
 
 interface Props {
+  /** Propostas abertas e principais (para vincular uma complementar). */
+  propostasPrincipais: Array<{ id: string; numero_completo: string; cliente_id: string | null }>;
   clientes: ClienteSimples[];
   maquinas: ProdutoComDetalhes[];
   pecas: ProdutoComDetalhes[];
@@ -77,7 +80,8 @@ function temPainel(m: ProdutoComDetalhes): boolean {
   return precoPainel(m, "220") != null || precoPainel(m, "380") != null;
 }
 
-export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
+export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrincipais }: Props) {
+  const [organizacao, setOrganizacao] = useState<OrganizacaoComercialValor>(ORGANIZACAO_PADRAO);
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [isPending, startTransition] = useTransition();
@@ -205,6 +209,8 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
       setError("Escolha se a máquina vai com painel (220V ou 380V) ou sem painel.");
       return;
     }
+    const erroOrganizacao = validarOrganizacao(organizacao);
+    if (erroOrganizacao) { setError(erroOrganizacao); return; }
     setError(null);
     startTransition(async () => {
       const res = await criarPropostaPecas({
@@ -218,6 +224,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
         validade_proposta: validade,
         observacoes: obs,
         taxa_cambio: 5.70,
+        organizacao: { ...organizacao, proposta_principal_id: organizacao.proposta_principal_id || null },
         checklist: {
           segmento_aplicacao: checklist.segmento_aplicacao,
           produto_final: checklist.produto_final,
@@ -558,6 +565,10 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas }: Props) {
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, color: NAV, marginBottom: 4 }}>Condições Comerciais</div>
               <div style={{ fontSize: 13, color: "#6b7b8d", marginBottom: 16 }}>Revise os itens e informe as condições da proposta.</div>
+              <div style={{ background: "#fff", borderRadius: 10, border: `1px solid ${BORDER}`, padding: 20, marginBottom: 16 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: NAV, marginBottom: 10 }}>Organização comercial</div>
+                <OrganizacaoComercialCampos valor={organizacao} onChange={setOrganizacao} clienteId={clienteId || null} propostasPrincipais={propostasPrincipais} />
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, background: "#fff", borderRadius: 10, border: `1px solid ${BORDER}`, padding: 20, marginBottom: 16 }}>
                 {[
                   { label: "Condição de Pagamento", value: condicao, set: setCondicao, placeholder: "ex: 30/60/90 dias", linhas: 4 },

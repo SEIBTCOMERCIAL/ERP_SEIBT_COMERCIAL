@@ -16,11 +16,15 @@ export type StatusProposta =
   | "vendida"
   | "perdida"
   | "desistencia"
-  | "stand_by";
+  | "stand_by"
+  | "cancelada"
+  | "complementar_nao_selecionada";
 
 export type TemperaturaProposta = "quente" | "morna" | "fria";
 export type TipoProposta = "maquina" | "sistema" | "exportacao" | "pecas" | "servico" | "mista";
 export type MoedaProposta = "BRL" | "USD";
+export type MercadoProposta = "nacional" | "exportacao";
+export type PapelProposta = "principal" | "complementar";
 
 export type CanalOrigem =
   | "whatsapp"
@@ -344,6 +348,10 @@ export interface Proposta {
   proposta_original_id: string | null;
   numero_completo: string;
   tipo: TipoProposta;
+  mercado: MercadoProposta;
+  pais_destino: string | null;
+  papel: PapelProposta;
+  proposta_principal_id: string | null;
   cliente_id: string | null;
   lead_id: string | null;
   contato_nome: string | null;
@@ -364,6 +372,10 @@ export interface Proposta {
   observacoes: string | null;
   descricao_livre: string | null;
   motivo_perda: string | null;
+  motivo_encerramento_codigo: string | null;
+  motivo_encerramento_detalhes: string | null;
+  motivo_congelamento: string | null;
+  retomada_prevista: string | null;
   numero_pedido_dez: string | null;
   valor_pedido_real: number | null;
   data_pedido_dez: string | null;
@@ -375,6 +387,14 @@ export interface Proposta {
   fechada_em: string | null;
   atualizado_em: string;
   deleted_at: string | null;
+}
+
+export interface ConfiguracaoInatividadeProposta {
+  tipo: TipoProposta;
+  dias_alerta: number;
+  dias_escalonamento_admin: number;
+  atualizado_por: string | null;
+  atualizado_em: string;
 }
 
 // Placeholder para o tipo Database completo (será gerado via supabase gen types)
@@ -430,6 +450,11 @@ export type Database = {
         Row: Followup;
         Insert: Omit<Followup, "id" | "criado_em">;
         Update: Partial<Omit<Followup, "id">>;
+      };
+      configuracoes_inatividade_proposta: {
+        Row: ConfiguracaoInatividadeProposta;
+        Insert: Omit<ConfiguracaoInatividadeProposta, "atualizado_em">;
+        Update: Partial<Omit<ConfiguracaoInatividadeProposta, "tipo">>;
       };
     };
     Views: Record<string, never>;

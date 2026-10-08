@@ -15,6 +15,8 @@ import { montarNomeArquivo } from "@/lib/propostas/docx-dados";
 import type { Proposta, ItemProposta, Followup, EtapaFunil, Usuario, Representante, ChecklistTecnico } from "@/types/database";
 import { ChecklistTecnicoForm } from "@/components/propostas/ChecklistTecnicoForm";
 import { GerarDocxBtn } from "@/components/propostas/GerarDocxBtn";
+import { OrganizacaoPropostaForm } from "@/components/propostas/OrganizacaoPropostaForm";
+import { MOTIVO_LABELS, STATUS_EM_ACOMPANHAMENTO, STATUS_ENCERRADOS, TIPO_LABELS, faltaEstruturaCrm, mercadoDe } from "@/lib/propostas/crm";
 
 export async function generateMetadata({
   params,
@@ -35,8 +37,11 @@ export default async function DetalhePropostaPage({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient() as any;
 
+  const CAMPOS_BASE = "id, numero_completo, numero, revisao, tipo, status, temperatura, moeda, valor_total, desconto_medio_pct, condicao_pagamento, prazo_entrega, validade_proposta, observacoes, descricao_livre, canal_origem, criado_em, enviada_em, fechada_em, atualizado_em, cliente_id, responsavel_id, representante_id, etapa_funil_id, estornado, numero_pedido_dez, valor_pedido_real, data_pedido_dez";
+  const CAMPOS_CRM = "mercado, pais_destino, papel, proposta_principal_id, motivo_encerramento_codigo, motivo_encerramento_detalhes, motivo_congelamento, retomada_prevista";
+
   const [
-    { data: propostaRaw },
+    { data: propostaComCrm, error: erroProposta },
     { data: itensRaw },
     { data: followupsRaw },
     { data: etapasRaw },
@@ -45,10 +50,10 @@ export default async function DetalhePropostaPage({
   ] = await Promise.all([
     supabase
       .from("propostas")
-      .select("id, numero_completo, numero, revisao, tipo, status, temperatura, moeda, valor_total, desconto_medio_pct, condicao_pagamento, prazo_entrega, validade_proposta, observacoes, descricao_livre, canal_origem, criado_em, enviada_em, fechada_em, atualizado_em, cliente_id, responsavel_id, representante_id, etapa_funil_id, estornado, numero_pedido_dez, valor_pedido_real, data_pedido_dez")
+      .select(`${CAMPOS_BASE}, ${CAMPOS_CRM}`)
       .eq("id", params.id)
       .is("deleted_at", null)
-      .single(),
+      .maybeSingle(),
     supabase
       .from("itens_proposta")
       .select("id, descricao, quantidade, preco_tabela, preco_unitario, ipi_pct, desconto_pct, total, opcional, numero_item, observacao, produto:produtos(codigo, categoria)")
@@ -64,9 +69,19 @@ export default async function DetalhePropostaPage({
     supabase.from("checklist_tecnico").select("*").eq("proposta_id", params.id).single(),
   ]);
 
+  // Antes do arquivo 022 (estrutura do CRM) as colunas novas não existem: lê só os campos antigos.
+  const estruturaCrm = !(erroProposta && faltaEstruturaCrm(erroProposta));
+  const propostaRaw = estruturaCrm
+    ? propostaComCrm
+    : (await supabase.from("propostas").select(CAMPOS_BASE).eq("id", params.id).is("deleted_at", null).maybeSingle()).data;
+
   if (!propostaRaw) notFound();
 
-  const proposta = propostaRaw as unknown as Proposta;
+  const proposta = {
+    ...(propostaRaw as unknown as Proposta),
+    mercado: mercadoDe(propostaRaw as { mercado?: string | null; tipo: string }),
+    papel: (propostaRaw as { papel?: string | null }).papel === "complementar" ? "complementar" : "principal",
+  } as Proposta;
   const itens = (itensRaw ?? []) as unknown as ItemProposta[];
   const followups = (followupsRaw ?? []) as unknown as Followup[];
   const etapas = (etapasRaw ?? []) as unknown as EtapaFunil[];
@@ -89,6 +104,36 @@ export default async function DetalhePropostaPage({
   const cliente = clienteRaw as { id: string; razao_social: string; cnpj: string | null; cidade: string | null; estado: string | null } | null;
   const responsavel = responsavelRaw as Pick<Usuario, "id" | "nome" | "perfil"> | null;
   const representante = representanteRaw as Pick<Representante, "id" | "nome"> | null;
+  const { data: propostaPrincipalRaw } = proposta.proposta_principal_id
+    ? await supabase.from("propostas").select("id, numero_completo").eq("id", proposta.proposta_principal_id).single()
+    : { data: null };
+  const propostaPrincipal = propostaPrincipalRaw as { id: string; numero_completo: string } | null;
+  const { data: propostasPrincipaisRaw } = proposta.cliente_id && estruturaCrm
+    ? await supabase
+        .from("propostas")
+        .select("id, numero_completo, status")
+        .eq("cliente_id", proposta.cliente_id)
+        .eq("papel", "principal")
+        .neq("id", proposta.id)
+        .is("deleted_at", null)
+        .order("criado_em", { ascending: false })
+    : { data: [] };
+  const propostasPrincipais = ((propostasPrincipaisRaw ?? []) as Array<{ id: string; numero_completo: string; status: string }>)
+    .filter((p) => !STATUS_ENCERRADOS.has(p.status) || p.id === proposta.proposta_principal_id);
+  // Alternativas do mesmo negócio (para "não selecionada" e para o aviso de alternativas abertas).
+  const negocioId = proposta.papel === "complementar" && proposta.proposta_principal_id ? proposta.proposta_principal_id : proposta.id;
+  const { data: alternativasRaw } = estruturaCrm
+    ? await supabase
+        .from("propostas")
+        .select("id, numero_completo, status, papel")
+        .or(`id.eq.${negocioId},proposta_principal_id.eq.${negocioId}`)
+        .is("deleted_at", null)
+    : { data: [] };
+  const alternativas = ((alternativasRaw ?? []) as Array<{ id: string; numero_completo: string; status: string; papel: string }>)
+    .filter((a) => a.id !== proposta.id);
+  const motivoEncerramento = proposta.motivo_encerramento_codigo
+    ? `${MOTIVO_LABELS[proposta.motivo_encerramento_codigo] ?? proposta.motivo_encerramento_codigo}${proposta.motivo_encerramento_detalhes ? ` — ${proposta.motivo_encerramento_detalhes}` : ""}`
+    : null;
   // etapa usada no EtapaDropdown via prop etapaAtualId
 
 
@@ -128,6 +173,12 @@ export default async function DetalhePropostaPage({
             <span className="font-mono text-[20px] font-bold text-foreground tracking-tight">{proposta.numero_completo}</span>
             <PropostaStatusBadge status={proposta.status} />
             <PropostaTipoBadge tipo={proposta.tipo} />
+            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${proposta.papel === "complementar" ? "bg-purple-50 text-purple-700" : "bg-blue-50 text-blue-700"}`}>
+              {proposta.papel === "complementar" ? "Complementar" : "Principal"}
+            </span>
+            <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+              {proposta.mercado === "exportacao" ? `Exportação${proposta.pais_destino ? ` · ${proposta.pais_destino}` : ""}` : "Nacional"}
+            </span>
             <TemperaturaBadge temperatura={proposta.temperatura} />
             {proposta.moeda === "USD" && (
               <span className="text-[11px] font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200 rounded-md px-2 py-0.5">USD</span>
@@ -141,7 +192,7 @@ export default async function DetalhePropostaPage({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <StatusDropdown propostaId={proposta.id} statusAtual={proposta.status} />
+          <StatusDropdown propostaId={proposta.id} statusAtual={proposta.status} temAlternativas={alternativas.length > 0} />
           <Link href={`/propostas/${proposta.id}/editar`}>
             <button className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border bg-card text-[12px] font-medium hover:border-[#2074B9] transition-colors">
               <Edit className="h-3.5 w-3.5" />
@@ -164,7 +215,9 @@ export default async function DetalhePropostaPage({
             <div className="px-5 py-4 grid grid-cols-2 gap-4">
               {([
                 ["Número", proposta.numero_completo],
-                ["Tipo", proposta.tipo],
+                ["Tipo", TIPO_LABELS[proposta.tipo] ?? proposta.tipo],
+                ["Classificação", proposta.papel === "complementar" ? "Complementar" : "Principal"],
+                ["Mercado", proposta.mercado === "exportacao" ? `Exportação${proposta.pais_destino ? ` — ${proposta.pais_destino}` : ""}` : "Nacional"],
                 ["Moeda", proposta.moeda],
                 ["Canal de origem", proposta.canal_origem ? canalLabel[proposta.canal_origem] : "—"],
                 ["Condição de pagamento", proposta.condicao_pagamento ?? "—"],
@@ -173,6 +226,10 @@ export default async function DetalhePropostaPage({
                 ["Criada em", formatDate(proposta.criado_em)],
                 ["Enviada em", proposta.enviada_em ? formatDate(proposta.enviada_em) : "—"],
                 ["Fechada em", proposta.fechada_em ? formatDate(proposta.fechada_em) : "—"],
+                ...(motivoEncerramento ? [["Motivo do encerramento", motivoEncerramento]] : []),
+                ...(proposta.status === "stand_by" && proposta.motivo_congelamento
+                  ? [["Congelada — motivo", proposta.motivo_congelamento], ["Retomada prevista", proposta.retomada_prevista ? formatDate(proposta.retomada_prevista) : "—"]]
+                  : []),
               ] as [string, string][]).map(([label, value]) => (
                 <div key={label} className="flex flex-col gap-1">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
@@ -361,7 +418,10 @@ export default async function DetalhePropostaPage({
             {/* Form de novo follow-up */}
             <div className="px-5 py-4 border-t border-border bg-muted/20">
               <p className="text-[12px] font-semibold text-foreground mb-3">Registrar follow-up</p>
-              <NovoFollowupForm propostaId={proposta.id} />
+              <NovoFollowupForm
+                propostaId={proposta.id}
+                exigeProximaAcao={STATUS_EM_ACOMPANHAMENTO.has(proposta.status)}
+              />
             </div>
           </div>
         </div>
@@ -449,6 +509,60 @@ export default async function DetalhePropostaPage({
               </div>
             </>
           )}
+
+          {propostaPrincipal && (
+            <>
+              <div className="border-t border-border" />
+              <div>
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Proposta principal</p>
+                <Link href={`/propostas/${propostaPrincipal.id}`} className="font-mono text-[13px] font-semibold text-[#2074B9] hover:underline">
+                  {propostaPrincipal.numero_completo}
+                </Link>
+              </div>
+            </>
+          )}
+
+          {alternativas.length > 0 && (
+            <>
+              <div className="border-t border-border" />
+              <div>
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Alternativas do mesmo negócio</p>
+                <div className="flex flex-col gap-1.5">
+                  {alternativas.map((a) => (
+                    <Link key={a.id} href={`/propostas/${a.id}`} className="flex items-center justify-between gap-2 rounded-lg border border-border px-2.5 py-1.5 hover:border-[#2074B9]">
+                      <span className="font-mono text-[12px] font-semibold text-[#2074B9]">{a.numero_completo}</span>
+                      <PropostaStatusBadge status={a.status as Proposta["status"]} />
+                    </Link>
+                  ))}
+                </div>
+                {proposta.status === "vendida" && alternativas.some((a) => !STATUS_ENCERRADOS.has(a.status)) && (
+                  <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-800">
+                    O cliente escolheu esta alternativa. Marque as outras ainda abertas como &quot;Alternativa não selecionada pelo cliente&quot; — assim elas não contam como perda.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+
+          <div className="border-t border-border" />
+
+          <div>
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Organização comercial</p>
+            {estruturaCrm ? (
+              <OrganizacaoPropostaForm
+                propostaId={proposta.id}
+                mercadoAtual={proposta.mercado}
+                paisDestinoAtual={proposta.pais_destino}
+                papelAtual={proposta.papel}
+                propostaPrincipalAtualId={proposta.proposta_principal_id}
+                propostasPrincipais={propostasPrincipais}
+              />
+            ) : (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-800">
+                Mercado, país de destino e alternativas ficam disponíveis depois da atualização do banco de dados do CRM (arquivo 022).
+              </p>
+            )}
+          </div>
 
           <div className="border-t border-border" />
 

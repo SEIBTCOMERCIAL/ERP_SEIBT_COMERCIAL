@@ -3,6 +3,7 @@
 import { useState, useMemo, useTransition, useRef } from "react";
 import { Search, X, Plus, Minus, Upload, Check, ChevronRight, Building2, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { OrganizacaoComercialCampos, ORGANIZACAO_PADRAO, validarOrganizacao, type OrganizacaoComercialValor } from "./OrganizacaoComercialCampos";
 import { criarPropostaPecas, type CartItemInput } from "@/app/actions/propostas-pecas";
 import type { MaquinaCliente, ProdutoComDetalhes, Categoriaproduto } from "@/types/database";
 import { createClient } from "@/lib/supabase/client";
@@ -19,6 +20,8 @@ interface ClienteSimples {
 }
 
 interface Props {
+  /** Propostas abertas e principais (para vincular uma complementar). */
+  propostasPrincipais: Array<{ id: string; numero_completo: string; cliente_id: string | null }>;
   clientes: ClienteSimples[];
   produtos: ProdutoComDetalhes[];
   taxaDolar: number;
@@ -79,7 +82,8 @@ function StepperBar({ step }: { step: Step }) {
   );
 }
 
-export function NovaPropPecasForm({ clientes, produtos, taxaDolar }: Props) {
+export function NovaPropPecasForm({ clientes, produtos, taxaDolar, propostasPrincipais }: Props) {
+  const [organizacao, setOrganizacao] = useState<OrganizacaoComercialValor>(ORGANIZACAO_PADRAO);
   const [step, setStep] = useState<Step>(1);
   const [moeda, setMoeda] = useState<"BRL" | "USD">("BRL");
   const [clienteSearch, setClienteSearch] = useState("");
@@ -241,6 +245,8 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar }: Props) {
 
   function handleConfirm() {
     if (!clienteSel) return;
+    const erroOrganizacao = validarOrganizacao(organizacao);
+    if (erroOrganizacao) { setError(erroOrganizacao); return; }
     setError(null);
     startTransition(async () => {
       const result = await criarPropostaPecas({
@@ -253,6 +259,7 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar }: Props) {
         validade_proposta: validade,
         observacoes:       observacoes || undefined,
         taxa_cambio:       taxaDolar,
+        organizacao:       { ...organizacao, proposta_principal_id: organizacao.proposta_principal_id || null },
       });
       if (result?.error) setError(result.error);
     });
@@ -739,6 +746,10 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar }: Props) {
                 ))}
               </div>
 
+              <div className="mb-5 rounded-xl border border-[#E2E8F0] p-4">
+                <p className="text-[11px] font-bold uppercase text-[#6B7B8D] mb-3">Organização comercial</p>
+                <OrganizacaoComercialCampos valor={organizacao} onChange={setOrganizacao} clienteId={clienteSel?.id ?? null} propostasPrincipais={propostasPrincipais} />
+              </div>
               <p className="text-[11px] text-[#6B7B8D] mb-2">
                 Modelo do Word: <span className="font-semibold text-[#2C4F79]">{modeloWord === "navalhas" ? "Proposta de Navalhas" : "Proposta de Peneiras / Peças"}</span>
               </p>

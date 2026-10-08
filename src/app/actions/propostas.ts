@@ -4,11 +4,17 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { validarPrincipal } from "@/lib/propostas/crm-servidor";
+import { AVISO_ESTRUTURA_CRM, STATUS_COM_MOTIVO, STATUS_EM_ACOMPANHAMENTO, STATUS_ENCERRADOS, faltaEstruturaCrm, negocioDe } from "@/lib/propostas/crm";
 
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
 const propostaSchema = z.object({
   tipo:              z.enum(["maquina", "sistema", "exportacao", "pecas", "servico", "mista"]),
+  mercado:           z.enum(["nacional", "exportacao"]).default("nacional"),
+  pais_destino:      z.string().optional(),
+  papel:             z.enum(["principal", "complementar"]).default("principal"),
+  proposta_principal_id: z.string().uuid().optional().nullable(),
   moeda:             z.enum(["BRL", "USD"]).default("BRL"),
   cliente_id:        z.string().uuid().optional().nullable(),
   contato_nome:      z.string().optional(),
@@ -28,6 +34,11 @@ const propostaSchema = z.object({
 export type PropostaFormState = {
   errors?: Partial<Record<string, string[]>>;
   message?: string;
+};
+
+export type OrganizacaoPropostaState = {
+  message?: string;
+  success?: boolean;
 };
 
 const itemSchema = z.object({
@@ -51,15 +62,19 @@ export async function criarProposta(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { message: "Não autorizado" };
 
-  // Busca perfil do usuário logado para usar como responsável padrão
-  const { data: usuario } = await supabase
-    .from("usuarios")
-    .select("perfil, representante_id")
-    .eq("id", user.id)
-    .single();
+  // Busca perfil do usuário logado (a tabela usuarios não tem representante_id: o vínculo
+  // usuário → representante fica em representantes.usuario_id).
+  const [{ data: usuario }, { data: representanteDoUsuario }] = await Promise.all([
+    supabase.from("usuarios").select("perfil").eq("id", user.id).single(),
+    supabase.from("representantes").select("id").eq("usuario_id", user.id).eq("ativo", true).limit(1).maybeSingle(),
+  ]);
 
   const raw = {
     tipo:              formData.get("tipo"),
+    mercado:           formData.get("mercado") || "nacional",
+    pais_destino:      formData.get("pais_destino") || undefined,
+    papel:             formData.get("papel") || "principal",
+    proposta_principal_id: formData.get("proposta_principal_id") || null,
     moeda:             formData.get("moeda") || "BRL",
     cliente_id:        formData.get("cliente_id") || null,
     contato_nome:      formData.get("contato_nome") || undefined,
@@ -68,7 +83,7 @@ export async function criarProposta(
     canal_origem:      formData.get("canal_origem") || null,
     temperatura:       formData.get("temperatura") || null,
     responsavel_id:    formData.get("responsavel_id") || user.id,
-    representante_id:  formData.get("representante_id") || usuario?.representante_id || null,
+    representante_id:  formData.get("representante_id") || representanteDoUsuario?.id || null,
     etapa_funil_id:    formData.get("etapa_funil_id") || null,
     condicao_pagamento: formData.get("condicao_pagamento") || undefined,
     prazo_entrega:     formData.get("prazo_entrega") || undefined,
@@ -83,6 +98,21 @@ export async function criarProposta(
 
   const d = parsed.data;
 
+  if (d.mercado === "exportacao" && !d.pais_destino?.trim()) {
+    return { message: "Informe o país de destino da exportação." };
+  }
+  if (d.papel === "complementar" && !d.proposta_principal_id) {
+    return { message: "Selecione a proposta principal deste negócio." };
+  }
+  if (d.papel === "principal" && d.proposta_principal_id) {
+    return { message: "Uma proposta principal não pode ser vinculada a outra proposta principal." };
+  }
+
+  if (d.papel === "complementar" && d.proposta_principal_id) {
+    const erro = await validarPrincipal(supabase, d.proposta_principal_id, d.cliente_id || null);
+    if (erro) return { message: erro };
+  }
+
   // O número (0001/2026, 0002/2026…) é gerado pelo próprio banco ao gravar a proposta.
 
   // Verifica se o usuário tem perfil configurado (pré-condição para RLS passar)
@@ -90,9 +120,13 @@ export async function criarProposta(
     return { message: "Seu perfil não está configurado no sistema. Execute o seed SQL no Supabase para registrar seu usuário." };
   }
 
-  const { data: proposta, error } = await supabase
-    .from("propostas")
-    .insert({
+  const camposCrm = {
+    mercado:           d.mercado,
+    pais_destino:      d.mercado === "exportacao" ? d.pais_destino?.trim() || null : null,
+    papel:             d.papel,
+    proposta_principal_id: d.papel === "complementar" ? d.proposta_principal_id : null,
+  };
+  const dadosBase = {
       tipo:              d.tipo,
       moeda:             d.moeda,
       status:            "rascunho",
@@ -101,7 +135,7 @@ export async function criarProposta(
       contato_email:     d.contato_email || null,
       contato_telefone:  d.contato_telefone || null,
       canal_origem:      d.canal_origem || null,
-      temperatura:       null,
+      temperatura:       d.temperatura || null,
       responsavel_id:    d.responsavel_id || user.id,
       representante_id:  d.representante_id || null,
       etapa_funil_id:    d.etapa_funil_id || null,
@@ -109,9 +143,17 @@ export async function criarProposta(
       prazo_entrega:     d.prazo_entrega || null,
       validade_proposta: d.validade_proposta || null,
       observacoes:       d.observacoes || null,
-    })
-    .select("id")
-    .single();
+  };
+
+  let { data: proposta, error } = await supabase
+    .from("propostas").insert({ ...dadosBase, ...camposCrm }).select("id").single();
+
+  // Banco ainda sem a estrutura do CRM (arquivo 022): grava sem os campos novos, desde que
+  // o usuário não tenha escolhido exportação nem proposta complementar.
+  if (error && faltaEstruturaCrm(error)) {
+    if (d.mercado !== "nacional" || d.papel !== "principal") return { message: AVISO_ESTRUTURA_CRM };
+    ({ data: proposta, error } = await supabase.from("propostas").insert(dadosBase).select("id").single());
+  }
 
   if (error) {
     if (error.message?.includes("row-level security") || error.code === "42501") {
@@ -126,19 +168,109 @@ export async function criarProposta(
 
 export async function atualizarStatusProposta(
   propostaId: string,
-  novoStatus: string
+  novoStatus: string,
+  detalhes?: {
+    motivoCodigo?: string;
+    motivoDetalhes?: string;
+    motivoCongelamento?: string;
+    retomadaPrevista?: string;
+  }
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient() as any;
+
+  // Antes do arquivo 022 as colunas do CRM não existem: trata como proposta principal simples.
+  const leitura = await supabase
+    .from("propostas")
+    .select("id, status, papel, proposta_principal_id")
+    .eq("id", propostaId)
+    .maybeSingle();
+  const estruturaCrm = !(leitura.error && faltaEstruturaCrm(leitura.error));
+  const propostaAtual = estruturaCrm
+    ? leitura.data
+    : (await supabase.from("propostas").select("id, status").eq("id", propostaId).maybeSingle()).data;
+  if (!propostaAtual) return { error: "Proposta não encontrada." };
+
+  const precisaEstrutura = novoStatus === "cancelada" || novoStatus === "complementar_nao_selecionada" ||
+    novoStatus === "stand_by" || STATUS_COM_MOTIVO.has(novoStatus);
+  if (precisaEstrutura && !estruturaCrm) return { error: AVISO_ESTRUTURA_CRM };
+
+  const hoje = new Date().toISOString().split("T")[0];
+
+  // Próxima ação obrigatória para propostas em acompanhamento.
+  if (STATUS_EM_ACOMPANHAMENTO.has(novoStatus)) {
+    const { data: proxima } = await supabase
+      .from("followups")
+      .select("id")
+      .eq("proposta_id", propostaId)
+      .not("proxima_acao_data", "is", null)
+      .gte("proxima_acao_data", hoje)
+      .limit(1)
+      .maybeSingle();
+    if (!proxima) {
+      return { error: "Registre um follow-up com a próxima ação (data a partir de hoje) antes de colocar a proposta em acompanhamento." };
+    }
+  }
+
+  if (STATUS_COM_MOTIVO.has(novoStatus) && (!detalhes?.motivoCodigo || !detalhes.motivoDetalhes?.trim())) {
+    return { error: "Informe o motivo e uma breve explicação para encerrar a proposta." };
+  }
+  if (novoStatus === "stand_by") {
+    if (!detalhes?.motivoCongelamento?.trim() || !detalhes.retomadaPrevista) {
+      return { error: "Informe o motivo do congelamento e a previsão de retomada." };
+    }
+    if (detalhes.retomadaPrevista < hoje) return { error: "A previsão de retomada não pode ser uma data passada." };
+  }
+
+  // Alternativas do mesmo negócio (principal + complementares).
+  if (estruturaCrm && (novoStatus === "complementar_nao_selecionada" || novoStatus === "vendida")) {
+    const negocio = negocioDe(propostaAtual);
+    const { data: alternativas } = await supabase
+      .from("propostas")
+      .select("id, numero_completo, status")
+      .or(`id.eq.${negocio},proposta_principal_id.eq.${negocio}`)
+      .is("deleted_at", null);
+    const outras = ((alternativas ?? []) as Array<{ id: string; numero_completo: string; status: string }>)
+      .filter((a) => a.id !== propostaId);
+    if (novoStatus === "complementar_nao_selecionada" && outras.length === 0) {
+      return { error: "Esta proposta não tem alternativas vinculadas no mesmo negócio." };
+    }
+    if (novoStatus === "vendida") {
+      const vendida = outras.find((a) => a.status === "vendida");
+      if (vendida) {
+        return { error: `O cliente só pode escolher uma alternativa: a proposta ${vendida.numero_completo} deste negócio já está como vendida.` };
+      }
+    }
+  }
+
   const updates: Record<string, unknown> = { status: novoStatus };
   if (novoStatus === "enviada") updates.enviada_em = new Date().toISOString();
-  if (["vendida", "perdida", "desistencia"].includes(novoStatus)) {
-    updates.fechada_em = new Date().toISOString();
+  if (STATUS_ENCERRADOS.has(novoStatus)) updates.fechada_em = new Date().toISOString();
+  if (STATUS_COM_MOTIVO.has(novoStatus)) {
+    updates.motivo_encerramento_codigo = detalhes?.motivoCodigo;
+    updates.motivo_encerramento_detalhes = detalhes?.motivoDetalhes?.trim();
+  }
+  if (novoStatus === "stand_by") {
+    updates.motivo_congelamento = detalhes?.motivoCongelamento?.trim();
+    updates.retomada_prevista = detalhes?.retomadaPrevista;
+  }
+  // Reabrir ou retomar limpa o encerramento anterior.
+  if (!STATUS_ENCERRADOS.has(novoStatus)) {
+    updates.fechada_em = null;
+    if (estruturaCrm) {
+      updates.motivo_encerramento_codigo = null;
+      updates.motivo_encerramento_detalhes = null;
+      if (novoStatus !== "stand_by") {
+        updates.motivo_congelamento = null;
+        updates.retomada_prevista = null;
+      }
+    }
   }
   const { error } = await supabase.from("propostas").update(updates).eq("id", propostaId);
-  if (error) throw new Error(error.message);
+  if (error) return { error: faltaEstruturaCrm(error) ? AVISO_ESTRUTURA_CRM : error.message };
   revalidatePath(`/propostas/${propostaId}`);
   revalidatePath("/propostas");
+  return { success: true };
 }
 
 export async function atualizarEtapaProposta(
@@ -169,6 +301,55 @@ export async function transferirResponsavel(
   if (error) throw new Error(error.message);
   revalidatePath(`/propostas/${propostaId}`);
   revalidatePath("/propostas");
+}
+
+export async function atualizarOrganizacaoProposta(
+  _prev: OrganizacaoPropostaState,
+  formData: FormData
+): Promise<OrganizacaoPropostaState> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createClient() as any;
+  const propostaId = String(formData.get("proposta_id") ?? "");
+  const mercado = String(formData.get("mercado") ?? "nacional");
+  const paisDestino = String(formData.get("pais_destino") ?? "").trim();
+  const papel = String(formData.get("papel") ?? "principal");
+  const propostaPrincipalId = String(formData.get("proposta_principal_id") ?? "") || null;
+
+  if (!z.string().uuid().safeParse(propostaId).success) return { message: "Proposta inválida." };
+  if (!['nacional', 'exportacao'].includes(mercado)) return { message: "Mercado inválido." };
+  if (!['principal', 'complementar'].includes(papel)) return { message: "Classificação inválida." };
+  if (mercado === "exportacao" && !paisDestino) return { message: "Informe o país de destino." };
+  if (papel === "complementar" && !propostaPrincipalId) return { message: "Selecione a proposta principal." };
+
+  const { data: propostaAtual } = await supabase
+    .from("propostas")
+    .select("cliente_id")
+    .eq("id", propostaId)
+    .is("deleted_at", null)
+    .single();
+  if (!propostaAtual) return { message: "Proposta não encontrada." };
+
+  if (papel === "complementar" && propostaPrincipalId) {
+    if (propostaPrincipalId === propostaId) return { message: "Uma proposta não pode ser complementar dela mesma." };
+    const erro = await validarPrincipal(supabase, propostaPrincipalId, propostaAtual.cliente_id ?? null);
+    if (erro) return { message: erro };
+    // Uma principal que já tem complementares não pode virar complementar (evita encadear negócios).
+    const { data: dependentes } = await supabase
+      .from("propostas").select("id").eq("proposta_principal_id", propostaId).is("deleted_at", null).limit(1);
+    if ((dependentes ?? []).length) return { message: "Esta proposta já é principal de outras alternativas; ela não pode virar complementar." };
+  }
+
+  const { error } = await supabase.from("propostas").update({
+    mercado,
+    pais_destino: mercado === "exportacao" ? paisDestino : null,
+    papel,
+    proposta_principal_id: papel === "complementar" ? propostaPrincipalId : null,
+  }).eq("id", propostaId);
+  if (error) return { message: faltaEstruturaCrm(error) ? AVISO_ESTRUTURA_CRM : error.message };
+
+  revalidatePath(`/propostas/${propostaId}`);
+  revalidatePath("/propostas");
+  return { success: true };
 }
 
 export async function adicionarItem(

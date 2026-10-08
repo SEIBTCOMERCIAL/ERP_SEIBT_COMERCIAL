@@ -1,6 +1,7 @@
 "use client";
 
 import { useFormState, useFormStatus } from "react-dom";
+import { useState } from "react";
 import Link from "next/link";
 import {
   Cpu, Package, Globe, Wrench, Layers, Building2,
@@ -18,7 +19,6 @@ import { cn } from "@/lib/utils";
 const TIPOS = [
   { value: "maquina",    label: "Máquina",    Icon: Cpu,       color: "text-[#2074B9] bg-[#EFF6FF]" },
   { value: "sistema",    label: "Sistema",    Icon: Layers,    color: "text-[#7C3AED] bg-[#EDE9FE]" },
-  { value: "exportacao", label: "Exportação", Icon: Globe,     color: "text-[#0891B2] bg-[#ECFEFF]" },
   { value: "pecas",      label: "Peças",      Icon: Package,   color: "text-[#D97706] bg-[#FEF3C7]" },
   { value: "servico",    label: "Serviço",    Icon: Wrench,    color: "text-[#16A34A] bg-[#DCFCE7]" },
   { value: "mista",      label: "Mista",      Icon: Building2, color: "text-[#6B7280] bg-[#F1F5F9]" },
@@ -115,12 +115,16 @@ interface Props {
   etapas: Array<{ id: string; nome: string; cor: string }>;
   clientePreSelecionado?: string | null;
   usuarioId: string;
+  propostasPrincipais: Array<{ id: string; numero_completo: string; cliente_id: string | null; cliente_nome: string }>;
 }
 
 export function NovaPropostaForm({
-  clientes, vendedores, representantes, etapas, clientePreSelecionado, usuarioId,
+  clientes, vendedores, representantes, etapas, clientePreSelecionado, usuarioId, propostasPrincipais,
 }: Props) {
   const [state, action] = useFormState<PropostaFormState, FormData>(criarProposta, {});
+  const [mercado, setMercado] = useState<"nacional" | "exportacao">("nacional");
+  const [papel, setPapel] = useState<"principal" | "complementar">("principal");
+  const [clienteId, setClienteId] = useState(clientePreSelecionado ?? "");
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -180,6 +184,49 @@ export function NovaPropostaForm({
             </div>
           </div>
 
+          {/* Organização comercial */}
+          <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
+            <SectionHeader
+              icon={Globe}
+              label="Organização comercial"
+              subtitle="Mercado e vínculo com outras alternativas do mesmo negócio"
+              iconClass="bg-[#ECFEFF] text-[#0891B2]"
+            />
+            <div className="px-5 py-4 grid grid-cols-2 gap-4 max-md:grid-cols-1">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-[12px] font-semibold text-[#1A1A1A]">Mercado *</Label>
+                <select name="mercado" value={mercado} onChange={(event) => setMercado(event.target.value as "nacional" | "exportacao")} className="h-9 rounded-lg border-[1.5px] border-[#E2E8F0] bg-white px-3 text-[13px] outline-none focus:border-[#2074B9]">
+                  <option value="nacional">Nacional</option>
+                  <option value="exportacao">Exportação</option>
+                </select>
+              </div>
+              {mercado === "exportacao" && (
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-[12px] font-semibold text-[#1A1A1A]">País de destino *</Label>
+                  <Input name="pais_destino" required placeholder="Ex: Argentina" className="h-9 text-[13px]" />
+                </div>
+              )}
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-[12px] font-semibold text-[#1A1A1A]">Classificação *</Label>
+                <select name="papel" value={papel} onChange={(event) => setPapel(event.target.value as "principal" | "complementar")} className="h-9 rounded-lg border-[1.5px] border-[#E2E8F0] bg-white px-3 text-[13px] outline-none focus:border-[#2074B9]">
+                  <option value="principal">Principal</option>
+                  <option value="complementar">Complementar</option>
+                </select>
+              </div>
+              {papel === "complementar" && (
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-[12px] font-semibold text-[#1A1A1A]">Proposta principal *</Label>
+                  <select name="proposta_principal_id" required className="h-9 rounded-lg border-[1.5px] border-[#E2E8F0] bg-white px-3 text-[13px] outline-none focus:border-[#2074B9]">
+                    <option value="">— Selecione —</option>
+                    {propostasPrincipais.filter((proposta) => !clienteId || proposta.cliente_id === clienteId).map((proposta) => (
+                      <option key={proposta.id} value={proposta.id}>{proposta.numero_completo} · {proposta.cliente_nome}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Cliente */}
           <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
             <SectionHeader
@@ -193,7 +240,8 @@ export function NovaPropostaForm({
                 <Label className="text-[12px] font-semibold text-[#1A1A1A]">Cliente cadastrado</Label>
                 <select
                   name="cliente_id"
-                  defaultValue={clientePreSelecionado ?? ""}
+                  value={clienteId}
+                  onChange={(event) => setClienteId(event.target.value)}
                   className="h-9 w-full rounded-lg border-[1.5px] border-[#E2E8F0] bg-white px-3 text-[13px] text-[#1A1A1A] outline-none focus:border-[#2074B9] transition-colors"
                 >
                   <option value="">— Sem cliente vinculado —</option>

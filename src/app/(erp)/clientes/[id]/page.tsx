@@ -155,7 +155,7 @@ export default async function DetalheClientePage({
         </div>
 
         <div className="flex gap-2 shrink-0">
-          <Link href={`/propostas/nova?cliente=${cliente.id}`}>
+          <Link href={`/propostas/nova?cliente_id=${cliente.id}`}>
             <Button variant="outline" size="sm" className="h-8 text-[12px] gap-1.5">
               <Plus className="h-3.5 w-3.5" />
               Nova proposta
@@ -297,7 +297,7 @@ export default async function DetalheClientePage({
                   {propostasList.length}
                 </span>
               </p>
-              <Link href={`/propostas/nova?cliente=${cliente.id}`} className="text-[12px] text-[#2074B9] font-medium">
+              <Link href={`/propostas/nova?cliente_id=${cliente.id}`} className="text-[12px] text-[#2074B9] font-medium">
                 + Nova proposta
               </Link>
             </div>
@@ -408,7 +408,7 @@ export default async function DetalheClientePage({
             <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground mb-3">Ações rápidas</p>
             <div className="flex flex-col gap-1.5">
               <Link
-                href={`/propostas/nova?cliente=${cliente.id}`}
+              href={`/propostas/nova?cliente_id=${cliente.id}`}
                 className="flex items-center gap-2 h-8 px-3 rounded-lg border border-border text-[12px] text-foreground hover:border-[#2074B9] hover:text-[#2074B9] transition-colors"
               >
                 <FileText className="h-3.5 w-3.5" />

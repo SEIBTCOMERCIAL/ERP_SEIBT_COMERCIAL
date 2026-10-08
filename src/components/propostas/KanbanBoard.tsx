@@ -18,6 +18,11 @@ interface EtapaComPropostas {
     valor_total: number | null;
     cliente_nome: string | null;
     responsavel_nome: string | null;
+    /** Número da proposta principal, quando esta é uma alternativa complementar. */
+    complementar_de?: string | null;
+    /** false = outra alternativa do mesmo negócio já soma no total (o funil não duplica). */
+    soma_no_funil?: boolean;
+    alerta?: string | null;
   }>;
 }
 
@@ -32,6 +37,11 @@ interface KanbanBoardProps {
     valor_total: number | null;
     cliente_nome: string | null;
     responsavel_nome: string | null;
+    /** Número da proposta principal, quando esta é uma alternativa complementar. */
+    complementar_de?: string | null;
+    /** false = outra alternativa do mesmo negócio já soma no total (o funil não duplica). */
+    soma_no_funil?: boolean;
+    alerta?: string | null;
   }>;
 }
 
@@ -56,6 +66,15 @@ function PropostaCard({ p }: { p: KanbanBoardProps["colunas"][0]["propostas"][0]
             <span className="text-[11px] text-muted-foreground">—</span>
           )}
         </div>
+        {p.complementar_de && (
+          <p className="mt-2 text-[10px] font-semibold text-purple-700">
+            Alternativa de {p.complementar_de}{p.soma_no_funil === false ? " · não soma no total" : ""}
+          </p>
+        )}
+        {!p.complementar_de && p.soma_no_funil === false && (
+          <p className="mt-2 text-[10px] font-semibold text-purple-700">Tem alternativa maior · não soma no total</p>
+        )}
+        {p.alerta && <p className="mt-1 text-[10px] font-semibold text-red-600">{p.alerta}</p>}
         {p.responsavel_nome && (
           <div className="flex items-center gap-1.5 mt-2">
             <div className="h-4 w-4 rounded-full bg-[#2074B9] flex items-center justify-center text-[8px] font-bold text-white">
@@ -72,9 +91,9 @@ function PropostaCard({ p }: { p: KanbanBoardProps["colunas"][0]["propostas"][0]
 export function KanbanBoard({ colunas, semEtapa }: KanbanBoardProps) {
   return (
     <div className="flex-1 overflow-x-auto">
-      <div className="flex gap-3.5 p-6 min-h-full items-start" style={{ minWidth: `${(colunas.length + 1) * 286}px` }}>
+      <div className="flex gap-3.5 p-4 sm:p-6 min-h-full items-start" style={{ minWidth: `${(colunas.length + 1) * 286}px` }}>
         {colunas.map((col) => {
-          const total = col.propostas.reduce((s, p) => s + (p.valor_total ?? 0), 0);
+          const total = col.propostas.reduce((s, p) => s + (p.soma_no_funil === false ? 0 : p.valor_total ?? 0), 0);
           return (
             <div key={col.id} className="w-[272px] shrink-0 flex flex-col gap-0">
               <div className="flex items-center gap-2 px-3 py-2.5 bg-card border border-border border-b-0 rounded-t-xl">

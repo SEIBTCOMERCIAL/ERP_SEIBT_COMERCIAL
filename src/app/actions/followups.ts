@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { STATUS_EM_ACOMPANHAMENTO } from "@/lib/propostas/crm";
 
 export type FollowupFormState = {
   errors?: Partial<Record<string, string[]>>;
@@ -19,6 +20,7 @@ const followupSchema = z.object({
   proxima_acao_data:  z.string().optional().nullable(),
   proxima_acao_tipo:  z.string().optional().nullable(),
   proxima_acao_notas: z.string().optional().nullable(),
+  exige_proxima_acao: z.boolean().default(false),
 });
 
 export async function criarFollowup(
@@ -40,12 +42,28 @@ export async function criarFollowup(
     proxima_acao_data:  formData.get("proxima_acao_data") || null,
     proxima_acao_tipo:  formData.get("proxima_acao_tipo") || null,
     proxima_acao_notas: formData.get("proxima_acao_notas") || null,
+    exige_proxima_acao: formData.get("exige_proxima_acao") === "true",
   };
 
   const parsed = followupSchema.safeParse(raw);
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
   const d = parsed.data;
+  // A obrigatoriedade vem do status real da proposta, não do formulário.
+  const { data: proposta } = await supabase
+    .from("propostas")
+    .select("status")
+    .eq("id", d.proposta_id)
+    .maybeSingle();
+  if (!proposta) return { message: "Proposta não encontrada." };
+  if (STATUS_EM_ACOMPANHAMENTO.has(proposta.status)) {
+    if (!d.proxima_acao_data || !d.proxima_acao_tipo) {
+      return { message: "Proposta em acompanhamento: informe a data e o tipo da próxima ação." };
+    }
+    const hoje = new Date();
+    const hojeISO = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
+    if (d.proxima_acao_data < hojeISO) return { message: "A próxima ação não pode ficar em uma data que já passou." };
+  }
 
   const { error } = await supabase.from("followups").insert({
     proposta_id:        d.proposta_id,
@@ -70,6 +88,7 @@ export async function criarFollowup(
   }
 
   revalidatePath(`/propostas/${d.proposta_id}`);
+  revalidatePath("/propostas");
   revalidatePath("/agenda");
   return {};
 }

@@ -1,5 +1,6 @@
 "use server";
 
+import { AVISO_ESTRUTURA_CRM, faltaEstruturaCrm } from "@/lib/propostas/crm";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
@@ -48,6 +49,62 @@ export async function atualizarCambio(
 export interface EtapaState {
   error?: string;
   success?: boolean;
+}
+
+export interface InatividadeState {
+  error?: string;
+  success?: boolean;
+}
+
+export async function salvarPrazosInatividade(
+  _prev: InatividadeState,
+  formData: FormData
+): Promise<InatividadeState> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createClient() as any;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autorizado." };
+
+  const { data: perfil } = await supabase
+    .from("usuarios")
+    .select("perfil")
+    .eq("id", user.id)
+    .single();
+  if (perfil?.perfil !== "admin") return { error: "Somente o administrador pode alterar estes prazos." };
+
+  const tipos = ["maquina", "pecas", "sistema", "servico", "mista"] as const;
+  const registros = tipos.map((tipo) => ({
+    tipo,
+    dias_alerta: Number(formData.get(`${tipo}_alerta`)),
+    dias_escalonamento_admin: Number(formData.get(`${tipo}_admin`)),
+    atualizado_por: user.id,
+    atualizado_em: new Date().toISOString(),
+  }));
+
+  for (const registro of registros) {
+    if (!Number.isInteger(registro.dias_alerta) || registro.dias_alerta < 1 || registro.dias_alerta > 365) {
+      return { error: "O prazo de alerta deve ficar entre 1 e 365 dias." };
+    }
+    if (!Number.isInteger(registro.dias_escalonamento_admin) || registro.dias_escalonamento_admin < registro.dias_alerta || registro.dias_escalonamento_admin > 365) {
+      return { error: "O alerta do administrador deve ser igual ou posterior ao alerta do responsável." };
+    }
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("configuracoes_inatividade_proposta")
+    .upsert(registros, { onConflict: "tipo" });
+  if (error) return { error: faltaEstruturaCrm(error) ? AVISO_ESTRUTURA_CRM : error.message };
+
+  await registrarAuditoria({
+    acao: "atualizar_prazos_inatividade",
+    entidade: "configuracoes_inatividade_proposta",
+    dados: { prazos: registros.map(({ tipo, dias_alerta, dias_escalonamento_admin }) => ({ tipo, dias_alerta, dias_escalonamento_admin })) },
+  });
+
+  revalidatePath("/configuracoes");
+  revalidatePath("/propostas");
+  return { success: true };
 }
 
 export async function criarEtapaFunil(

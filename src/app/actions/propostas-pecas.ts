@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { moagemParaBanco } from "@/lib/propostas/checklist";
 import { precoComDesconto } from "@/lib/propostas/revisao";
+import { inserirPropostaComOrganizacao, prepararOrganizacao, type OrganizacaoComercialInput } from "@/lib/propostas/crm-servidor";
 
 export interface ChecklistInput {
   segmento_aplicacao: string;
@@ -46,6 +47,8 @@ export interface CriarPropostaPecasInput {
   taxa_cambio?: number;
   /** Checklist técnico da aplicação (proposta de máquina) — vai para o Word. */
   checklist?: ChecklistInput;
+  /** Mercado e classificação do CRM (Nacional/Exportação; Principal/Complementar). */
+  organizacao?: OrganizacaoComercialInput;
 }
 
 export async function criarPropostaPecas(
@@ -75,11 +78,12 @@ export async function criarPropostaPecas(
 
   if (input.itens.length === 0) return { error: "Adicione ao menos um item à proposta." };
 
+  const org = await prepararOrganizacao(supabase, input.organizacao ?? {}, input.cliente_id || null);
+  if (org.erro) return { error: org.erro };
+
   // O número (0001/2026, 0002/2026…) é gerado pelo próprio banco ao gravar a
   // proposta (tabela sequencias_proposta) — um número novo a cada proposta criada.
-  const { data: proposta, error: propErr } = await supabase
-    .from("propostas")
-    .insert({
+  const { data: proposta, error: propErr } = await inserirPropostaComOrganizacao(supabase, {
       tipo:               input.tipo ?? "pecas",
       moeda:              input.moeda,
       status:             "rascunho",
@@ -92,15 +96,13 @@ export async function criarPropostaPecas(
       validade_proposta:  input.validade_proposta || null,
       observacoes:        input.observacoes || null,
       temperatura:        null,
-    })
-    .select("id")
-    .single();
+    }, org.campos ?? {});
 
-  if (propErr) {
-    if (propErr.message?.includes("row-level security") || propErr.code === "42501") {
+  if (propErr || !proposta) {
+    if (propErr?.message?.includes("row-level security") || propErr?.code === "42501") {
       return { error: "Sem permissão. Verifique se seu perfil está configurado no Supabase." };
     }
-    return { error: "Erro ao criar proposta: " + propErr.message };
+    return { error: "Erro ao criar proposta: " + (propErr?.message ?? "sem resposta do banco") };
   }
 
   const propostaId = proposta.id as string;

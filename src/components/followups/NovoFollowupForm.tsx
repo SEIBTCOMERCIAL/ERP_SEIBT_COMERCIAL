@@ -22,12 +22,13 @@ function SubmitBtn() {
 
 const today = new Date().toISOString().split("T")[0];
 
-export function NovoFollowupForm({ propostaId }: { propostaId: string }) {
+export function NovoFollowupForm({ propostaId, exigeProximaAcao = true }: { propostaId: string; exigeProximaAcao?: boolean }) {
   const [state, action] = useFormState<FollowupFormState, FormData>(criarFollowup, {});
 
   return (
     <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="proposta_id" value={propostaId} />
+      <input type="hidden" name="exige_proxima_acao" value={String(exigeProximaAcao)} />
 
       {state.message && (
         <p className="text-[12px] text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
@@ -101,15 +102,15 @@ export function NovoFollowupForm({ propostaId }: { propostaId: string }) {
 
       {/* Linha 4: próxima ação */}
       <div className="bg-muted/30 rounded-lg border border-border p-3 flex flex-col gap-2">
-        <p className="text-[11px] font-semibold text-muted-foreground">Próxima ação (opcional)</p>
+        <p className="text-[11px] font-semibold text-muted-foreground">Próxima ação {exigeProximaAcao ? "* (obrigatória: proposta em acompanhamento)" : "(opcional nesta fase)"}</p>
         <div className="grid grid-cols-[140px_160px_1fr] gap-2">
           <div className="flex flex-col gap-1">
             <label className="text-[10px] text-muted-foreground">Data</label>
-            <Input name="proxima_acao_data" type="date" className="h-7 text-[12px]" />
+            <Input name="proxima_acao_data" type="date" required={exigeProximaAcao} className="h-7 text-[12px]" />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[10px] text-muted-foreground">Tipo</label>
-            <select name="proxima_acao_tipo" className="h-7 rounded-lg border border-input bg-background px-2 text-[12px] text-foreground outline-none">
+            <select name="proxima_acao_tipo" required={exigeProximaAcao} className="h-7 rounded-lg border border-input bg-background px-2 text-[12px] text-foreground outline-none">
               <option value="">Selecionar...</option>
               {[
                 "Ligar", "Enviar e-mail", "Enviar proposta revisada",

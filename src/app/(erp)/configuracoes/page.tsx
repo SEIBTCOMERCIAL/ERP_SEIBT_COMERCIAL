@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ConfiguracoesView } from "@/components/configuracoes/ConfiguracoesView";
+import { faltaEstruturaCrm } from "@/lib/propostas/crm";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ export default async function ConfiguracoesPage() {
     );
   }
 
-  const [{ data: taxas }, { data: funis }, { data: etapas }] = await Promise.all([
+  const [{ data: taxas }, { data: funis }, { data: etapas }, { data: prazosInatividade, error: erroPrazos }] = await Promise.all([
     supabase
       .from("taxas_cambio")
       .select("id, taxa, vigente_desde, criado_em")
@@ -34,6 +35,10 @@ export default async function ConfiguracoesPage() {
       .limit(20),
     admin.from("funis").select("id, nome").is("usuario_id", null).order("nome"),
     admin.from("etapas_funil").select("id, funil_id, nome, cor, ordem, ativo").order("ordem"),
+    admin
+      .from("configuracoes_inatividade_proposta")
+      .select("tipo, dias_alerta, dias_escalonamento_admin, atualizado_em")
+      .order("tipo"),
   ]);
 
   const taxaAtual = taxas?.[0]?.taxa ?? null;
@@ -45,6 +50,9 @@ export default async function ConfiguracoesPage() {
       historicoCambio={historicoCambio}
       funis={funis ?? []}
       etapas={etapas ?? []}
+      prazosInatividade={prazosInatividade ?? []}
+      podeEditarPrazos={perfil.perfil === "admin"}
+      prazosPendentes={faltaEstruturaCrm(erroPrazos)}
     />
   );
 }

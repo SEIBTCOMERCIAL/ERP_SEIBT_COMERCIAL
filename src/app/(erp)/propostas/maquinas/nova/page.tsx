@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { buscarTodos } from "@/lib/supabase/buscar-todos";
+import { carregarPropostasPrincipais } from "@/lib/propostas/crm-servidor";
 import { NovaPropMaquinaForm } from "@/components/propostas/NovaPropMaquinaForm";
 import type { ProdutoComDetalhes } from "@/types/database";
 
@@ -62,5 +63,7 @@ export default async function NovaPropMaquinaPage() {
     estado: string | null;
   }>;
 
-  return <NovaPropMaquinaForm clientes={clientes} maquinas={maquinas} pecas={pecas} />;
+  const propostasPrincipais = await carregarPropostasPrincipais(supabase);
+
+  return <NovaPropMaquinaForm clientes={clientes} maquinas={maquinas} pecas={pecas} propostasPrincipais={propostasPrincipais} />;
 }

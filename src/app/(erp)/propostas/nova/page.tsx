@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { carregarPropostasPrincipais } from "@/lib/propostas/crm-servidor";
 import { createClient } from "@/lib/supabase/server";
 import { NovaPropostaForm } from "@/components/propostas/NovaPropostaForm";
 
@@ -14,7 +15,7 @@ export default async function NovaPropostaPage({
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  const [{ data: clientesR }, { data: vendedoresR }, { data: representantesR }, { data: etapasR }] =
+  const [{ data: clientesR }, { data: vendedoresR }, { data: representantesR }, { data: etapasR }, propostasPrincipaisR] =
     await Promise.all([
       supabase
         .from("clientes")
@@ -38,12 +39,18 @@ export default async function NovaPropostaPage({
         .select("id, nome, cor, ordem")
         .eq("ativo", true)
         .order("ordem"),
+      carregarPropostasPrincipais(supabase),
     ]);
 
   const clientes       = (clientesR ?? [])       as Array<{ id: string; razao_social: string }>;
   const vendedores     = (vendedoresR ?? [])      as Array<{ id: string; nome: string }>;
   const representantes = (representantesR ?? [])  as Array<{ id: string; nome: string }>;
   const etapas         = (etapasR ?? [])          as Array<{ id: string; nome: string; cor: string; ordem: number }>;
+  const clienteNomeMap = new Map(clientes.map((cliente) => [cliente.id, cliente.razao_social]));
+  const propostasPrincipais = (propostasPrincipaisR as Array<{ id: string; numero_completo: string; cliente_id: string | null }>).map((proposta) => ({
+    ...proposta,
+    cliente_nome: proposta.cliente_id ? clienteNomeMap.get(proposta.cliente_id) ?? "Sem cliente" : "Sem cliente",
+  }));
 
   return (
     <NovaPropostaForm
@@ -53,6 +60,7 @@ export default async function NovaPropostaPage({
       etapas={etapas}
       clientePreSelecionado={searchParams.cliente_id ?? null}
       usuarioId={user?.id ?? ""}
+      propostasPrincipais={propostasPrincipais}
     />
   );
 }

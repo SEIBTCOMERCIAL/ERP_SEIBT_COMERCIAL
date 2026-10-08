@@ -2,7 +2,8 @@ import { cn } from "@/lib/utils";
 
 type StatusProposta =
   | "rascunho" | "elaboracao" | "aguardando_precificacao"
-  | "enviada" | "em_negociacao" | "vendida" | "perdida" | "desistencia" | "stand_by";
+  | "enviada" | "em_negociacao" | "vendida" | "perdida" | "desistencia" | "stand_by"
+  | "cancelada" | "complementar_nao_selecionada";
 
 type Temperatura = "quente" | "morna" | "fria";
 type TipoProposta = "maquina" | "sistema" | "exportacao" | "pecas" | "servico" | "mista";
@@ -16,7 +17,9 @@ const statusMap: Record<StatusProposta, { label: string; className: string }> = 
   vendida:                 { label: "Vendida",          className: "bg-green-50 text-green-700 border-green-200" },
   perdida:                 { label: "Perdida",          className: "bg-red-50 text-red-700 border-red-200" },
   desistencia:             { label: "Desistência",      className: "bg-red-50 text-red-400 border-red-100" },
-  stand_by:                { label: "Stand-by",         className: "bg-orange-50 text-orange-700 border-orange-200" },
+  stand_by:                { label: "Congelada",        className: "bg-orange-50 text-orange-700 border-orange-200" },
+  cancelada:               { label: "Cancelada",        className: "bg-slate-100 text-slate-500 border-slate-200" },
+  complementar_nao_selecionada: { label: "Complementar não selecionada", className: "bg-purple-50 text-purple-700 border-purple-200" },
 };
 
 const tipoMap: Record<TipoProposta, { label: string; className: string }> = {
