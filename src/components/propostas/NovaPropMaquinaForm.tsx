@@ -65,6 +65,14 @@ const PRAZO_PADRAO = "120/130 dias da confirmação do pedido, aprovação do pr
 
 type OpcaoPainel = "sem" | "220" | "380";
 
+/** Equipamento escolhido na proposta: quantidade e painel de cada um. */
+interface MaquinaEscolhida {
+  id: string;
+  /** null = ainda não escolheu o painel (obrigatório quando o item tem preço de painel). */
+  painel: OpcaoPainel | null;
+  quantidade: number;
+}
+
 const OPCOES_PAINEL: { valor: OpcaoPainel; label: string }[] = [
   { valor: "sem", label: "Sem painel" },
   { valor: "220", label: "Com painel 220V" },
@@ -99,17 +107,19 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
     forma_abastecimento: "Esteira transportadora", producao_horaria_kgh: "", voltagem: "380V 60Hz",
   });
 
-  // Step 3 — máquina selecionada
-  const [maquinaId, setMaquinaId] = useState<string | null>(null);
+  // Step 3 — equipamentos selecionados (vários), cada um com sua quantidade e seu painel
+  const [escolhidas, setEscolhidas] = useState<MaquinaEscolhida[]>([]);
   const [maquinaSearch, setMaquinaSearch] = useState("");
-  // null = vendedor ainda não escolheu (obrigatório escolher para avançar)
-  const [painel, setPainel] = useState<OpcaoPainel | null>(null);
+  const [linhaFiltro, setLinhaFiltro] = useState("");
+  const [maquinasVisiveis, setMaquinasVisiveis] = useState(60);
 
   // Step 4 — itens adicionais (peças)
   const [cart, setCart] = useState<CartItemInput[]>([]);
   // Desconto % por item (chave = produto), editado no resumo final
   const [descontos, setDescontos] = useState<Record<string, number>>({});
   const [pecaSearch, setPecaSearch] = useState("");
+  const [pecaTipo, setPecaTipo] = useState("");
+  const [pecasVisiveis, setPecasVisiveis] = useState(40);
 
   // Step 5 — condições (padrões do modelo "PROPOSTA MÁQUINA 2026"; o vendedor pode alterar)
   const [condicao, setCondicao] = useState(CONDICAO_PADRAO);
@@ -130,26 +140,48 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
     );
   });
 
+  const linhasMaquinas = Array.from(new Set(maquinas.map((m) => m.linha).filter((l): l is string => Boolean(l)))).sort((a, b) => a.localeCompare(b, "pt-BR"));
+
   const maquinasFiltradas = maquinas
     .filter((m) => {
       const q = maquinaSearch.toLowerCase();
+      if (linhaFiltro && m.linha !== linhaFiltro) return false;
       return m.codigo.toLowerCase().includes(q) || m.descricao.toLowerCase().includes(q) || m.linha?.toLowerCase().includes(q);
     })
     .sort((a, b) => compararPorTamanho(a.codigo, b.codigo));
 
+  const TIPOS_PECA: Array<{ valor: string; rotulo: string }> = [
+    { valor: "", rotulo: "Todos" },
+    { valor: "navalha", rotulo: "Navalhas" },
+    { valor: "peneira", rotulo: "Peneiras" },
+    { valor: "outros", rotulo: "Outras peças" },
+  ];
   const pecasFiltradas = pecas.filter((p) => {
     const q = pecaSearch.toLowerCase();
+    if (pecaTipo === "navalha" && p.categoria !== "navalha") return false;
+    if (pecaTipo === "peneira" && p.categoria !== "peneira") return false;
+    if (pecaTipo === "outros" && (p.categoria === "navalha" || p.categoria === "peneira")) return false;
     return p.descricao.toLowerCase().includes(q) || p.codigo.toLowerCase().includes(q);
   });
 
-  const maquinaSel = maquinas.find((m) => m.id === maquinaId);
-
-  const selecionarMaquina = (m: ProdutoComDetalhes) => {
-    if (m.id === maquinaId) return;
-    setMaquinaId(m.id);
-    // Modelo sem preço de painel cadastrado: a única opção possível é "sem painel".
-    setPainel(temPainel(m) ? null : "sem");
+  // Marcar/desmarcar equipamento. Item sem preço de painel cadastrado só pode ir "sem painel".
+  const alternarMaquina = (m: ProdutoComDetalhes) => {
+    setEscolhidas((prev) => prev.some((e) => e.id === m.id)
+      ? prev.filter((e) => e.id !== m.id)
+      : [...prev, { id: m.id, painel: temPainel(m) ? null : "sem", quantidade: 1 }]);
+    setError(null);
   };
+  const removerMaquina = (id: string) => setEscolhidas((prev) => prev.filter((e) => e.id !== id));
+  const definirPainelMaquina = (id: string, painel: OpcaoPainel) =>
+    setEscolhidas((prev) => prev.map((e) => (e.id === id ? { ...e, painel } : e)));
+  const alterarQtdMaquina = (id: string, delta: number) =>
+    setEscolhidas((prev) => prev.map((e) => (e.id === id ? { ...e, quantidade: Math.max(1, e.quantidade + delta) } : e)));
+
+  // Algum equipamento com preço de painel ainda sem a escolha do painel?
+  const maquinaSemPainelEscolhido = escolhidas.find((e) => {
+    const m = maquinas.find((x) => x.id === e.id);
+    return m && temPainel(m) && e.painel === null;
+  });
 
   const addToCart = (prod: ProdutoComDetalhes) => {
     setCart((prev) => {
@@ -174,26 +206,27 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
     checklist.producao_horaria_kgh?.trim() &&
     checklist.moagem_tipo && checklist.forma_abastecimento && checklist.voltagem;
 
-  // Painel escolhido: como no modelo do Word, fica DENTRO do item da máquina —
-  // o preço do painel soma no valor da máquina e o descritivo ganha o bloco do
-  // painel + "Valor Painel NR 12 R$ X – INCLUSO NO VALOR DO MOINHO".
-  const voltagemPainel = painel === "220" || painel === "380" ? painel : null;
-  const precoPainelSel = maquinaSel && voltagemPainel ? precoPainel(maquinaSel, voltagemPainel) : null;
-  const painelIncluso = voltagemPainel && precoPainelSel != null ? { voltagem: voltagemPainel, preco: precoPainelSel } : null;
+  // Cada equipamento vira um item da proposta. O painel escolhido fica DENTRO do item (como no modelo
+  // do Word): o preço do painel soma no valor do equipamento e o descritivo ganha o bloco do painel.
+  const itensMaquina: CartItemInput[] = escolhidas.flatMap((e): CartItemInput[] => {
+    const m = maquinas.find((x) => x.id === e.id);
+    if (!m) return [];
+    const volt = e.painel === "220" || e.painel === "380" ? e.painel : null;
+    const precoPnl = volt ? precoPainel(m, volt) : null;
+    const incluso = volt && precoPnl != null ? { voltagem: volt, preco: precoPnl } : null;
+    return [{
+      produto_id: m.id, variante_id: null,
+      codigo: m.codigo,
+      descricao: tituloComSeparador(m.codigo) + (incluso ? ` + painel NR-12 ${incluso.voltagem}V` : ""),
+      observacao: montarDescritivoMaquina(m, incluso),
+      preco_unitario: (m.preco_brl ?? 0) + (incluso?.preco ?? 0),
+      ipi_pct: m.ipi_pct, quantidade: e.quantidade,
+    }];
+  });
 
-  // Item da máquina: título do equipamento; o texto do orçamento vem da "Descrição do moinho".
-  const itemMaquina: CartItemInput | null = maquinaSel ? {
-    produto_id: maquinaSel.id, variante_id: null,
-    codigo: maquinaSel.codigo,
-    descricao: tituloComSeparador(maquinaSel.codigo) + (painelIncluso ? ` + painel NR-12 ${painelIncluso.voltagem}V` : ""),
-    observacao: montarDescritivoMaquina(maquinaSel, painelIncluso),
-    preco_unitario: (maquinaSel.preco_brl ?? 0) + (painelIncluso?.preco ?? 0),
-    ipi_pct: maquinaSel.ipi_pct, quantidade: 1,
-  } : null;
-
-  // build full cart (máquina + peças), com o desconto % de cada item
+  // Proposta completa: equipamentos + peças, com o desconto % de cada item
   const allCartItems: CartItemInput[] = [
-    ...(itemMaquina ? [itemMaquina] : []),
+    ...itensMaquina,
     ...cart,
   ].map((i) => ({ ...i, desconto_pct: descontos[i.produto_id] ?? 0 }));
 
@@ -202,12 +235,12 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
   const ipiTotal = allCartItems.reduce((a, i) => a + precoFinal(i) * i.quantidade * (i.ipi_pct / 100), 0);
 
   const handleFinalizar = () => {
-    if (!clienteId || !maquinaId || allCartItems.length === 0) {
-      setError("Selecione cliente, máquina e ao menos um item.");
+    if (!clienteId || escolhidas.length === 0 || allCartItems.length === 0) {
+      setError("Selecione o cliente e ao menos um equipamento.");
       return;
     }
-    if (!painel) {
-      setError("Escolha se a máquina vai com painel (220V ou 380V) ou sem painel.");
+    if (maquinaSemPainelEscolhido) {
+      setError("Escolha o painel (220V, 380V ou sem painel) de cada equipamento que tem painel.");
       return;
     }
     const erroOrganizacao = validarOrganizacao(organizacao);
@@ -297,8 +330,8 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
                 onClick={() => {
                   if (step === 1 && !clienteId) { setError("Selecione um cliente."); return; }
                   if (step === 2 && !checklistCompleto) { setError("Preencha todos os campos do checklist."); return; }
-                  if (step === 3 && !maquinaId) { setError("Selecione uma máquina."); return; }
-                  if (step === 3 && !painel) { setError("Escolha se a máquina vai com painel (220V ou 380V) ou sem painel."); return; }
+                  if (step === 3 && escolhidas.length === 0) { setError("Selecione ao menos um equipamento."); return; }
+                  if (step === 3 && maquinaSemPainelEscolhido) { setError("Escolha o painel (220V, 380V ou sem painel) de cada equipamento que tem painel."); return; }
                   setError(null); setStep((s) => s + 1);
                 }}
                 style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", background: NAV, color: "#fff", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
@@ -400,24 +433,60 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
             </div>
           )}
 
-          {/* STEP 3 — MÁQUINA */}
+          {/* STEP 3 — EQUIPAMENTOS (vários) */}
           {step === 3 && (
             <div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: NAV, marginBottom: 4 }}>Selecionar Máquina</div>
-              <div style={{ fontSize: 13, color: "#6b7b8d", marginBottom: 16 }}>Escolha o modelo principal desta proposta.</div>
-              <input
-                value={maquinaSearch} onChange={(e) => setMaquinaSearch(e.target.value)}
-                placeholder="Buscar por modelo (ex.: MGHS 300 A2) ou linha..."
-                style={{ width: "100%", padding: "10px 14px", border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 14, marginBottom: 12 }}
-              />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                {maquinasFiltradas.map((m) => {
+              <div style={{ fontSize: 18, fontWeight: 700, color: NAV, marginBottom: 4 }}>Selecionar Equipamentos</div>
+              <div style={{ fontSize: 13, color: "#6b7b8d", marginBottom: 16 }}>
+                Escolha um ou mais equipamentos: moinhos, esteiras, exaustores, silos, cabines etc. Clique de novo para tirar da proposta. Navalhas, peneiras e peças entram no próximo passo.
+              </div>
+
+              {escolhidas.length > 0 && (
+                <div style={{ background: "#eff6ff", border: `1px solid #93c5fd`, borderRadius: 10, padding: "12px 14px", marginBottom: 14 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#1d4ed8", marginBottom: 8 }}>
+                    {escolhidas.length} {escolhidas.length === 1 ? "equipamento selecionado" : "equipamentos selecionados"}
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {escolhidas.map((e) => {
+                      const m = maquinas.find((x) => x.id === e.id);
+                      if (!m) return null;
+                      const pendente = temPainel(m) && e.painel === null;
+                      return (
+                        <span key={e.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#fff", border: `1px solid ${pendente ? "#f59e0b" : BORDER}`, borderRadius: 999, padding: "4px 6px 4px 10px", fontSize: 12, fontWeight: 600, color: "#1a1a1a" }}>
+                          {e.quantidade > 1 ? `${e.quantidade}× ` : ""}{tituloComSeparador(m.codigo)}
+                          {pendente && <span style={{ color: "#b45309", fontWeight: 600 }}>· escolha o painel</span>}
+                          <button type="button" onClick={() => removerMaquina(e.id)} aria-label="Remover" style={{ border: "none", background: "#f1f5f9", borderRadius: "50%", width: 18, height: 18, cursor: "pointer", fontSize: 12, lineHeight: 1, color: "#6b7b8d" }}>×</button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+                <input
+                  value={maquinaSearch} onChange={(e) => { setMaquinaSearch(e.target.value); setMaquinasVisiveis(60); }}
+                  placeholder="Buscar por modelo (ex.: MGHS 300 A2, esteira, exaustor) ou linha..."
+                  style={{ flex: "1 1 260px", padding: "10px 14px", border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 14 }}
+                />
+                <select
+                  value={linhaFiltro} onChange={(e) => { setLinhaFiltro(e.target.value); setMaquinasVisiveis(60); }}
+                  style={{ flex: "0 1 240px", padding: "10px 12px", border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 14, background: "#fff" }}
+                >
+                  <option value="">Todas as linhas</option>
+                  {linhasMaquinas.map((l) => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
+                {maquinasFiltradas.slice(0, maquinasVisiveis).map((m) => {
                   const specs = m.specs as Record<string, string | number> | null;
-                  const selecionada = maquinaId === m.id;
+                  const escolhida = escolhidas.find((e) => e.id === m.id);
+                  const selecionada = Boolean(escolhida);
                   return (
                     <div
                       key={m.id}
-                      onClick={() => selecionarMaquina(m)}
+                      onClick={() => alternarMaquina(m)}
                       style={{
                         border: `2px solid ${selecionada ? BLUE : BORDER}`,
                         borderRadius: 10, padding: "14px 16px", cursor: "pointer",
@@ -438,17 +507,25 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
                       )}
                       <div style={{ fontWeight: 700, fontSize: 16, color: NAV }}>
                         {formatCurrency(m.preco_brl ?? 0)}
-                        <span style={{ fontSize: 11, fontWeight: 500, color: "#6b7b8d", marginLeft: 6 }}>sem painel</span>
+                        <span style={{ fontSize: 11, fontWeight: 500, color: "#6b7b8d", marginLeft: 6 }}>{temPainel(m) ? "sem painel" : ""}</span>
                       </div>
 
-                      {/* Escolha do painel — aparece no card da máquina selecionada */}
-                      {selecionada && (
+                      {/* Quantidade e painel — aparecem no card do equipamento selecionado */}
+                      {escolhida && (
                         <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 12, paddingTop: 10, borderTop: "1px dashed #93c5fd", cursor: "default" }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>
-                            Painel elétrico NR-12 <span style={{ color: "#dc2626" }}>*</span>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Quantidade</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <button type="button" onClick={() => alterarQtdMaquina(m.id, -1)} style={{ width: 26, height: 26, border: `1px solid ${BORDER}`, borderRadius: 4, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Minus size={12} /></button>
+                              <span style={{ fontSize: 14, fontWeight: 700, minWidth: 22, textAlign: "center" }}>{escolhida.quantidade}</span>
+                              <button type="button" onClick={() => alterarQtdMaquina(m.id, 1)} style={{ width: 26, height: 26, border: "none", borderRadius: 4, background: NAV, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Plus size={12} /></button>
+                            </div>
                           </div>
                           {temPainel(m) ? (
                             <>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>
+                                Painel elétrico NR-12 <span style={{ color: "#dc2626" }}>*</span>
+                              </div>
                               <div style={{ fontSize: 11, color: "#6b7b8d", margin: "2px 0 8px" }}>
                                 Voltagem informada no checklist: {checklist.voltagem || "—"}
                               </div>
@@ -456,13 +533,13 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
                                 {OPCOES_PAINEL.map((op) => {
                                   const preco = op.valor === "sem" ? null : precoPainel(m, op.valor);
                                   const indisponivel = op.valor !== "sem" && preco == null;
-                                  const ativo = painel === op.valor;
+                                  const ativo = escolhida.painel === op.valor;
                                   return (
                                     <button
                                       key={op.valor}
                                       type="button"
                                       disabled={indisponivel}
-                                      onClick={() => { setPainel(op.valor); setError(null); }}
+                                      onClick={() => { definirPainelMaquina(m.id, op.valor); setError(null); }}
                                       style={{
                                         display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
                                         padding: "7px 10px", borderRadius: 6, fontSize: 12.5, textAlign: "left",
@@ -494,7 +571,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
                             </>
                           ) : (
                             <div style={{ fontSize: 12, color: "#6b7b8d", marginTop: 4 }}>
-                              Este modelo não tem preço de painel cadastrado — segue sem painel.
+                              Este item não tem preço de painel cadastrado — segue sem painel.
                             </div>
                           )}
                         </div>
@@ -503,6 +580,16 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
                   );
                 })}
               </div>
+              {maquinasFiltradas.length === 0 && (
+                <p style={{ textAlign: "center", color: "#6b7b8d", fontSize: 13, padding: 24 }}>Nenhum equipamento encontrado.</p>
+              )}
+              {maquinasFiltradas.length > maquinasVisiveis && (
+                <div style={{ textAlign: "center", marginTop: 14 }}>
+                  <button type="button" onClick={() => setMaquinasVisiveis((n) => n + 60)} style={{ padding: "9px 18px", border: `1px solid ${BORDER}`, borderRadius: 8, background: "#fff", fontSize: 13, fontWeight: 600, color: NAV, cursor: "pointer" }}>
+                    Mostrar mais ({maquinasFiltradas.length - maquinasVisiveis} restantes)
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -510,12 +597,21 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
           {step === 4 && (
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, color: NAV, marginBottom: 4 }}>Itens Adicionais</div>
-              <div style={{ fontSize: 13, color: "#6b7b8d", marginBottom: 16 }}>Adicione peças ou periféricos opcionais à proposta.</div>
+              <div style={{ fontSize: 13, color: "#6b7b8d", marginBottom: 16 }}>Adicione quantas navalhas, peneiras e peças quiser, cada uma com a sua quantidade. Equipamentos (esteira, exaustor, silo...) escolha no passo anterior.</div>
               <input
-                value={pecaSearch} onChange={(e) => setPecaSearch(e.target.value)}
+                value={pecaSearch} onChange={(e) => { setPecaSearch(e.target.value); setPecasVisiveis(40); }}
                 placeholder="Buscar peças por código ou descrição..."
-                style={{ width: "100%", padding: "10px 14px", border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 14, marginBottom: 12 }}
+                style={{ width: "100%", padding: "10px 14px", border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 14, marginBottom: 10 }}
               />
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                {TIPOS_PECA.map((t) => (
+                  <button key={t.valor} type="button" onClick={() => { setPecaTipo(t.valor); setPecasVisiveis(40); }}
+                    style={{ padding: "6px 14px", borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: "pointer", border: `1px solid ${pecaTipo === t.valor ? NAV : BORDER}`, background: pecaTipo === t.valor ? NAV : "#fff", color: pecaTipo === t.valor ? "#fff" : "#374151" }}>
+                    {t.rotulo}
+                  </button>
+                ))}
+                {cart.length > 0 && <span style={{ marginLeft: "auto", alignSelf: "center", fontSize: 12, fontWeight: 600, color: NAV }}>{cart.length} {cart.length === 1 ? "item adicionado" : "itens adicionados"}</span>}
+              </div>
               <table style={{ width: "100%", borderCollapse: "collapse", background: "#fff", borderRadius: 8, overflow: "hidden", border: `1px solid ${BORDER}` }}>
                 <thead>
                   <tr style={{ background: NAV }}>
@@ -525,7 +621,7 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
                   </tr>
                 </thead>
                 <tbody>
-                  {pecasFiltradas.slice(0, 15).map((p) => {
+                  {pecasFiltradas.slice(0, pecasVisiveis).map((p) => {
                     const inCart = cart.find((i) => i.produto_id === p.id);
                     return (
                       <tr key={p.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
@@ -558,6 +654,14 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
                   })}
                 </tbody>
               </table>
+              {pecasFiltradas.length === 0 && <p style={{ textAlign: "center", color: "#6b7b8d", fontSize: 13, padding: 20 }}>Nenhuma peça encontrada.</p>}
+              {pecasFiltradas.length > pecasVisiveis && (
+                <div style={{ textAlign: "center", marginTop: 14 }}>
+                  <button type="button" onClick={() => setPecasVisiveis((n) => n + 40)} style={{ padding: "9px 18px", border: `1px solid ${BORDER}`, borderRadius: 8, background: "#fff", fontSize: 13, fontWeight: 600, color: NAV, cursor: "pointer" }}>
+                    Mostrar mais ({pecasFiltradas.length - pecasVisiveis} restantes)
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -701,34 +805,31 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
             </span>
           </div>
 
-          {/* Máquina */}
-          {maquinaSel && (
+          {/* Equipamentos */}
+          {escolhidas.length > 0 && (
             <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "10px 12px", marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "#1d4ed8", textTransform: "uppercase" as const, marginBottom: 2 }}>Máquina</div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#1e3a5f" }}>{tituloComSeparador(maquinaSel.codigo)}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: NAV, marginTop: 4 }}>{formatCurrency(maquinaSel.preco_brl ?? 0)}</div>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 8, paddingTop: 8, borderTop: "1px solid #bfdbfe", fontSize: 12 }}>
-                {painel === null ? (
-                  <span style={{ color: "#b45309", fontWeight: 600 }}>Painel: escolher (com ou sem)</span>
-                ) : painelIncluso ? (
-                  <>
-                    <span style={{ color: "#1e3a5f", fontWeight: 600 }}>+ Painel NR-12 {painelIncluso.voltagem}V (incluso)</span>
-                    <span style={{ fontWeight: 700, color: NAV }}>{formatCurrency(painelIncluso.preco)}</span>
-                  </>
-                ) : (
-                  <span style={{ color: "#6b7b8d" }}>Sem painel</span>
-                )}
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#1d4ed8", textTransform: "uppercase" as const, marginBottom: 6 }}>
+                Equipamentos ({escolhidas.length})
               </div>
-              {itemMaquina && (painelIncluso || (descontos[itemMaquina.produto_id] ?? 0) > 0) && (
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6, fontSize: 12 }}>
-                  <span style={{ color: "#1e3a5f", fontWeight: 700 }}>
-                    Valor na proposta{(descontos[itemMaquina.produto_id] ?? 0) > 0 ? ` (−${descontos[itemMaquina.produto_id]}%)` : ""}
-                  </span>
-                  <span style={{ fontWeight: 800, color: NAV }}>
-                    {formatCurrency(precoComDesconto(itemMaquina.preco_unitario, descontos[itemMaquina.produto_id]))}
-                  </span>
-                </div>
-              )}
+              {escolhidas.map((e) => {
+                const m = maquinas.find((x) => x.id === e.id);
+                const item = itensMaquina.find((i) => i.produto_id === e.id);
+                if (!m || !item) return null;
+                const volt = e.painel === "220" || e.painel === "380" ? e.painel : null;
+                const desconto = descontos[e.id] ?? 0;
+                return (
+                  <div key={e.id} style={{ paddingBottom: 8, marginBottom: 8, borderBottom: "1px solid #bfdbfe" }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#1e3a5f" }}>{e.quantidade > 1 ? `${e.quantidade}× ` : ""}{tituloComSeparador(m.codigo)}</div>
+                    <div style={{ fontSize: 12, marginTop: 2, color: e.painel === null && temPainel(m) ? "#b45309" : "#6b7b8d", fontWeight: e.painel === null && temPainel(m) ? 600 : 400 }}>
+                      {e.painel === null && temPainel(m) ? "Painel: escolher (com ou sem)" : volt ? `+ Painel NR-12 ${volt}V (incluso)` : "Sem painel"}
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 4, fontSize: 12 }}>
+                      <span style={{ color: "#1e3a5f", fontWeight: 700 }}>Valor na proposta{desconto > 0 ? ` (−${desconto}%)` : ""}</span>
+                      <span style={{ fontWeight: 800, color: NAV }}>{formatCurrency(precoComDesconto(item.preco_unitario, desconto) * item.quantidade)}</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
