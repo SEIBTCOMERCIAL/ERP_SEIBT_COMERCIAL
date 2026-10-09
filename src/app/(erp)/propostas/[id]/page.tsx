@@ -13,6 +13,7 @@ import { ChecklistTecnicoForm } from "@/components/propostas/ChecklistTecnicoFor
 import { GerarDocxBtn } from "@/components/propostas/GerarDocxBtn";
 import { CabecalhoItemBtn } from "@/components/propostas/CabecalhoItemBtn";
 import { resumoProduto } from "@/lib/propostas/item-principal";
+import { DuplicarPropostaBtn } from "@/components/propostas/DuplicarPropostaBtn";
 import { ExcluirPropostaBtn } from "@/components/propostas/ExcluirPropostaBtn";
 import { RepresentanteProposta } from "@/components/propostas/RepresentanteProposta";
 import { OrganizacaoPropostaForm } from "@/components/propostas/OrganizacaoPropostaForm";
@@ -296,6 +297,9 @@ export default async function DetalhePropostaPage({ params }: { params: { id: st
           <Link href={`/propostas/${proposta.id}/editar`} className="flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-[12px] font-medium transition-colors hover:border-[#2074B9]">
             <Edit className="h-3.5 w-3.5" />Editar
           </Link>
+          {(usuario?.perfil === "admin" || usuario?.perfil === "vendedor_interno") && (
+            <DuplicarPropostaBtn propostaId={proposta.id} numero={proposta.numero_completo} podeComplementar={estruturaCrm} />
+          )}
           {usuario?.perfil === "admin" && <ExcluirPropostaBtn propostaId={proposta.id} numero={proposta.numero_completo} />}
         </div>
       </header>

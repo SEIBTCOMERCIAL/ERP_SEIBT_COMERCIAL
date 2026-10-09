@@ -33,7 +33,7 @@ export default async function EditarPropostaPage({ params }: { params: { id: str
       .maybeSingle(),
     buscarTodos((de, ate) => supabase
       .from("produtos")
-      .select("id, codigo, descricao, descricao_painel, categoria, preco_brl, ipi_pct")
+      .select("id, codigo, descricao, descricao_painel, categoria, preco_brl, ipi_pct, linha, preco_painel_220, preco_painel_380")
       .is("deleted_at", null)
       .eq("ativo", true)
       .order("codigo")

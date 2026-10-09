@@ -11,6 +11,7 @@ import { numeroComRevisao, precoComAjuste, proximaRevisao } from "@/lib/proposta
 import { salvarEdicaoProposta, type ItemEdicao } from "@/app/actions/propostas-editar";
 import type { ChecklistInput } from "@/app/actions/propostas-pecas";
 import { descricaoLinhaJogo, idsNavalhasEmJogos, totalJogo, type Jogo } from "@/lib/propostas/jogos-navalha";
+import { rotulosPainel } from "@/lib/produtos/painel";
 
 export interface ProdutoParaAdicionar {
   id: string;
@@ -20,6 +21,9 @@ export interface ProdutoParaAdicionar {
   categoria: string;
   preco_brl: number | null;
   ipi_pct: number | null;
+  linha?: string | null;
+  preco_painel_220?: number | null;
+  preco_painel_380?: number | null;
 }
 
 interface Props {
@@ -66,6 +70,8 @@ export function EditarPropostaForm(p: Props) {
   const [checklist, setChecklist] = useState<ChecklistInput | null>(p.checklistInicial);
   const [busca, setBusca] = useState("");
   const [buscaJogo, setBuscaJogo] = useState("");
+  // Equipamento com preço de painel: o vendedor escolhe o painel antes de entrar na proposta.
+  const [escolhendoPainel, setEscolhendoPainel] = useState<ProdutoParaAdicionar | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, startTransition] = useTransition();
 
@@ -122,24 +128,40 @@ export function EditarPropostaForm(p: Props) {
       return copia;
     });
 
-  const adicionar = (pr: ProdutoParaAdicionar) => {
+  const temPainel = (pr: ProdutoParaAdicionar) => Number(pr.preco_painel_220 ?? 0) > 0 || Number(pr.preco_painel_380 ?? 0) > 0;
+
+  /** Adiciona o item; `painel` (220/380) soma o preço do painel no valor do equipamento e entra no texto do Word. */
+  const adicionar = (pr: ProdutoParaAdicionar, painel: "220" | "380" | null = null) => {
     const ehMaquina = pr.categoria === "maquina";
+    const precoPainel = painel === "220" ? Number(pr.preco_painel_220 ?? 0) : painel === "380" ? Number(pr.preco_painel_380 ?? 0) : 0;
+    const rot = rotulosPainel(pr.linha);
+    const incluso = painel && precoPainel > 0
+      ? { voltagem: painel, preco: precoPainel, tipo: rot.compartilhado ? (painel === "220" ? ("compartilhado" as const) : ("dedicado" as const)) : undefined }
+      : null;
     setItens((prev) => [
       ...prev,
       {
         chave: novaChave(),
         textoAberto: false,
         produto_id: pr.id,
-        descricao: ehMaquina ? tituloComSeparador(pr.codigo) : pr.descricao,
-        observacao: ehMaquina ? montarDescritivoMaquina(pr, null) : null,
+        descricao: ehMaquina
+          ? tituloComSeparador(pr.codigo) + (incluso ? (incluso.tipo ? ` + painel ${incluso.tipo}` : ` + painel NR-12 ${incluso.voltagem}V`) : "")
+          : pr.descricao,
+        observacao: ehMaquina ? montarDescritivoMaquina(pr, incluso) : null,
         quantidade: 1,
-        preco_tabela: pr.preco_brl ?? 0,
+        preco_tabela: (pr.preco_brl ?? 0) + (incluso?.preco ?? 0),
         desconto_pct: 0,
         acrescimo_pct: 0,
         ipi_pct: Number(pr.ipi_pct ?? 0),
       },
     ]);
     setBusca("");
+    setEscolhendoPainel(null);
+  };
+
+  const clicouNoProduto = (pr: ProdutoParaAdicionar) => {
+    if (pr.categoria === "maquina" && temPainel(pr)) setEscolhendoPainel(pr);
+    else adicionar(pr);
   };
 
   const linhas = itens.map((it) => {
@@ -368,13 +390,35 @@ export function EditarPropostaForm(p: Props) {
               placeholder="Buscar produto por código ou descrição (ex.: navalha 300 A2)..."
               className={inputCls}
             />
+            {escolhendoPainel && (
+              <div className="mt-2 rounded-lg border border-[#93C5FD] bg-[#EFF6FF] p-3">
+                <p className="text-[12px] font-semibold text-foreground">Painel de {tituloComSeparador(escolhendoPainel.codigo)}</p>
+                <p className="mb-2 text-[11px] text-muted-foreground">O preço do painel soma no valor do equipamento e o texto do painel entra no Word.</p>
+                <div className="flex flex-wrap gap-2">
+                  {(() => {
+                    const rot = rotulosPainel(escolhendoPainel.linha);
+                    const opcoes: Array<{ v: "220" | "380" | null; rotulo: string; preco: number | null }> = [
+                      { v: null, rotulo: "Sem painel", preco: null },
+                      ...(Number(escolhendoPainel.preco_painel_220 ?? 0) > 0 ? [{ v: "220" as const, rotulo: rot.p220, preco: Number(escolhendoPainel.preco_painel_220) }] : []),
+                      ...(Number(escolhendoPainel.preco_painel_380 ?? 0) > 0 ? [{ v: "380" as const, rotulo: rot.p380, preco: Number(escolhendoPainel.preco_painel_380) }] : []),
+                    ];
+                    return opcoes.map((o) => (
+                      <button key={o.rotulo} type="button" onClick={() => adicionar(escolhendoPainel, o.v)} className="h-8 rounded-lg border border-[#2C4F79] bg-card px-3 text-[12px] font-medium text-[#2C4F79] hover:bg-white">
+                        {o.rotulo}{o.preco != null ? ` (+ ${formatCurrency(o.preco)})` : ""}
+                      </button>
+                    ));
+                  })()}
+                  <button type="button" onClick={() => setEscolhendoPainel(null)} className="h-8 rounded-lg px-3 text-[12px] text-muted-foreground hover:underline">Cancelar</button>
+                </div>
+              </div>
+            )}
             {resultados.length > 0 && (
               <div className="mt-2 bg-card border border-border rounded-lg shadow-sm overflow-hidden">
                 {resultados.map((pr) => (
                   <button
                     key={pr.id}
                     type="button"
-                    onClick={() => adicionar(pr)}
+                    onClick={() => clicouNoProduto(pr)}
                     className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left text-[12px] hover:bg-muted border-b border-border last:border-0"
                   >
                     <span className="flex items-center gap-2 min-w-0">
