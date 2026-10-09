@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { ChevronRight, ChevronUp, ChevronDown, Trash2, Plus, FileText, AlertCircle } from "lucide-react";
+import { ChevronRight, ChevronUp, ChevronDown, Trash2, Plus, FileText, AlertCircle, Star } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { tituloComSeparador } from "@/lib/produto-titulo";
 import { montarDescritivoMaquina } from "@/lib/propostas/descritivo-maquina";
@@ -175,6 +175,7 @@ export function EditarPropostaForm(p: Props) {
           desconto_pct: it.desconto_pct,
           acrescimo_pct: it.acrescimo_pct,
           ipi_pct: it.ipi_pct,
+          destaque: Boolean(it.destaque),
         })),
         condicao_pagamento: condicao,
         prazo_entrega: prazo,
@@ -254,6 +255,14 @@ export function EditarPropostaForm(p: Props) {
                     <div className="flex flex-col items-center text-muted-foreground">
                       <button type="button" onClick={() => mover(idx, -1)} disabled={idx === 0} className="disabled:opacity-20 hover:text-foreground" title="Subir"><ChevronUp className="h-3.5 w-3.5" /></button>
                       <span className="text-[10px]">{String(idx + 1).padStart(2, "0")}</span>
+                      <button
+                        type="button"
+                        onClick={() => setItens((prev) => prev.map((x) => ({ ...x, destaque: x.chave === it.chave })))}
+                        title={it.destaque ? "Este item dá nome à proposta" : "Usar este item como cabeçalho da proposta"}
+                        className="my-0.5"
+                      >
+                        <Star className={`h-3.5 w-3.5 ${it.destaque ? "fill-amber-400 text-amber-500" : "text-slate-300 hover:text-amber-400"}`} />
+                      </button>
                       <button type="button" onClick={() => mover(idx, 1)} disabled={idx === itens.length - 1} className="disabled:opacity-20 hover:text-foreground" title="Descer"><ChevronDown className="h-3.5 w-3.5" /></button>
                     </div>
                   </td>

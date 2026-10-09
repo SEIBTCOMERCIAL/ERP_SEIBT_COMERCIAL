@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { moagemParaBanco } from "@/lib/propostas/checklist";
 import { numeroComRevisao, precoComAjuste, proximaRevisao } from "@/lib/propostas/revisao";
 import type { ChecklistInput } from "./propostas-pecas";
+import { faltaEstruturaCrm } from "@/lib/propostas/crm";
 
 export interface ItemEdicao {
   produto_id: string | null;
@@ -20,6 +21,8 @@ export interface ItemEdicao {
   /** Acréscimo % (margem) sobre o preço de tabela. */
   acrescimo_pct: number;
   ipi_pct: number;
+  /** Item que dá nome à proposta (cabeçalho). */
+  destaque?: boolean;
 }
 
 export interface EdicaoPropostaInput {
@@ -83,11 +86,16 @@ export async function salvarEdicaoProposta(input: EdicaoPropostaInput): Promise<
       total:          Math.round(it.quantidade) * preco * (1 + it.ipi_pct / 100),
       ordem:          idx,
       opcional:       false,
+      destaque:       Boolean(it.destaque),
     };
   });
 
   // Grava os itens novos antes de apagar os antigos: se algo falhar, nada se perde.
-  const { data: inseridos, error: insErr } = await supabase.from("itens_proposta").insert(novos).select("id");
+  let { data: inseridos, error: insErr } = await supabase.from("itens_proposta").insert(novos).select("id");
+  // Banco sem o campo do cabeçalho (arquivo 028): grava sem ele.
+  if (insErr && faltaEstruturaCrm(insErr)) {
+    ({ data: inseridos, error: insErr } = await supabase.from("itens_proposta").insert(novos.map((n) => { const resto: Record<string, unknown> = { ...n }; delete resto.destaque; return resto; })).select("id"));
+  }
   if (insErr) return { error: "Erro ao salvar os itens: " + insErr.message };
 
   const idsAntigos = ((antigos ?? []) as { id: string }[]).map((i) => i.id);

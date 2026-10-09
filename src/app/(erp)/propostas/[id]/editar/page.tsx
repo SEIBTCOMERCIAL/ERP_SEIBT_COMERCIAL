@@ -21,11 +21,11 @@ export default async function EditarPropostaPage({ params }: { params: { id: str
       .eq("id", params.id)
       .is("deleted_at", null)
       .single(),
-    supabase
-      .from("itens_proposta")
-      .select("produto_id, descricao, observacao, quantidade, preco_tabela, preco_unitario, desconto_pct, ipi_pct")
-      .eq("proposta_id", params.id)
-      .order("ordem"),
+    (async () => {
+      const campos = "produto_id, descricao, observacao, quantidade, preco_tabela, preco_unitario, desconto_pct, ipi_pct";
+      const r = await supabase.from("itens_proposta").select(`${campos}, destaque`).eq("proposta_id", params.id).order("ordem");
+      return r.error ? supabase.from("itens_proposta").select(campos).eq("proposta_id", params.id).order("ordem") : r;
+    })(),
     supabase
       .from("checklist_tecnico")
       .select("segmento_aplicacao, produto_final, material, dimensoes, granulometria, moagem_tipo, forma_abastecimento, producao_horaria_kgh, voltagem")
@@ -50,6 +50,7 @@ export default async function EditarPropostaPage({ params }: { params: { id: str
   type ItemBanco = {
     produto_id: string | null; descricao: string; observacao: string | null; quantidade: number;
     preco_tabela: number | null; preco_unitario: number; desconto_pct: number | null; ipi_pct: number | null;
+    destaque?: boolean;
   };
   const itensIniciais: ItemEdicao[] = ((itens ?? []) as ItemBanco[]).map((it) => {
     const tabela = Number(it.preco_tabela ?? 0) > 0 ? Number(it.preco_tabela) : Number(it.preco_unitario);
@@ -62,6 +63,7 @@ export default async function EditarPropostaPage({ params }: { params: { id: str
       preco_tabela: tabela,
       desconto_pct: desconto,
       acrescimo_pct: acrescimo,
+      destaque: Boolean(it.destaque),
       ipi_pct: Number(it.ipi_pct ?? 0),
     };
   });

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { registrarHistorico, usuarioAtual } from "@/lib/propostas/crm-servidor";
+import { faltaEstruturaCrm } from "@/lib/propostas/crm";
 
 /** Texto livre do Checklist Técnico: observações, informações adicionais e ressalvas. */
 export async function salvarObservacoesTecnicas(propostaId: string, texto: string): Promise<{ error?: string; success?: boolean }> {
@@ -54,5 +55,27 @@ export async function adicionarObservacaoNegociacao(propostaId: string, texto: s
   });
   if (error) return { error: error.message };
   revalidatePath(`/propostas/${propostaId}`);
+  return { success: true };
+}
+
+/** Marca o item que dá nome à proposta (topo, cartão do funil e nome do arquivo Word). */
+export async function definirItemCabecalho(propostaId: string, itemId: string): Promise<{ error?: string; success?: boolean }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createClient() as any;
+  const usuario = await usuarioAtual(supabase);
+  if (!usuario) return { error: "Não autorizado." };
+
+  const { data: item } = await supabase.from("itens_proposta").select("id").eq("id", itemId).eq("proposta_id", propostaId).maybeSingle();
+  if (!item) return { error: "Item não encontrado." };
+
+  const { error: errLimpar } = await supabase.from("itens_proposta").update({ destaque: false }).eq("proposta_id", propostaId).neq("id", itemId);
+  if (errLimpar) {
+    return { error: faltaEstruturaCrm(errLimpar) ? "Esta opção depende da atualização do banco de dados (arquivo 028), que ainda não foi aplicada." : errLimpar.message };
+  }
+  const { data, error } = await supabase.from("itens_proposta").update({ destaque: true }).eq("id", itemId).select("id");
+  if (error) return { error: error.message };
+  if (!data?.length) return { error: "Você não tem permissão para alterar esta proposta." };
+  revalidatePath(`/propostas/${propostaId}`);
+  revalidatePath("/propostas");
   return { success: true };
 }

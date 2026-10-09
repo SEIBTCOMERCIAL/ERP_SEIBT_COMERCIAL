@@ -11,6 +11,8 @@ import { montarNomeArquivo } from "@/lib/propostas/docx-dados";
 import type { Proposta, ItemProposta, ChecklistTecnico } from "@/types/database";
 import { ChecklistTecnicoForm } from "@/components/propostas/ChecklistTecnicoForm";
 import { GerarDocxBtn } from "@/components/propostas/GerarDocxBtn";
+import { CabecalhoItemBtn } from "@/components/propostas/CabecalhoItemBtn";
+import { resumoProduto } from "@/lib/propostas/item-principal";
 import { ExcluirPropostaBtn } from "@/components/propostas/ExcluirPropostaBtn";
 import { RepresentanteProposta } from "@/components/propostas/RepresentanteProposta";
 import { OrganizacaoPropostaForm } from "@/components/propostas/OrganizacaoPropostaForm";
@@ -95,7 +97,7 @@ export default async function DetalhePropostaPage({ params }: { params: { id: st
   } as Proposta & { motivo_congelamento_detalhes?: string | null };
 
   const [
-    { data: itensRaw },
+    itensResult,
     { data: followupsRaw },
     funil,
     { data: vendedoresRaw },
@@ -105,10 +107,12 @@ export default async function DetalhePropostaPage({ params }: { params: { id: st
     motivos,
     usuario,
   ] = await Promise.all([
-    supabase
-      .from("itens_proposta")
-      .select("id, descricao, quantidade, preco_tabela, preco_unitario, ipi_pct, desconto_pct, total, opcional, numero_item, observacao, produto:produtos(codigo, categoria)")
-      .eq("proposta_id", params.id).order("ordem"),
+    (async () => {
+      // "destaque" (item do cabeçalho) vem do arquivo 028; sem ele, lê os itens sem esse campo.
+      const campos = "id, descricao, quantidade, preco_tabela, preco_unitario, ipi_pct, desconto_pct, total, opcional, numero_item, observacao, produto:produtos(codigo, categoria)";
+      const r = await supabase.from("itens_proposta").select(`${campos}, destaque`).eq("proposta_id", params.id).order("ordem");
+      return r.error ? { ...(await supabase.from("itens_proposta").select(campos).eq("proposta_id", params.id).order("ordem")), semDestaque: true } : r;
+    })(),
     supabase
       .from("followups")
       .select("id, usuario_id, data_contato, canal, motivo, descricao, temperatura, proxima_acao_data, proxima_acao_tipo, proxima_acao_notas, criado_em")
@@ -123,7 +127,9 @@ export default async function DetalhePropostaPage({ params }: { params: { id: st
     usuarioAtual(supabase),
   ]);
 
-  const itens = (itensRaw ?? []) as unknown as ItemProposta[];
+  const itensRaw = itensResult.data;
+  const cabecalhoDisponivel = !(itensResult as { semDestaque?: boolean }).semDestaque;
+  const itens = (itensRaw ?? []) as unknown as Array<ItemProposta & { destaque?: boolean; produto?: { codigo: string; categoria: string } | null }>;
   const followups = (followupsRaw ?? []) as Followup[];
   const { etapas } = funil;
   const vendedores = (vendedoresRaw ?? []) as Array<{ id: string; nome: string }>;
@@ -196,9 +202,11 @@ export default async function DetalhePropostaPage({ params }: { params: { id: st
     ? `${nomeMotivo(p2.motivo_congelamento)}${p2.motivo_congelamento_detalhes ? ` — ${p2.motivo_congelamento_detalhes}` : ""}`
     : null;
 
-  const produtoPrincipal = itens.length
-    ? (itens.length > 1 ? `${itens[0].descricao} (+${itens.length - 1} ${itens.length === 2 ? "item" : "itens"})` : itens[0].descricao)
-    : p2.descricao_livre ?? "—";
+  const produtoPrincipal = resumoProduto(itens, p2.descricao_livre ?? null) ?? "—";
+  // Quem pode marcar o item do cabeçalho: quem pode editar a proposta.
+  const podeEditarItens = usuario?.perfil === "admin" ||
+    (usuario?.perfil === "vendedor_interno" && proposta.responsavel_id === usuario.id) ||
+    usuario?.perfil === "representante";
 
   const totalSemIpi = itens.reduce((s, i) => s + i.quantidade * i.preco_unitario, 0);
   const totalComIpi = itens.reduce((s, i) => s + (i.total ?? 0), 0);
@@ -364,7 +372,7 @@ export default async function DetalhePropostaPage({ params }: { params: { id: st
                 <table className="w-full min-w-[640px]">
                   <thead>
                     <tr className="bg-muted/40">
-                      {["#", "Descrição", "Qtd.", "Preço unit.", "Desc.%", "IPI%", "Total"].map((h) => (
+                      {[...(cabecalhoDisponivel ? ["Cab."] : []), "#", "Descrição", "Qtd.", "Preço unit.", "Desc./Acrésc.", "IPI%", "Total"].map((h) => (
                         <th key={h} className="border-b border-border px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
                       ))}
                     </tr>
@@ -372,6 +380,11 @@ export default async function DetalhePropostaPage({ params }: { params: { id: st
                   <tbody>
                     {itens.map((item, idx) => (
                       <tr key={item.id} className="border-b border-border last:border-0">
+                        {cabecalhoDisponivel && (
+                          <td className="px-2 py-2.5 text-center">
+                            <CabecalhoItemBtn propostaId={proposta.id} itemId={item.id} ativo={Boolean(item.destaque)} podeEditar={podeEditarItens} />
+                          </td>
+                        )}
                         <td className="px-3 py-2.5 text-[11px] text-muted-foreground">{item.numero_item ?? idx + 1}</td>
                         <td className="max-w-[260px] px-3 py-2.5 text-[12px] text-foreground">
                           <p className="line-clamp-2">{item.descricao}</p>
@@ -379,16 +392,16 @@ export default async function DetalhePropostaPage({ params }: { params: { id: st
                         </td>
                         <td className="px-3 py-2.5 text-center text-[12px]">{item.quantidade}</td>
                         <td className="px-3 py-2.5 font-mono text-[12px]">{formatCurrency(item.preco_unitario, moeda)}</td>
-                        <td className="px-3 py-2.5 text-[12px] text-muted-foreground">{item.desconto_pct ? `${item.desconto_pct}%` : "—"}</td>
+                        <td className={`px-3 py-2.5 text-[12px] ${Number(item.desconto_pct) < 0 ? "font-semibold text-amber-700" : "text-muted-foreground"}`}>{!item.desconto_pct ? "—" : Number(item.desconto_pct) < 0 ? `+ ${Math.abs(Number(item.desconto_pct))}%` : `− ${item.desconto_pct}%`}</td>
                         <td className="px-3 py-2.5 text-[12px] text-muted-foreground">{item.ipi_pct ?? 0}%</td>
                         <td className="px-3 py-2.5 font-mono text-[12px] font-semibold">{item.total ? formatCurrency(item.total, moeda) : "—"}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-muted/20"><td colSpan={6} className="px-3 py-2 text-right text-[11px] font-semibold text-muted-foreground">Subtotal sem IPI</td><td className="px-3 py-2 font-mono text-[12px] font-bold">{formatCurrency(totalSemIpi, moeda)}</td></tr>
-                    <tr className="bg-muted/20"><td colSpan={6} className="px-3 py-2 text-right text-[11px] font-semibold text-muted-foreground">Impostos (IPI)</td><td className="px-3 py-2 font-mono text-[12px] font-bold">{formatCurrency(Math.max(0, totalComIpi - totalSemIpi), moeda)}</td></tr>
-                    <tr className="bg-muted/30"><td colSpan={6} className="px-3 py-2 text-right text-[11px] font-semibold text-muted-foreground">Total com IPI</td><td className="px-3 py-2 font-mono text-[13px] font-bold">{formatCurrency(totalComIpi, moeda)}</td></tr>
+                    <tr className="bg-muted/20"><td colSpan={cabecalhoDisponivel ? 7 : 6} className="px-3 py-2 text-right text-[11px] font-semibold text-muted-foreground">Subtotal sem IPI</td><td className="px-3 py-2 font-mono text-[12px] font-bold">{formatCurrency(totalSemIpi, moeda)}</td></tr>
+                    <tr className="bg-muted/20"><td colSpan={cabecalhoDisponivel ? 7 : 6} className="px-3 py-2 text-right text-[11px] font-semibold text-muted-foreground">Impostos (IPI)</td><td className="px-3 py-2 font-mono text-[12px] font-bold">{formatCurrency(Math.max(0, totalComIpi - totalSemIpi), moeda)}</td></tr>
+                    <tr className="bg-muted/30"><td colSpan={cabecalhoDisponivel ? 7 : 6} className="px-3 py-2 text-right text-[11px] font-semibold text-muted-foreground">Total com IPI</td><td className="px-3 py-2 font-mono text-[13px] font-bold">{formatCurrency(totalComIpi, moeda)}</td></tr>
                   </tfoot>
                 </table>
               </div>

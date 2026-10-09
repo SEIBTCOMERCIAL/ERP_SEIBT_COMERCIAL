@@ -12,6 +12,7 @@ import {
 } from "@/lib/propostas/crm";
 import { carregarEtapas, carregarMotivos, usuarioAtual } from "@/lib/propostas/crm-servidor";
 import { posicaoNoFunil, tipoEtapaDe } from "@/lib/propostas/funil";
+import { resumoProduto, type ItemParaCabecalho } from "@/lib/propostas/item-principal";
 import {
   calcularAlertas, diasAte, diasDesde, emPartes, hojeISO, montarAcompanhamentos, ultimaMovimentacao,
   type Alertas, type FollowupResumo,
@@ -163,23 +164,22 @@ export default async function PropostasPage({ searchParams }: { searchParams: Se
       supabase.from("clientes").select("id, razao_social, nome_fantasia, cnpj, cidade, estado").in("id", ids))),
     Promise.all(emPartes(propostaIds).map((ids) =>
       supabase.from("followups").select("proposta_id, data_contato, proxima_acao_data, proxima_acao_tipo, proxima_acao_notas, criado_em").in("proposta_id", ids))),
-    Promise.all(emPartes(propostaIds).map((ids) =>
-      supabase.from("itens_proposta").select("proposta_id, descricao, ordem").in("proposta_id", ids).order("ordem"))),
+    Promise.all(emPartes(propostaIds).map(async (ids) => {
+      const campos = "proposta_id, descricao, ordem, produto:produtos(codigo, categoria)";
+      const r = await supabase.from("itens_proposta").select(`${campos}, destaque`).in("proposta_id", ids).order("ordem");
+      return r.error ? supabase.from("itens_proposta").select(campos).in("proposta_id", ids).order("ordem") : r;
+    })),
   ]);
 
   const clientes = clientesPartes.flatMap((r: { data: ClienteResumo[] | null }) => r.data ?? []) as ClienteResumo[];
   const followups = (followupsPartes.flatMap((r: { data: FollowupResumo[] | null }) => r.data ?? []) as FollowupResumo[])
     .sort((a, b) => b.data_contato.localeCompare(a.data_contato) || b.criado_em.localeCompare(a.criado_em));
-  const itens = itensPartes.flatMap((r: { data: Array<{ proposta_id: string; descricao: string }> | null }) => r.data ?? []) as Array<{ proposta_id: string; descricao: string }>;
+  const itens = itensPartes.flatMap((r: { data: Array<ItemParaCabecalho & { proposta_id: string }> | null }) => r.data ?? []) as Array<ItemParaCabecalho & { proposta_id: string }>;
 
-  // Produto cotado: primeiro item da proposta (+ quantidade de outros itens); sem itens, a descrição inicial.
-  const itensPorProposta = new Map<string, string[]>();
-  for (const i of itens) itensPorProposta.set(i.proposta_id, [...(itensPorProposta.get(i.proposta_id) ?? []), i.descricao]);
-  const produtoDe = (p: PropostaResumo) => {
-    const lista = itensPorProposta.get(p.id) ?? [];
-    if (lista.length) return lista.length > 1 ? `${lista[0]} (+${lista.length - 1} ${lista.length - 1 === 1 ? "item" : "itens"})` : lista[0];
-    return p.descricao_livre;
-  };
+  // Produto cotado: o item do cabeçalho (marcado, ou o moinho) + quantidade de outros itens; sem itens, a descrição inicial.
+  const itensPorProposta = new Map<string, ItemParaCabecalho[]>();
+  for (const i of itens) itensPorProposta.set(i.proposta_id, [...(itensPorProposta.get(i.proposta_id) ?? []), i]);
+  const produtoDe = (p: PropostaResumo) => resumoProduto(itensPorProposta.get(p.id) ?? [], p.descricao_livre);
 
   const clientesMap = new Map(clientes.map((c) => [c.id, c]));
   const vendedoresMap = new Map(vendedores.map((v) => [v.id, v.nome]));

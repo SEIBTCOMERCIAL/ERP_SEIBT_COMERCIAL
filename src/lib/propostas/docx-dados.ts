@@ -6,6 +6,7 @@
 import type { DadosDocxProposta, ItemDocx, ModeloProposta } from "./docx-modelo";
 import { moagemRotulo } from "./checklist";
 import { ehMoinho, removerPainelDoTexto, removerPainelDoTitulo } from "./descritivo-maquina";
+import { indiceItemCabecalho } from "./item-principal";
 
 const FUSO = "America/Sao_Paulo";
 
@@ -56,11 +57,11 @@ export async function carregarDadosDocx(
     proposta.cliente_id
       ? supabase.from("contatos_cliente").select("nome, tratamento, telefone, email, principal").eq("cliente_id", proposta.cliente_id).eq("ativo", true).order("principal", { ascending: false }).limit(1)
       : Promise.resolve({ data: [] }),
-    supabase
-      .from("itens_proposta")
-      .select("descricao, quantidade, preco_tabela, preco_unitario, ipi_pct, total, observacao, produto:produtos(codigo, categoria)")
-      .eq("proposta_id", propostaId)
-      .order("ordem"),
+    (async () => {
+      const campos = "descricao, quantidade, preco_tabela, preco_unitario, ipi_pct, total, observacao, produto:produtos(codigo, categoria)";
+      const r = await supabase.from("itens_proposta").select(`${campos}, destaque`).eq("proposta_id", propostaId).order("ordem");
+      return r.error ? supabase.from("itens_proposta").select(campos).eq("proposta_id", propostaId).order("ordem") : r;
+    })(),
     supabase
       .from("checklist_tecnico")
       .select("segmento_aplicacao, produto_final, material, dimensoes, granulometria, moagem_tipo, forma_abastecimento, producao_horaria_kgh, voltagem")
@@ -83,6 +84,7 @@ export async function carregarDadosDocx(
     quantidade: number;
     preco_tabela: number | null;
     preco_unitario: number;
+    destaque?: boolean;
     ipi_pct: number | null;
     total: number | null;
     observacao: string | null;
@@ -185,14 +187,14 @@ export function montarNomeArquivo(p: {
   cidade: string;
   uf: string;
   tipo: string;
-  itens: { descricao: string; quantidade: number; produto: { codigo: string; categoria: string } | null }[];
+  itens: { descricao: string; quantidade: number; destaque?: boolean; produto: { codigo: string; categoria: string } | null }[];
   numero: number;
   /** Número completo da proposta (ex.: "SB01/2026" ou "1177/2026 A"); quando informado, vale no lugar de `numero`. */
   numeroCompleto?: string | null;
   revisao: string | null;
 }): string {
   const ehMaquina = p.tipo === "maquina";
-  const principal = p.itens.find((it) => it.produto?.categoria === "maquina") ?? p.itens[0];
+  const principal = p.itens[indiceItemCabecalho(p.itens)];
   const outros = ehMaquina ? 0 : p.itens.length - 1;
   const equipamento = principal
     ? `${String(principal.quantidade).padStart(2, "0")} ${ehMaquina ? principal.produto?.codigo ?? principal.descricao : principal.descricao}`
