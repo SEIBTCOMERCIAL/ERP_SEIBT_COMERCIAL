@@ -323,6 +323,11 @@ export function EditarPropostaForm(p: Props) {
                         className={`${areaCls} mt-1.5 font-mono text-[11px]`}
                       />
                     )}
+                    {it.textoAberto && (
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Dica: linhas em branco logo antes de &quot;Especificações Técnicas&quot; empurram a tabela para a próxima folha do Word (use quando ela ficaria cortada no fim da página).
+                      </p>
+                    )}
                   </td>
                   <td className="px-2.5 py-2 w-[70px]">
                     <input type="number" min={1} value={it.quantidade} onChange={(e) => alterar(it.chave, { quantidade: Math.max(1, Math.round(numero(e.target.value))) })} className={`${inputCls} text-center`} />

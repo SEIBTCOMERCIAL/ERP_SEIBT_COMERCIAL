@@ -94,21 +94,29 @@ function paragrafo(texto: string, negrito = false, extraPPr = "", tamanho = 20):
 function tabelaSpecs(titulo: string | null, linhas: [string, string][]): string {
   const borda = (lado: string) => `<w:${lado} w:val="single" w:sz="4" w:space="0" w:color="auto"/>`;
   const bordas = ["top", "left", "bottom", "right", "insideH", "insideV"].map(borda).join("");
-  const pSpec = (texto: string, alinhamento: string, negrito = false) =>
-    paragrafo(texto, negrito, `<w:spacing w:line="276" w:lineRule="auto"/><w:jc w:val="${alinhamento}"/>`, 18);
+  // keepNext em todas as linhas menos a última + linhas que não se partem: a tabela inteira vai junto para a próxima folha.
+  const pSpec = (texto: string, alinhamento: string, negrito = false, ultima = false) =>
+    paragrafo(texto, negrito, `${ultima ? "" : "<w:keepNext/>"}<w:spacing w:line="276" w:lineRule="auto"/><w:jc w:val="${alinhamento}"/>`, 18);
   const celula = (largura: number, conteudo: string, extra = "") =>
     `<w:tc><w:tcPr><w:tcW w:w="${largura}" w:type="dxa"/>${extra}<w:vAlign w:val="center"/></w:tcPr>${conteudo}</w:tc>`;
-  const linha = (conteudo: string) => `<w:tr><w:trPr><w:trHeight w:val="283"/></w:trPr>${conteudo}</w:tr>`;
+  const linha = (conteudo: string) => `<w:tr><w:trPr><w:cantSplit/><w:trHeight w:val="283"/></w:trPr>${conteudo}</w:tr>`;
 
   const cab = titulo
     ? linha(celula(4139, pSpec(titulo, "center", true), `<w:gridSpan w:val="2"/><w:shd w:val="clear" w:color="auto" w:fill="DBE5F1"/>`))
     : "";
   const corpo = linhas
-    .map(([rotulo, valor]) => linha(celula(2551, pSpec(rotulo, "left")) + celula(1588, pSpec(valor, "right"))))
+    .map(([rotulo, valor], idx) => {
+      const ultima = idx === linhas.length - 1;
+      return linha(celula(2551, pSpec(rotulo, "left", false, ultima)) + celula(1588, pSpec(valor, "right", false, ultima)));
+    })
     .join("");
 
   return `<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders>${bordas}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/></w:tblPr><w:tblGrid><w:gridCol w:w="2551"/><w:gridCol w:w="1588"/></w:tblGrid>${cab}${corpo}</w:tbl>`;
 }
+
+// "- " em Arial 10 pt ≈ 6 pt ≈ 125 twips: onde começa o texto depois do traço.
+const RECUO_TOPICO_PENDENTE = '<w:ind w:left="125" w:hanging="125"/>';
+const RECUO_CONTINUACAO = '<w:ind w:left="125"/>';
 
 const TITULO_SPECS = /^especifica[çc][õo]es\s+t[ée]cnicas:?$/i;
 const temMinuscula = (s: string) => s !== s.toUpperCase();
@@ -125,6 +133,8 @@ function detalhesXml(texto: string): string {
   const blocos: string[] = [];
   let tituloFeito = false;
   let ultimaVazia = true;
+  // Dentro de uma lista de tópicos: linhas seguintes sem "- " são continuação do tópico (recuo alinhado).
+  let emTopico = false;
   let i = 0;
 
   const vazia = () => {
@@ -136,13 +146,18 @@ function detalhesXml(texto: string): string {
     const bruta = linhas[i]!;
     const l = bruta.trim();
 
-    if (!l) { vazia(); i++; continue; }
+    if (!l) { vazia(); emTopico = false; i++; continue; }
 
     // Tabela de especificações (com ou sem o título "Especificações Técnicas")
     const ehTituloSpecs = TITULO_SPECS.test(l);
     let j = ehTituloSpecs ? i + 1 : i;
     if (ehTituloSpecs) while (j < linhas.length && !linhas[j]!.trim()) j++;
     if (j < linhas.length && linhas[j]!.includes("\t")) {
+      // Linhas em branco colocadas logo antes das especificações são respeitadas (até 25): empurram a
+      // tabela para a próxima folha, como o vendedor faz à mão no Word.
+      let emBranco = 0;
+      for (let k = i - 1; k >= 0 && !linhas[k]!.trim(); k--) emBranco++;
+      for (let k = 1; k < Math.min(emBranco, 25); k++) blocos.push(paragrafo(""));
       const specs: [string, string][] = [];
       while (j < linhas.length && linhas[j]!.includes("\t")) {
         const [rotulo, ...resto] = linhas[j]!.split("\t");
@@ -152,6 +167,7 @@ function detalhesXml(texto: string): string {
       blocos.push(tabelaSpecs(ehTituloSpecs ? l : null, specs));
       ultimaVazia = false;
       tituloFeito = true;
+      emTopico = false;
       i = j;
       continue;
     }
@@ -161,7 +177,13 @@ function detalhesXml(texto: string): string {
       (temLetra(l) && !temMinuscula(l)) ||
       /^-\s*Valor Painel/i.test(l) ||
       ehTituloSpecs;
-    blocos.push(paragrafo(l, negrito));
+    // Tópico ("- ...") tem recuo pendente: a continuação alinha com o texto, não com o traço. A linha seguinte
+    // que não começa com "- " e tem letras minúsculas é continuação do tópico (o texto vem quebrado em linhas).
+    const ehTopico = /^-\s/.test(l) && !negrito;
+    const ehContinuacao: boolean = !ehTopico && !negrito && emTopico && temMinuscula(l) && !/^(nota|observa)/i.test(l);
+    const recuo = ehTopico ? RECUO_TOPICO_PENDENTE : ehContinuacao ? RECUO_CONTINUACAO : "";
+    emTopico = ehTopico || ehContinuacao;
+    blocos.push(paragrafo(l, negrito, recuo));
     tituloFeito = true;
     ultimaVazia = false;
     i++;
@@ -201,8 +223,8 @@ function itemSimplesXml(titulo: string, texto: string | null): string {
         { texto: m[3]!, negrito: true, cor: "FF0000" },
       ])
     : paragrafo(titulo);
-  // Linhas de jogo de navalhas ganham uma linha em branco embaixo, como nos modelos da SEIBT.
-  const respiro = m && m[2] ? [paragrafo("")] : [];
+  // Todo item simples ganha uma linha em branco embaixo, como nos modelos da SEIBT.
+  const respiro = [paragrafo("")];
   return [principal, ...linhas.map((l) => paragrafo(l)), ...respiro].join("");
 }
 
