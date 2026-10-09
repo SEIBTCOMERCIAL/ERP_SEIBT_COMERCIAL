@@ -70,6 +70,7 @@ export function EditarPropostaForm(p: Props) {
   const [checklist, setChecklist] = useState<ChecklistInput | null>(p.checklistInicial);
   const [busca, setBusca] = useState("");
   const [buscaJogo, setBuscaJogo] = useState("");
+  const [tipoBusca, setTipoBusca] = useState<"" | "equipamento" | "peca">("");
   // Equipamento com preço de painel: o vendedor escolhe o painel antes de entrar na proposta.
   const [escolhendoPainel, setEscolhendoPainel] = useState<ProdutoParaAdicionar | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -80,14 +81,24 @@ export function EditarPropostaForm(p: Props) {
   // Navalhas com jogo cadastrado entram só pelo jogo (formato do orçamento).
   const navalhasEmJogo = useMemo(() => (p.jogosDisponivel ? idsNavalhasEmJogos(p.jogosNavalha) : new Set<string>()), [p.jogosDisponivel, p.jogosNavalha]);
 
-  const resultados = useMemo(() => {
+  // Resultados por relevância: código começa com o que foi digitado, depois código contém, depois descrição;
+  // equipamentos antes das peças (senão as centenas de peneiras e navalhas do mesmo modelo escondem o moinho).
+  const LIMITE_RESULTADOS = 15;
+  const { resultados, totalResultados } = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    if (q.length < 2) return [];
-    return p.produtos
+    if (q.length < 2) return { resultados: [] as ProdutoParaAdicionar[], totalResultados: 0 };
+    const pontos = (pr: ProdutoParaAdicionar) => {
+      const cod = pr.codigo.toLowerCase();
+      const base = cod.startsWith(q) ? 0 : cod.includes(q) ? 1 : 2;
+      return base * 2 + (pr.categoria === "maquina" ? 0 : 1);
+    };
+    const achados = p.produtos
       .filter((pr) => !(pr.categoria === "navalha" && navalhasEmJogo.has(pr.id)))
+      .filter((pr) => tipoBusca === "" || (tipoBusca === "equipamento") === (pr.categoria === "maquina"))
       .filter((pr) => pr.codigo.toLowerCase().includes(q) || pr.descricao.toLowerCase().includes(q))
-      .slice(0, 8);
-  }, [busca, p.produtos, navalhasEmJogo]);
+      .sort((a, b) => pontos(a) - pontos(b));
+    return { resultados: achados.slice(0, LIMITE_RESULTADOS), totalResultados: achados.length };
+  }, [busca, p.produtos, navalhasEmJogo, tipoBusca]);
 
   const jogosEncontrados = useMemo(() => {
     const q = buscaJogo.trim().toLowerCase();
@@ -387,9 +398,21 @@ export function EditarPropostaForm(p: Props) {
             <input
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar produto por código ou descrição (ex.: navalha 300 A2)..."
+              placeholder="Buscar produto por código ou descrição (ex.: MGHS 800 BSC, esteira, peneira)..."
               className={inputCls}
             />
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {([["", "Tudo"], ["equipamento", "Equipamentos"], ["peca", "Peças"]] as const).map(([v, r]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setTipoBusca(v)}
+                  className={`h-7 rounded-full border px-3 text-[11px] font-semibold ${tipoBusca === v ? "border-[#2C4F79] bg-[#2C4F79] text-white" : "border-border bg-card text-muted-foreground hover:bg-muted"}`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
             {escolhendoPainel && (
               <div className="mt-2 rounded-lg border border-[#93C5FD] bg-[#EFF6FF] p-3">
                 <p className="text-[12px] font-semibold text-foreground">Painel de {tituloComSeparador(escolhendoPainel.codigo)}</p>
@@ -429,7 +452,15 @@ export function EditarPropostaForm(p: Props) {
                     <span className="font-mono font-semibold shrink-0">{formatCurrency(pr.preco_brl ?? 0)}</span>
                   </button>
                 ))}
+                {totalResultados > resultados.length && (
+                  <p className="border-t border-border bg-muted/30 px-3 py-1.5 text-[11px] text-muted-foreground">
+                    Mostrando {resultados.length} de {totalResultados}. Digite mais do modelo ou use os filtros acima para achar o item.
+                  </p>
+                )}
               </div>
+            )}
+            {busca.trim().length >= 2 && resultados.length === 0 && (
+              <p className="mt-2 text-[12px] text-muted-foreground">Nenhum produto encontrado.</p>
             )}
           </div>
         </div>
