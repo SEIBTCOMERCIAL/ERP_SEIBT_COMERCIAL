@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { ChevronRight, ChevronUp, ChevronDown, Trash2, Plus, FileText, AlertCircle, Star } from "lucide-react";
+import { ChevronRight, Trash2, Plus, FileText, AlertCircle, Star } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { tituloComSeparador } from "@/lib/produto-titulo";
 import { montarDescritivoMaquina } from "@/lib/propostas/descritivo-maquina";
@@ -12,6 +12,8 @@ import { salvarEdicaoProposta, type ItemEdicao } from "@/app/actions/propostas-e
 import type { ChecklistInput } from "@/app/actions/propostas-pecas";
 import { descricaoLinhaJogo, idsNavalhasEmJogos, totalJogo, type Jogo } from "@/lib/propostas/jogos-navalha";
 import { rotulosPainel } from "@/lib/produtos/painel";
+import { moverParaPosicao } from "@/lib/propostas/ordem";
+import { ControleOrdem, useArrastarLinhas } from "./useArrastarLinhas";
 
 export interface ProdutoParaAdicionar {
   id: string;
@@ -129,6 +131,10 @@ export function EditarPropostaForm(p: Props) {
 
   const alterar = (chave: string, campos: Partial<ItemTela>) =>
     setItens((prev) => prev.map((it) => (it.chave === chave ? { ...it, ...campos } : it)));
+
+  const arrasto = useArrastarLinhas((de, para) =>
+    setItens((prev) => moverParaPosicao(prev, prev.findIndex((x) => x.chave === de), prev.findIndex((x) => x.chave === para)))
+  );
 
   const mover = (idx: number, delta: number) =>
     setItens((prev) => {
@@ -283,10 +289,10 @@ export function EditarPropostaForm(p: Props) {
             </thead>
             <tbody>
               {linhas.map(({ it, preco, total: totalItem }, idx) => (
-                <tr key={it.chave} className="border-b border-border last:border-0 align-top">
+                <tr key={it.chave} {...arrasto.propsLinha(it.chave)} className={`border-b border-border last:border-0 align-top ${arrasto.classeLinha(it.chave)}`}>
                   <td className="px-1.5 py-2 w-[34px]">
                     <div className="flex flex-col items-center text-muted-foreground">
-                      <button type="button" onClick={() => mover(idx, -1)} disabled={idx === 0} className="disabled:opacity-20 hover:text-foreground" title="Subir"><ChevronUp className="h-3.5 w-3.5" /></button>
+                      <ControleOrdem alcaProps={arrasto.propsAlca(it.chave)} indice={idx} total={itens.length} onSubir={() => mover(idx, -1)} onDescer={() => mover(idx, 1)} />
                       <span className="text-[10px]">{String(idx + 1).padStart(2, "0")}</span>
                       <button
                         type="button"
@@ -296,7 +302,7 @@ export function EditarPropostaForm(p: Props) {
                       >
                         <Star className={`h-3.5 w-3.5 ${it.destaque ? "fill-amber-400 text-amber-500" : "text-slate-300 hover:text-amber-400"}`} />
                       </button>
-                      <button type="button" onClick={() => mover(idx, 1)} disabled={idx === itens.length - 1} className="disabled:opacity-20 hover:text-foreground" title="Descer"><ChevronDown className="h-3.5 w-3.5" /></button>
+                      
                     </div>
                   </td>
                   <td className="px-2.5 py-2">

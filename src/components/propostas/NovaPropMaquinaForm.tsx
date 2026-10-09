@@ -1,6 +1,8 @@
 "use client";
 
 import { rotulosPainel } from "@/lib/produtos/painel";
+import { aplicarOrdem, moverParaPosicao } from "@/lib/propostas/ordem";
+import { ControleOrdem, useArrastarLinhas } from "./useArrastarLinhas";
 import { JogosNavalhaSecao } from "./JogosNavalhaSecao";
 import { chaveItem, idsNavalhasEmJogos, type Jogo } from "@/lib/propostas/jogos-navalha";
 import { useState, useTransition } from "react";
@@ -138,6 +140,8 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
   const [descontos, setDescontos] = useState<Record<string, number>>({});
   // Acréscimo % (margem) por item: usa-se desconto OU acréscimo em cada item.
   const [acrescimos, setAcrescimos] = useState<Record<string, number>>({});
+  // Ordem dos itens no Word (chaves dos itens). Vazia = ordem natural: equipamentos, jogos e peças.
+  const [ordemItens, setOrdemItens] = useState<string[]>([]);
   const [pecaSearch, setPecaSearch] = useState("");
   const [pecaTipo, setPecaTipo] = useState("");
   const [pecasVisiveis, setPecasVisiveis] = useState(40);
@@ -250,10 +254,15 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
   });
 
   // Proposta completa: equipamentos + peças, com o desconto % de cada item
-  const allCartItems: CartItemInput[] = [
+  const allCartItems: CartItemInput[] = aplicarOrdem([
     ...itensMaquina,
     ...cart,
-  ].map((i) => ({ ...i, desconto_pct: descontos[chaveItem(i)] ?? 0, acrescimo_pct: acrescimos[chaveItem(i)] ?? 0 }));
+  ], ordemItens, chaveItem).map((i) => ({ ...i, desconto_pct: descontos[chaveItem(i)] ?? 0, acrescimo_pct: acrescimos[chaveItem(i)] ?? 0 }));
+
+  const chavesNaOrdem = allCartItems.map(chaveItem);
+  const moverItem = (de: string, para: string) =>
+    setOrdemItens(moverParaPosicao(chavesNaOrdem, chavesNaOrdem.indexOf(de), chavesNaOrdem.indexOf(para)));
+  const arrasto = useArrastarLinhas(moverItem);
 
   const precoFinal = (i: CartItemInput) => precoComAjuste(i.preco_unitario, i.desconto_pct, i.acrescimo_pct);
   const subtotal = allCartItems.reduce((a, i) => a + precoFinal(i) * i.quantidade, 0);
@@ -740,14 +749,23 @@ export function NovaPropMaquinaForm({ clientes, maquinas, pecas, propostasPrinci
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr style={{ background: BG }}>
-                      {["Descrição", "Qtd", "Preço tabela", "Desc. %", "Acrésc. %", "Preço final", "Total"].map((h) => (
+                      {["Ordem", "Descrição", "Qtd", "Preço tabela", "Desc. %", "Acrésc. %", "Preço final", "Total"].map((h) => (
                         <th key={h} style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, textAlign: "left", borderBottom: `1px solid ${BORDER}`, color: "#374151", textTransform: "uppercase" as const }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {allCartItems.map((item, i) => (
-                      <tr key={i} style={{ borderBottom: `1px solid ${BORDER}` }}>
+                      <tr key={chaveItem(item)} {...arrasto.propsLinha(chaveItem(item))} className={arrasto.classeLinha(chaveItem(item))} style={{ borderBottom: `1px solid ${BORDER}` }}>
+                        <td style={{ padding: "6px 8px", width: 52 }}>
+                          <ControleOrdem
+                            alcaProps={arrasto.propsAlca(chaveItem(item))}
+                            indice={i}
+                            total={allCartItems.length}
+                            onSubir={() => moverItem(chaveItem(item), chavesNaOrdem[i - 1]!)}
+                            onDescer={() => moverItem(chaveItem(item), chavesNaOrdem[i + 1]!)}
+                          />
+                        </td>
                         <td style={{ padding: "10px 12px", fontSize: 13 }}>
                           <div style={{ fontWeight: 600 }}>{item.descricao}</div>
                           {item.observacao && (
