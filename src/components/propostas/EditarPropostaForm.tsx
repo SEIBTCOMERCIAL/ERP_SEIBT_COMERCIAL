@@ -351,7 +351,15 @@ export function EditarPropostaForm(p: Props) {
                     />
                   </td>
                   <td className="px-2.5 py-2 w-[120px] font-mono text-[12px] font-semibold pt-3.5">{formatCurrency(preco)}</td>
-                  <td className="px-2.5 py-2 w-[60px] text-[12px] text-muted-foreground pt-3.5">{it.ipi_pct}%</td>
+                  <td className="px-2.5 py-2 w-[80px]">
+                    <input
+                      type="number" min={0} max={100} step={0.5}
+                      value={it.ipi_pct}
+                      title="IPI do item. Já vem do cadastro do produto; preencha aqui quando o item estiver sem IPI."
+                      onChange={(e) => alterar(it.chave, { ipi_pct: Math.min(100, Math.max(0, numero(e.target.value))) })}
+                      className={`${inputCls} text-center ${it.ipi_pct > 0 ? "font-semibold" : "text-muted-foreground"}`}
+                    />
+                  </td>
                   <td className="px-2.5 py-2 w-[130px] font-mono text-[12px] font-bold pt-3.5">{formatCurrency(totalItem)}</td>
                   <td className="px-2 py-2 w-[36px] pt-3">
                     <button type="button" onClick={() => setItens((prev) => prev.filter((x) => x.chave !== it.chave))} className="text-muted-foreground hover:text-red-600" title="Remover item">

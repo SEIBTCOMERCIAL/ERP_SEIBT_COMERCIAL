@@ -61,6 +61,7 @@ export async function salvarEdicaoProposta(input: EdicaoPropostaInput): Promise<
     if (!(it.quantidade >= 1)) return { error: `Quantidade inválida em "${it.descricao}".` };
     if (!(it.desconto_pct >= 0 && it.desconto_pct <= 100)) return { error: `Desconto inválido em "${it.descricao}" (use de 0 a 100%).` };
     if (!(it.acrescimo_pct >= 0 && it.acrescimo_pct <= 1000)) return { error: `Acréscimo inválido em "${it.descricao}".` };
+    if (!(it.ipi_pct >= 0 && it.ipi_pct <= 100)) return { error: `IPI inválido em "${it.descricao}" (use de 0 a 100%).` };
   }
 
   const revisao = input.novaRevisao ? proximaRevisao(proposta.revisao) : proposta.revisao;
