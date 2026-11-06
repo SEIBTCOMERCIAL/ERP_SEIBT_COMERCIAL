@@ -13,8 +13,11 @@ export default async function LeadsPage() {
     .is("deleted_at", null)
     .order("criado_em", { ascending: false });
 
-  const {data: representantes} = await supabase.from('representantes').select('id,nome').order('nome');
+  const {data: representantes, error: repError} = await supabase.from('representantes').select('id,nome').order('nome');
+  const {data: etapas, error: etapaError} = await supabase.from('etapas_lead').select('id,nome,ordem,cor').order('ordem').order('nome');
+  const {data:{user}} = await supabase.auth.getUser();
+  const {data: usuario} = user ? await supabase.from('usuarios').select('perfil').eq('id',user.id).single() : {data:null};
   const {data: clientes} = await supabase.from('clientes').select('id,razao_social').is('deleted_at',null).order('razao_social');
-  if(error) return <p className="p-6">Não foi possível carregar os leads. Tente novamente.</p>;
-  return <LeadsAcompanhamento leads={leads ?? []} representantes={representantes ?? []} clientes={clientes ?? []} />;
+  if(error || repError || etapaError) return <p className="p-6">Não foi possível carregar os leads e etapas. Confira a atualização do banco e tente novamente.</p>;
+  return <LeadsAcompanhamento leads={leads ?? []} representantes={representantes ?? []} clientes={clientes ?? []} etapas={etapas ?? []} admin={usuario?.perfil==='admin'} />;
 }

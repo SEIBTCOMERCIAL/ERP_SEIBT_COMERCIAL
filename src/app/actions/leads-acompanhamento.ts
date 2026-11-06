@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 const schema = z.object({
+ etapa_id:z.string().uuid(),
  empresa_nome:z.string().trim().min(2), contato_nome:z.string().trim().min(2), contato_telefone:z.string(), contato_email:z.string().email().or(z.literal("")), cidade:z.string(), estado:z.string(),
  canal_entrada:z.enum(["site","whatsapp","email","feira","indicacao","telefone","recorrencia","outro"]), tipo_interesse:z.enum(["maquina","pecas","sistema","servico","mista","exportacao"]), mercado:z.enum(["nacional","exportacao"]), status:z.enum(["novo","encaminhado","em_qualificacao","qualificado","descartado"]), representante_id:z.string().uuid().nullable(), observacoes:z.string().max(10000), motivo_descarte:z.string(), encaminhado_em:z.string().datetime().nullable(), proxima_acao:z.string(), proxima_acao_em:z.string().datetime().nullable()
 });
