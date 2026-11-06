@@ -65,15 +65,7 @@ export async function criarLead(
   return { success: true };
 }
 
-export async function atualizarStatusLead(id: string, status: string): Promise<{ error?: string }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createClient() as any;
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Não autorizado" };
-
-  const { error } = await supabase.from("leads").update({ status }).eq("id", id);
-  if (error) return { error: error.message };
-
-  revalidatePath("/leads");
-  return {};
+export async function atualizarStatusLead(_id: string, _status: string): Promise<{ error?: string }> {
+  void _id; void _status;
+  return { error: "Abra o acompanhamento do lead para alterar o status e registrar os dados obrigatórios." };
 }
