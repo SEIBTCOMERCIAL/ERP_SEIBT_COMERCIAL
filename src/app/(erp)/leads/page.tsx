@@ -14,7 +14,7 @@ export default async function LeadsPage() {
     .order("criado_em", { ascending: false });
 
   const {data: representantes, error: repError} = await supabase.from('representantes').select('id,nome').order('nome');
-  const {data: etapas, error: etapaError} = await supabase.from('etapas_lead').select('id,nome,ordem,cor').order('ordem').order('nome');
+  const {data: etapas, error: etapaError} = await supabase.from('etapas_lead').select('*').order('ordem').order('nome');
   const {data:{user}} = await supabase.auth.getUser();
   const {data: usuario} = user ? await supabase.from('usuarios').select('perfil').eq('id',user.id).single() : {data:null};
   const {data: clientes} = await supabase.from('clientes').select('id,razao_social').is('deleted_at',null).order('razao_social');

@@ -1,41 +1,189 @@
 "use client";
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { salvarEtapaLead } from '@/app/actions/leads-etapas';
-import { salvarAcompanhamento, converterLead } from '@/app/actions/leads-acompanhamento';
-type Lead = {id:string; empresa_nome:string; contato_nome:string; contato_telefone:string; status:string; representante_id:string|null; proxima_acao_em:string|null; cliente_id:string|null; observacoes:string; historico?:{data:string;status:string;observacoes:string;proxima_acao?:string}[]} & Record<string, unknown>;
-const estados:Record<string,string>={novo:'Novo',encaminhado:'Encaminhado',em_qualificacao:'Em qualificação',qualificado:'Qualificado',convertido:'Convertido',descartado:'Descartado'};
-const campo='w-full rounded-lg border p-2 text-sm bg-background';
-export function LeadsAcompanhamento({leads,representantes,clientes,etapas,admin}:{leads:Lead[];representantes:{id:string;nome:string}[];clientes:{id:string;razao_social:string}[];etapas:{id:string;nome:string;ordem:number;cor:string}[];admin:boolean}) {
- const [configurar,setConfigurar]=useState(false);
- const router=useRouter(); const [selecionado,setSelecionado]=useState<Lead|null|undefined>(); const [busca,setBusca]=useState(''); const [status,setStatus]=useState(''); const [rep,setRep]=useState(''); const [atrasados,setAtrasados]=useState(false); const [erro,setErro]=useState(''); const [pending,start]=useTransition();
- const atrasado=(l:Lead)=>!['convertido','descartado'].includes(l.status)&&!!l.proxima_acao_em&&new Date(l.proxima_acao_em).getTime()<Date.now();
- const lista=leads.filter(l=>(!status||l.status===status)&&(!rep||l.representante_id===rep)&&(!atrasados||atrasado(l))&&`${l.empresa_nome} ${l.contato_nome} ${l.contato_telefone}`.toLowerCase().includes(busca.toLowerCase()));
- const abrir=(l:Lead|null)=>{setErro('');setSelecionado(l);};
- const input=(nome:string,label:string,tipo='text')=>{let value=String(selecionado?.[nome]??'');if(tipo==='datetime-local'&&value){const d=new Date(value);value=new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);}return <label className="grid gap-1 text-sm">{label}<input name={nome} type={tipo} defaultValue={value} className={campo}/></label>};
- const select=(nome:string,label:string,opcoes:Record<string,string>,padrao='')=><label className="grid gap-1 text-sm">{label}<select name={nome} defaultValue={String(selecionado?.[nome]??padrao)} className={campo}>{Object.entries(opcoes).map(([v,n])=><option key={v} value={v}>{n}</option>)}</select></label>;
- return <main className="p-4 sm:p-6 space-y-5"><div className="flex justify-between"><h1 className="text-2xl font-bold">Leads · {lista.length}</h1><button className="rounded-lg bg-primary text-primary-foreground px-4 py-2" onClick={()=>abrir(null)}>Novo lead</button></div>
- <p className="text-sm text-muted-foreground">Registre os encaminhamentos e os retornos do representante. O envio pelo WhatsApp é feito por você.</p>
- <div className="grid gap-3 sm:grid-cols-4"><input aria-label="Buscar leads" className={campo} placeholder="Empresa, contato ou telefone" value={busca} onChange={e=>setBusca(e.target.value)}/><select aria-label="Status" className={campo} value={status} onChange={e=>setStatus(e.target.value)}><option value="">Todos os status</option>{Object.entries(estados).map(([v,n])=><option key={v} value={v}>{n}</option>)}</select><select aria-label="Representante" className={campo} value={rep} onChange={e=>setRep(e.target.value)}><option value="">Todos os representantes</option>{representantes.map(r=><option key={r.id} value={r.id}>{r.nome}</option>)}</select><label className="flex gap-2 items-center"><input type="checkbox" checked={atrasados} onChange={e=>setAtrasados(e.target.checked)}/>Ações atrasadas</label></div>
- {admin&&<button className="border rounded-lg px-3 py-2" onClick={()=>setConfigurar(!configurar)}>Configurar etapas</button>}
- {configurar&&admin&&<form className="grid gap-3 sm:grid-cols-4 rounded-xl border p-4" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);start(async()=>{try{const r=await salvarEtapaLead(f);if(r.error)setErro(r.error);else{setErro('');setConfigurar(false);router.refresh();}}catch{setErro('Não foi possível criar a etapa.');}});}}><label>Nome<input name="nome" required maxLength={80} className={campo}/></label><label>Posição<input name="ordem" type="number" min={0} max={999} defaultValue={etapas.length} className={campo}/></label><label>Cor<input name="cor" type="color" defaultValue="#2C4F79" className={campo}/></label><button disabled={pending} className="border rounded-lg">Criar etapa</button></form>}
- {erro&&selecionado===undefined&&<p role="alert" className="text-red-600">{erro}</p>}
- <p className="text-xs text-muted-foreground">Arraste um card para abrir a confirmação da etapa, ou altere a etapa dentro do card. Etapa comercial e status são independentes.</p>
- <div className="flex gap-4 overflow-x-auto pb-5 items-start">{[...etapas,...(lista.some(l=>!l.etapa_id)?[{id:'',nome:'Sem etapa',ordem:-1,cor:'#64748b'}]:[])].map(etapa=>{const cards=lista.filter(l=>(l.etapa_id||'')===etapa.id);return <section key={etapa.id} className="w-80 shrink-0 rounded-xl bg-muted/40 border" onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const l=leads.find(x=>x.id===e.dataTransfer.getData('text/plain'));if(l&&etapa.id&&l.status!=='convertido')abrir({...l,etapa_id:etapa.id});}}><h2 className="font-semibold p-3 border-t-4 rounded-t-xl flex justify-between" style={{borderTopColor:etapa.cor}}>{etapa.nome}<span>{cards.length}</span></h2><div className="p-2 space-y-3 min-h-32">{cards.map(l=><button key={l.id} draggable={l.status!=='convertido'} onDragStart={e=>e.dataTransfer.setData('text/plain',l.id)} onClick={()=>abrir(l)} className="w-full text-left rounded-xl border bg-card p-4 space-y-2 shadow-sm"><strong>{l.empresa_nome||l.contato_nome}</strong><p>{l.contato_nome} · {l.contato_telefone}</p><p className="text-sm">{estados[l.status]} · {representantes.find(r=>r.id===l.representante_id)?.nome||'Sem representante'}</p><p className="text-sm whitespace-pre-wrap line-clamp-3">{l.observacoes}</p><p className={atrasado(l)?'text-red-600 text-sm':'text-sm'}>{String(l.proxima_acao||'Sem próxima ação')}{l.proxima_acao_em&&` · ${new Date(l.proxima_acao_em).toLocaleString('pt-BR')}`}{atrasado(l)&&' · Atrasada'}</p></button>)}{!cards.length&&<p className="text-sm text-muted-foreground p-3">Nenhum lead nesta etapa.</p>}</div></section>})}</div>
- {selecionado!==undefined&&<div className="fixed inset-0 z-50 bg-black/50 p-3 overflow-y-auto"><section role="dialog" aria-modal="true" aria-label="Acompanhamento do lead" className="mx-auto max-w-3xl bg-background rounded-xl p-5 space-y-4"><div className="flex justify-between"><h2 className="text-xl font-bold">{selecionado?'Acompanhamento':'Novo lead'}</h2><button disabled={pending} onClick={()=>setSelecionado(undefined)}>Fechar</button></div>{erro&&<p role="alert" className="text-red-600">{erro}</p>}
- <form onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);const d:Record<string,unknown>=Object.fromEntries(f);d.representante_id=d.representante_id||null;for(const k of ['encaminhado_em','proxima_acao_em'])d[k]=d[k]?new Date(String(d[k])).toISOString():null;start(async()=>{try{const r=await salvarAcompanhamento(selecionado?.id??null,d);if(r.error)setErro(r.error);else{setSelecionado(undefined);router.refresh();}}catch{setErro('Falha de conexão. Tente novamente.');}});}}>
- <fieldset disabled={pending||selecionado?.status==='convertido'} className="grid gap-3 sm:grid-cols-2">
- {select('etapa_id','Etapa do funil',Object.fromEntries(etapas.map(e=>[e.id,e.nome])),etapas[0]?.id)}
- {input('empresa_nome','Empresa')}{input('contato_nome','Contato')}{input('contato_telefone','Telefone')}{input('contato_email','E-mail','email')}{input('cidade','Cidade')}{input('estado','Estado')}
- {select('canal_entrada','Origem',{site:'Site',whatsapp:'WhatsApp',email:'E-mail',feira:'Feira',indicacao:'Indicação',telefone:'Telefone',recorrencia:'Recorrência',outro:'Outro'},'site')}
- {select('tipo_interesse','Interesse',{maquina:'Máquina',pecas:'Peças',sistema:'Sistema',servico:'Serviço',mista:'Mista',...(selecionado?.tipo_interesse==='exportacao'?{exportacao:'Exportação (legado — reclassifique)'}:{})},'maquina')}
- {select('mercado','Mercado',{nacional:'Nacional',exportacao:'Exportação'},'nacional')}{select('status','Status',Object.fromEntries(Object.entries(estados).filter(([k])=>k!=='convertido'||selecionado?.status==='convertido')),'novo')}
- {select('representante_id','Representante',{'':'Selecione',...Object.fromEntries(representantes.map(r=>[r.id,r.nome]))})}{input('encaminhado_em','Encaminhado em','datetime-local')}{input('proxima_acao','Próxima ação')}{input('proxima_acao_em','Prazo da próxima ação','datetime-local')}{input('motivo_descarte','Motivo do descarte')}
- <label className="grid gap-1 sm:col-span-2">Observações / retorno recebido<textarea name="observacoes" defaultValue={selecionado?.observacoes??''} rows={4} className={campo}/></label><button className="rounded-lg bg-primary text-primary-foreground p-2" type="submit">{pending?'Salvando...':'Salvar acompanhamento'}</button></fieldset></form>
- {selecionado?.status==='qualificado'&&<form className="border-t pt-4 space-y-2" onSubmit={e=>{e.preventDefault();const id=String(new FormData(e.currentTarget).get('cliente')||'');start(async()=>{try{const r=await converterLead(selecionado.id,id||null);if(r.error)setErro(r.error);else{setSelecionado(undefined);router.push(`/clientes/${r.clienteId}`);}}catch{setErro('Falha ao converter. Tente novamente.');}});}}><p>Converter em cliente: confira se já existe um cadastro antes de criar outro.</p><select name="cliente" className={campo}><option value="">Criar cliente prospect (porte pequeno e segmento outro; revisar no cadastro)</option>{clientes.map(c=><option key={c.id} value={c.id}>{c.razao_social}</option>)}</select><button disabled={pending} className="border rounded-lg p-2">Converter em cliente</button></form>}
- {selecionado?.cliente_id&&<Link className="text-blue-600" href={`/clientes/${selecionado.cliente_id}`}>Abrir cliente e continuar para propostas</Link>}
- <h3 className="font-bold">Histórico de acompanhamento</h3>{[...(selecionado?.historico??[])].reverse().map((h,i)=><div key={i} className="border-t py-2 text-sm"><p>{new Date(h.data).toLocaleString('pt-BR')} · {estados[h.status]}</p><p className="whitespace-pre-wrap">{h.observacoes}</p>{h.proxima_acao&&<p>Próxima ação: {h.proxima_acao}</p>}</div>)}
- </section></div>}
- </main>;
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { UserPlus, Settings2 } from "lucide-react";
+import { moverLead } from "@/app/actions/leads-acompanhamento";
+import { STATUS_LEAD, tipoDaEtapa, type EtapaLead } from "@/lib/leads/etapas";
+import { INTERESSES_LEAD, leadAtrasado, type ClienteOpcao, type Lead, type Representante } from "./tipos";
+import { BG, BLUE, BORDER, botaoPrimario, botaoSecundario, campo, DANGER, MUTED, NAV } from "./estilos";
+import { LeadDetalhe } from "./LeadDetalhe";
+import { camposFaltando, ModalConverter, ModalMover } from "./LeadMovimento";
+import { EtapasLeadAdmin } from "./EtapasLeadAdmin";
+
+const NOVO = "novo";
+
+/** Linha com faixa colorida à esquerda, no estilo dos quadros de tarefas. */
+function Linha({ cor, texto, legenda }: { cor: string; texto: string; legenda: string }) {
+  return (
+    <div style={{ borderLeft: `3px solid ${cor}`, background: "#F8FAFC", borderRadius: 4, padding: "3px 8px", fontSize: 11, color: "#1a1a1a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      {texto} <span style={{ color: MUTED }}>({legenda})</span>
+    </div>
+  );
+}
+
+// "Mover para" nos cards só aparece em telas de toque, onde arrastar não funciona.
+const CSS = `.lead-mover{display:none}@media (hover:none){.lead-mover{display:block}}`;
+
+export function LeadsAcompanhamento({ leads, representantes, clientes, etapas, admin }: {
+  leads: Lead[]; representantes: Representante[]; clientes: ClienteOpcao[]; etapas: EtapaLead[]; admin: boolean;
+}) {
+  const router = useRouter();
+  const [pendente, iniciar] = useTransition();
+  const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
+  const [movimento, setMovimento] = useState<{ leadId: string; etapa: EtapaLead } | null>(null);
+  const [convertendoId, setConvertendoId] = useState<string | null>(null);
+  const [configurar, setConfigurar] = useState(false);
+  const [arrastando, setArrastando] = useState<string | null>(null);
+  const [sobre, setSobre] = useState<string | null>(null);
+  const [erro, setErro] = useState("");
+  const [busca, setBusca] = useState("");
+  const [status, setStatus] = useState("");
+  const [rep, setRep] = useState("");
+  const [soAtrasados, setSoAtrasados] = useState(false);
+
+  const porId = useMemo(() => new Map(leads.map((l) => [l.id, l])), [leads]);
+  const lista = leads.filter((l) =>
+    (!status || l.status === status) &&
+    (!rep || l.representante_id === rep) &&
+    (!soAtrasados || leadAtrasado(l)) &&
+    `${l.empresa_nome ?? ""} ${l.contato_nome ?? ""} ${l.contato_telefone ?? ""}`.toLowerCase().includes(busca.toLowerCase()));
+
+  const colunas: EtapaLead[] = [
+    ...etapas,
+    ...(lista.some((l) => !l.etapa_id) ? [{ id: "", nome: "Sem etapa", ordem: -1, cor: "#64748b" }] : []),
+  ];
+
+  // Se o lead some da lista (ex.: convertido e filtrado), o painel fecha sozinho.
+  useEffect(() => {
+    if (selecionadoId && selecionadoId !== NOVO && !porId.has(selecionadoId)) setSelecionadoId(null);
+  }, [porId, selecionadoId]);
+
+  function iniciarMovimento(lead: Lead, etapa: EtapaLead) {
+    if (pendente || !etapa.id || lead.etapa_id === etapa.id || lead.status === "convertido") return;
+    setErro("");
+    if (tipoDaEtapa(etapa) === "convertido") {
+      if (lead.status !== "qualificado") { setErro("Para converter, primeiro mova o lead para Qualificado."); return; }
+      setConvertendoId(lead.id);
+      return;
+    }
+    const f = camposFaltando(lead, etapa);
+    if (f.motivo || f.encaminhamento || f.acao) { setMovimento({ leadId: lead.id, etapa }); return; }
+    iniciar(async () => {
+      try {
+        const r = await moverLead(lead.id, etapa.id);
+        if (r.error) setErro(r.error); else router.refresh();
+      } catch { setErro("Não foi possível mover. A etapa anterior foi preservada."); }
+    });
+  }
+
+  const selecionado = selecionadoId && selecionadoId !== NOVO ? porId.get(selecionadoId) ?? null : null;
+  const leadMovimento = movimento ? porId.get(movimento.leadId) : undefined;
+  const leadConversao = convertendoId ? porId.get(convertendoId) : undefined;
+
+  return (
+    <main style={{ background: BG, minHeight: "100vh", padding: 24, display: "grid", gap: 16, alignContent: "start" }}>
+      <style>{CSS}</style>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: NAV, margin: 0 }}>Leads · {lista.length}</h1>
+          <p style={{ fontSize: 13, color: MUTED, margin: "4px 0 0" }}>Registre encaminhamentos e retornos dos representantes. O envio pelo WhatsApp é feito por você.</p>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {admin && <button type="button" onClick={() => setConfigurar(!configurar)} style={{ ...botaoSecundario, display: "flex", gap: 6, alignItems: "center" }}><Settings2 size={15} /> Etapas</button>}
+          <button type="button" onClick={() => { setErro(""); setSelecionadoId(NOVO); }} style={{ ...botaoPrimario, display: "flex", gap: 6, alignItems: "center" }}><UserPlus size={15} /> Novo lead</button>
+        </div>
+      </div>
+
+      {configurar && admin && <EtapasLeadAdmin etapas={etapas} />}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, alignItems: "center" }}>
+        <input aria-label="Buscar leads" placeholder="Empresa, contato ou telefone" value={busca} onChange={(e) => setBusca(e.target.value)} style={campo} />
+        <select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)} style={campo}>
+          <option value="">Todos os status</option>
+          {Object.entries(STATUS_LEAD).map(([v, n]) => <option key={v} value={v}>{n}</option>)}
+        </select>
+        <select aria-label="Representante" value={rep} onChange={(e) => setRep(e.target.value)} style={campo}>
+          <option value="">Todos os representantes</option>
+          {representantes.map((r) => <option key={r.id} value={r.id}>{r.nome}</option>)}
+        </select>
+        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+          <input type="checkbox" checked={soAtrasados} onChange={(e) => setSoAtrasados(e.target.checked)} /> Ações atrasadas
+        </label>
+      </div>
+
+      {erro && selecionadoId === null && !movimento && <div role="alert" style={{ background: "#FEE2E2", color: DANGER, padding: "10px 14px", borderRadius: 8, fontSize: 13 }}>{erro}</div>}
+      <p role="status" style={{ margin: 0, fontSize: 12, color: MUTED }}>{pendente ? "Salvando…" : "Arraste os cards entre as etapas ou use “Mover para” no celular. Clique no card para acompanhar."}</p>
+
+      <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 16, alignItems: "stretch" }}>
+        {colunas.map((etapa) => {
+          const cards = lista.filter((l) => (l.etapa_id ?? "") === etapa.id);
+          const aceita = !pendente && Boolean(etapa.id);
+          return (
+            <section key={etapa.id || "sem-etapa"} aria-label={etapa.nome}
+              onDragOver={(e) => { if (aceita && e.dataTransfer.types.includes("text/plain")) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setSobre(etapa.id); } }}
+              onDragLeave={() => setSobre((atual) => (atual === etapa.id ? null : atual))}
+              onDrop={(e) => {
+                e.preventDefault(); setSobre(null); setArrastando(null);
+                const lead = porId.get(e.dataTransfer.getData("text/plain"));
+                if (lead) iniciarMovimento(lead, etapa);
+              }}
+              style={{ width: 272, flexShrink: 0, display: "flex", flexDirection: "column" }}>
+              <h2 style={{ margin: 0, padding: "8px 12px", fontSize: 12, fontWeight: 700, letterSpacing: 0.3, textTransform: "uppercase", color: "#fff", background: etapa.cor, borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{etapa.nome}</span>
+                <span style={{ fontWeight: 600, opacity: 0.9 }}>{cards.length}</span>
+              </h2>
+              <div style={{ flex: 1, marginTop: 8, padding: 6, display: "grid", gap: 8, minHeight: "55vh", alignContent: "start", borderRadius: 10, border: `1px dashed ${sobre === etapa.id ? BLUE : "transparent"}`, background: sobre === etapa.id ? "rgba(32,116,185,0.06)" : "transparent" }}>
+                {cards.map((l) => {
+                  const atrasado = leadAtrasado(l);
+                  const movel = l.status !== "convertido";
+                  const repNome = representantes.find((r) => r.id === l.representante_id)?.nome;
+                  return (
+                    <div key={l.id} role="button" tabIndex={0}
+                      draggable={movel && !pendente}
+                      onDragStart={(e) => { e.dataTransfer.setData("text/plain", l.id); e.dataTransfer.effectAllowed = "move"; setArrastando(l.id); }}
+                      onDragEnd={() => { setArrastando(null); setSobre(null); }}
+                      onClick={() => { setErro(""); setSelecionadoId(l.id); }}
+                      onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) { setErro(""); setSelecionadoId(l.id); } }}
+                      style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10, padding: 12, fontSize: 12, display: "grid", gap: 6, boxShadow: "0 1px 2px rgba(15,23,42,0.06)", cursor: movel ? "grab" : "pointer", opacity: arrastando === l.id ? 0.4 : 1 }}>
+                      <strong style={{ fontSize: 13, color: "#1a1a1a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.empresa_nome || l.contato_nome || "Lead sem nome"}</strong>
+                      {l.empresa_nome && l.contato_nome && <span style={{ color: MUTED, marginTop: -4 }}>{l.contato_nome}</span>}
+                      <Linha cor={BLUE} texto={INTERESSES_LEAD[l.tipo_interesse] ?? l.tipo_interesse} legenda="Interesse" />
+                      <Linha cor={etapa.cor} texto={STATUS_LEAD[l.status] ?? l.status} legenda="Status" />
+                      {atrasado && <Linha cor={DANGER} texto="Ação atrasada" legenda="Prazo" />}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2, color: MUTED, fontSize: 11 }}>
+                        <span title={repNome ?? "Sem representante"} style={{ width: 22, height: 22, borderRadius: "50%", background: repNome ? NAV : "#CBD5E1", color: "#fff", fontSize: 10, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{(repNome ?? "?").slice(0, 1).toUpperCase()}</span>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: atrasado ? DANGER : MUTED }}>
+                          {l.proxima_acao || "Sem próxima ação"}{l.proxima_acao_em ? ` · ${new Date(l.proxima_acao_em).toLocaleDateString("pt-BR")}` : ""}
+                        </span>
+                        <span style={{ marginLeft: "auto" }}>{l.historico?.length ?? 0} reg.</span>
+                      </div>
+                      {movel && (
+                        <select className="lead-mover" aria-label="Mover para" value="" disabled={pendente}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => { const alvo = etapas.find((x) => x.id === e.target.value); if (alvo) iniciarMovimento(l, alvo); }}
+                          style={{ ...campo, height: 32, fontSize: 12 }}>
+                          <option value="">Mover para…</option>
+                          {etapas.filter((x) => x.id !== l.etapa_id).map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+                        </select>
+                      )}
+                    </div>
+                  );
+                })}
+                {!cards.length && <p style={{ margin: 0, padding: 8, fontSize: 12, color: MUTED, textAlign: "center" }}>Nenhum lead</p>}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+
+      {selecionadoId !== null && (
+        <LeadDetalhe key={selecionadoId} lead={selecionado} etapas={etapas} representantes={representantes} clientes={clientes}
+          aoFechar={() => setSelecionadoId(null)} />
+      )}
+      {movimento && leadMovimento && (
+        <ModalMover lead={leadMovimento} etapa={movimento.etapa} representantes={representantes} aoFechar={() => setMovimento(null)} />
+      )}
+      {leadConversao && <ModalConverter lead={leadConversao} clientes={clientes} aoFechar={() => setConvertendoId(null)} />}
+    </main>
+  );
 }

@@ -100,27 +100,29 @@ function Card({
       onKeyDown={(e) => {
         if (e.key === "Enter" && e.target === e.currentTarget) router.push(`/propostas/${card.id}`);
       }}
-      className={`rounded-xl border border-l-4 border-border ${borda} ${fundo} p-3 transition-shadow hover:shadow-md ${arrastando ? "opacity-40" : ""} cursor-pointer`}
+      className={`rounded-xl border border-border/60 ${fundo} p-3 shadow-sm transition-shadow hover:shadow-md ${arrastando ? "opacity-40" : ""} ${card.bloqueada ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"}`}
     >
       <div className="flex items-start justify-between gap-2">
         <Link href={`/propostas/${card.id}`} className="font-mono text-[12px] font-bold text-[#2074B9] hover:underline">{card.numero_completo}</Link>
         <TemperaturaBadge temperatura={card.temperatura} />
       </div>
       <p className="mt-1 truncate text-[13px] font-semibold text-foreground">{card.cliente_nome ?? "Sem cliente"}</p>
-      {card.produto && <p className="mt-0.5 line-clamp-2 text-[12px] text-muted-foreground">{card.produto}</p>}
+      {card.produto && <p title={card.produto} className="mt-0.5 truncate text-[11px] text-muted-foreground">{card.produto}</p>}
 
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <PropostaTipoBadge tipo={card.tipo} />
-        <Chip className={card.papel === "complementar" ? "border-purple-200 bg-purple-50 text-purple-700" : "border-blue-200 bg-blue-50 text-blue-700"}>
-          {card.papel === "complementar" ? "Complementar" : "Principal"}
-        </Chip>
-        {card.mercado === "exportacao" && <Chip className="border-slate-200 bg-slate-50 text-slate-600">Exportação{card.pais_destino ? ` · ${card.pais_destino}` : ""}</Chip>}
+      <div className="mt-2 space-y-1">
+        <div className="flex flex-wrap items-center gap-1.5 rounded border-l-[3px] border-l-[#2074B9] bg-muted/40 px-2 py-0.5">
+          <PropostaTipoBadge tipo={card.tipo} />
+          <span className="text-[10px] text-muted-foreground">(Tipo)</span>
+          {card.papel === "complementar" && <Chip className="border-purple-200 bg-purple-50 text-purple-700">Complementar</Chip>}
+          {card.mercado === "exportacao" && <Chip className="border-slate-200 bg-slate-50 text-slate-600">Exportação{card.pais_destino ? ` · ${card.pais_destino}` : ""}</Chip>}
+        </div>
+        <div className={`flex items-center gap-1.5 rounded border-l-[3px] bg-muted/40 px-2 py-0.5 ${borda}`}>
+          <PropostaStatusBadge status={card.status} />
+          <span className="text-[10px] text-muted-foreground">(Status)</span>
+        </div>
       </div>
 
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <span className="font-mono text-[13px] font-bold text-foreground">{card.valor_total ? formatCurrency(card.valor_total, moeda) : "—"}</span>
-        <PropostaStatusBadge status={card.status} />
-      </div>
+      <p className="mt-2 font-mono text-[13px] font-bold text-foreground">{card.valor_total ? formatCurrency(card.valor_total, moeda) : "—"}</p>
 
       {card.complementar_de && (
         <p className="mt-1.5 text-[10px] font-semibold text-purple-700">
@@ -143,8 +145,7 @@ function Card({
       )}
 
       <div className="mt-2 space-y-0.5 text-[11px] text-muted-foreground">
-        <p>Última movimentação: {formatDate(card.ultima_movimentacao)}</p>
-        {!card.bloqueada && !congelada && <p className={card.atrasado ? "font-semibold text-red-600" : ""}>Próxima ação: {card.proxima_acao ?? "não definida"}</p>}
+        {!card.bloqueada && !congelada && <p title={card.proxima_acao ?? "Próxima ação não definida"} className={`truncate ${card.atrasado ? "font-semibold text-red-600" : ""}`}>{card.proxima_acao ?? "Sem próxima ação"}{card.proxima_acao_data ? ` · ${formatDate(card.proxima_acao_data)}` : ""}</p>}
       </div>
 
       <div className="mt-2 flex items-center justify-between gap-2">
@@ -185,6 +186,8 @@ export function KanbanBoard({
   const todos = colunas.flatMap((c) => c.cards);
 
   function moverCard(card: KanbanCard, etapa: EtapaFunil) {
+    if (pendente || !podeMover || card.bloqueada) return;
+    if (colunas.some(c => c.etapa?.id === etapa.id && c.cards.some(p => p.id === card.id))) return;
     mover({ id: card.id, numero: card.numero_completo, temProximaAcao: card.temProximaAcao }, etapa);
   }
 
@@ -197,36 +200,35 @@ export function KanbanBoard({
         </div>
       )}
       <div className="flex-1 overflow-x-auto overscroll-x-contain pb-4">
-        <div className="flex min-h-full items-start gap-3.5 px-4 sm:px-6" style={{ minWidth: "min-content" }}>
+        <div className="flex min-h-full items-stretch gap-3 px-4 sm:px-6" style={{ minWidth: "min-content" }}>
           {colunas.map((col) => {
             const brl = somar(col.cards, "BRL");
             const usd = somar(col.cards, "USD");
-            const aceita = podeMover && Boolean(col.etapa);
+            const aceita = podeMover && !pendente && Boolean(col.etapa);
             return (
               <section
                 key={col.id}
                 aria-label={col.nome}
-                onDragOver={(e) => { if (aceita && arrastandoId) { e.preventDefault(); setSobre(col.id); } }}
+                onDragOver={(e) => { if (aceita && e.dataTransfer.types.includes("text/plain")) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setSobre(col.id); } }}
                 onDragLeave={() => setSobre((atual) => (atual === col.id ? null : atual))}
                 onDrop={(e) => {
                   e.preventDefault();
                   setSobre(null);
                   const id = e.dataTransfer.getData("text/plain");
                   const card = todos.find((c) => c.id === id);
-                  if (card && col.etapa && !card.bloqueada) moverCard(card, col.etapa);
+                  if (aceita && card && col.etapa && !card.bloqueada) moverCard(card, col.etapa);
                   setArrastandoId(null);
                 }}
-                className="flex w-[84vw] max-w-[320px] shrink-0 snap-start flex-col sm:w-[290px]"
+                className="flex w-[272px] shrink-0 snap-start flex-col"
               >
-                <div className="flex items-center gap-2 rounded-t-xl border border-b-0 border-border bg-card px-3 py-2.5">
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: col.cor }} />
-                  <p className="flex-1 truncate text-[12px] font-semibold text-foreground">{col.nome}</p>
-                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">{col.cards.length}</span>
+                <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-white" style={{ backgroundColor: col.cor }}>
+                  <p className="flex-1 truncate text-[12px] font-bold uppercase tracking-wide">{col.nome}</p>
+                  <span className="text-[12px] font-semibold opacity-90">{col.cards.length}</span>
                 </div>
-                <div className="border-x border-border bg-card px-3 pb-2 text-[11px] font-mono text-muted-foreground">
+                <div className="px-1 pt-1.5 text-[10px] font-mono text-muted-foreground">
                   {formatCurrency(brl)}{usd > 0 ? ` + ${formatCurrency(usd, "USD")}` : ""}
                 </div>
-                <div className={`flex min-h-[160px] flex-col gap-2 rounded-b-xl border border-border p-2 transition-colors ${sobre === col.id ? "bg-blue-50 ring-2 ring-[#2074B9]/40" : "bg-muted/40"}`}>
+                <div className={`mt-1 flex min-h-[55vh] flex-1 flex-col gap-2 rounded-xl border border-dashed p-1.5 transition-colors ${sobre === col.id ? "border-[#2074B9] bg-blue-50/40" : "border-transparent"}`}>
                   {col.cards.map((card) => (
                     <Card key={card.id} card={card} etapaAtualId={col.etapa?.id ?? null} etapas={podeMover ? etapas : []} onMover={moverCard} arrastando={arrastandoId === card.id} aoArrastar={setArrastandoId} />
                   ))}
