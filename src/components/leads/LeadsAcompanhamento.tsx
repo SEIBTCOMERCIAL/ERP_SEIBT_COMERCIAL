@@ -127,12 +127,12 @@ export function LeadsAcompanhamento({ leads, representantes, clientes, etapas, a
                 const lead = porId.get(e.dataTransfer.getData("text/plain"));
                 if (lead) iniciarMovimento(lead, etapa);
               }}
-              style={{ width: 272, flexShrink: 0, display: "flex", flexDirection: "column" }}>
+              style={{ width: 272, minWidth: 272, maxWidth: 272, flexShrink: 0, display: "flex", flexDirection: "column" }}>
               <h2 style={{ margin: 0, padding: "8px 12px", fontSize: 12, fontWeight: 700, letterSpacing: 0.3, textTransform: "uppercase", color: "#fff", background: etapa.cor, borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{etapa.nome}</span>
                 <span style={{ fontWeight: 600, opacity: 0.9 }}>{cards.length}</span>
               </h2>
-              <div style={{ flex: 1, marginTop: 8, padding: 6, display: "grid", gap: 8, minHeight: "55vh", alignContent: "start", borderRadius: 10, border: `1px dashed ${sobre === etapa.id ? BLUE : "transparent"}`, background: sobre === etapa.id ? "rgba(32,116,185,0.06)" : "transparent" }}>
+              <div style={{ flex: 1, marginTop: 8, padding: 6, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 8, minHeight: "55vh", alignContent: "start", borderRadius: 10, border: `1px dashed ${sobre === etapa.id ? BLUE : "transparent"}`, background: sobre === etapa.id ? "rgba(32,116,185,0.06)" : "transparent" }}>
                 {cards.map((l) => {
                   const atrasado = leadAtrasado(l);
                   const movel = l.status !== "convertido";
@@ -144,7 +144,7 @@ export function LeadsAcompanhamento({ leads, representantes, clientes, etapas, a
                       onDragEnd={() => { setArrastando(null); setSobre(null); }}
                       onClick={() => { setErro(""); setSelecionadoId(l.id); }}
                       onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) { setErro(""); setSelecionadoId(l.id); } }}
-                      style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10, padding: 12, fontSize: 12, display: "grid", gap: 6, boxShadow: "0 1px 2px rgba(15,23,42,0.06)", cursor: movel ? "grab" : "pointer", opacity: arrastando === l.id ? 0.4 : 1 }}>
+                      style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 10, padding: 12, fontSize: 12, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", minWidth: 0, gap: 6, boxShadow: "0 1px 2px rgba(15,23,42,0.06)", cursor: movel ? "grab" : "pointer", opacity: arrastando === l.id ? 0.4 : 1 }}>
                       <strong style={{ fontSize: 13, color: "#1a1a1a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.empresa_nome || l.contato_nome || "Lead sem nome"}</strong>
                       {l.empresa_nome && l.contato_nome && <span style={{ color: MUTED, marginTop: -4 }}>{l.contato_nome}</span>}
                       <Linha cor={BLUE} texto={INTERESSES_LEAD[l.tipo_interesse] ?? l.tipo_interesse} legenda="Interesse" />
@@ -152,10 +152,10 @@ export function LeadsAcompanhamento({ leads, representantes, clientes, etapas, a
                       {atrasado && <Linha cor={DANGER} texto="Ação atrasada" legenda="Prazo" />}
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2, color: MUTED, fontSize: 11 }}>
                         <span title={repNome ?? "Sem representante"} style={{ width: 22, height: 22, borderRadius: "50%", background: repNome ? NAV : "#CBD5E1", color: "#fff", fontSize: 10, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{(repNome ?? "?").slice(0, 1).toUpperCase()}</span>
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: atrasado ? DANGER : MUTED }}>
+                        <span style={{ minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: atrasado ? DANGER : MUTED }}>
                           {l.proxima_acao || "Sem próxima ação"}{l.proxima_acao_em ? ` · ${new Date(l.proxima_acao_em).toLocaleDateString("pt-BR")}` : ""}
                         </span>
-                        <span style={{ marginLeft: "auto" }}>{l.historico?.length ?? 0} reg.</span>
+                        <span style={{ marginLeft: "auto", flexShrink: 0, whiteSpace: "nowrap" }}>{l.historico?.length ?? 0} reg.</span>
                       </div>
                       {movel && (
                         <select className="lead-mover" aria-label="Mover para" value="" disabled={pendente}
@@ -169,7 +169,7 @@ export function LeadsAcompanhamento({ leads, representantes, clientes, etapas, a
                     </div>
                   );
                 })}
-                {!cards.length && <p style={{ margin: 0, padding: 8, fontSize: 12, color: MUTED, textAlign: "center" }}>Nenhum lead</p>}
+                {!cards.length && <p style={{ margin: 0, padding: "16px 8px", fontSize: 12, color: MUTED, textAlign: "center" }}>Nenhum lead</p>}
               </div>
             </section>
           );
