@@ -4,6 +4,7 @@ import { AlertTriangle, Building2, CalendarClock, CircleDollarSign, Hash, Plus, 
 import { createClient } from "@/lib/supabase/server";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { KanbanBoard, type KanbanCard, type KanbanColuna } from "@/components/propostas/KanbanBoard";
+import { LayoutPropostas } from "@/components/propostas/LayoutPropostas";
 import { PainelPropostas } from "@/components/propostas/PainelPropostas";
 import { OrganizarPropostasBtn } from "@/components/propostas/OrganizarPropostasBtn";
 import { Button } from "@/components/ui/button";
@@ -286,8 +287,8 @@ export default async function PropostasPage({ searchParams }: { searchParams: Se
   const ehAdmin = usuario?.perfil === "admin";
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] min-h-0 flex-col gap-3 overflow-hidden pb-2">
-      <div className="flex max-h-[48vh] shrink-0 flex-col gap-3 overflow-y-auto px-4 pt-4 sm:px-6 sm:pt-6">
+    <LayoutPropostas topo={
+      <>
         <div className="flex flex-col gap-4 rounded-xl border border-border bg-card px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-xl font-bold tracking-tight text-foreground">Propostas</h1>
@@ -354,15 +355,15 @@ export default async function PropostasPage({ searchParams }: { searchParams: Se
           }
           filtros={<Filtros searchParams={searchParams} vendedores={vendedores} representantes={representantesFiltro} />}
         />
-      </div>
-
+      </>
+    }>
       <KanbanBoard
         colunas={colunasFinais}
         etapas={etapas}
         motivos={{ perda: motivos.ativos.perda, congelamento: motivos.ativos.congelamento }}
         podeMover={estruturaFunil && etapas.length > 0}
       />
-    </div>
+    </LayoutPropostas>
   );
 }
 
