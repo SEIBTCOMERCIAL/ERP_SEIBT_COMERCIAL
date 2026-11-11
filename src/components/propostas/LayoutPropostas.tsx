@@ -9,8 +9,8 @@ const ALTURA_TOPBAR = 56;
 
 /**
  * Divide a tela de Propostas em duas partes: topo (título, indicadores e filtros) e quadro.
- * A alça com a cruz entre as duas pode ser arrastada para cima ou para baixo para escolher
- * quanto espaço cada parte ocupa. Duplo clique volta ao tamanho automático.
+ * O topo mostra tudo, sem barra de rolagem, e se ajusta ao conteúdo. A alça com a cruz entre as
+ * duas partes arrasta para cima (dá mais espaço ao quadro) ou para baixo. Duplo clique volta ao automático.
  */
 export function LayoutPropostas({ topo, children }: { topo: React.ReactNode; children: React.ReactNode }) {
   const [altura, setAltura] = useState<number | null>(null);
@@ -27,7 +27,8 @@ export function LayoutPropostas({ topo, children }: { topo: React.ReactNode; chi
 
   function limitar(valor: number) {
     const maximo = window.innerHeight - ALTURA_TOPBAR - ALTURA_MINIMA_QUADRO;
-    return Math.round(Math.max(0, Math.min(valor, maximo)));
+    const conteudo = topoRef.current?.scrollHeight ?? maximo;
+    return Math.round(Math.max(0, Math.min(valor, maximo, conteudo)));
   }
 
   function guardar(valor: number | null) {
@@ -69,10 +70,12 @@ export function LayoutPropostas({ topo, children }: { topo: React.ReactNode; chi
     <div className="flex h-[calc(100vh-3.5rem)] min-h-0 flex-col overflow-hidden pb-2">
       <div
         ref={topoRef}
-        className="flex shrink-0 flex-col gap-3 overflow-y-auto px-4 pt-4 sm:px-6 sm:pt-6"
-        style={altura === null ? { maxHeight: "48vh" } : { height: altura }}
+        className="shrink-0 overflow-hidden px-4 pt-4 sm:px-6 sm:pt-6"
+        // Sem barra de rolagem: a parte de cima ocupa a altura do próprio conteúdo (acompanha quando
+        // blocos são recolhidos ou abertos) e a alça só define o limite máximo que ela pode ocupar.
+        style={{ maxHeight: altura ?? `calc(100vh - ${ALTURA_TOPBAR}px - ${ALTURA_MINIMA_QUADRO + 20}px)` }}
       >
-        {topo}
+        <div className="flex flex-col gap-3 pb-1">{topo}</div>
       </div>
 
       <div
