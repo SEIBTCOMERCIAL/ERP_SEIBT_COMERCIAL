@@ -139,7 +139,8 @@ export function NovaPropPecasForm({ clientes, produtos, taxaDolar, propostasPrin
 
   function produtosFiltrados() {
     let list = maquinaSel
-      ? produtos.filter((p) => p.modelos_compat.some((m) => maquinaSel.modelo && m.includes(maquinaSel.modelo.split(" ")[0])))
+      // Itens gerais (ex.: dutos e curvas, categoria "outro") não são de um modelo específico: aparecem sempre.
+      ? produtos.filter((p) => p.categoria === "outro" || p.modelos_compat.some((m) => maquinaSel.modelo && m.includes(maquinaSel.modelo.split(" ")[0])))
       : produtos;
     if (catTab !== "todos") list = list.filter((p) => p.categoria === catTab);
     // Navalhas com jogo cadastrado entram só pelo jogo (formato do orçamento).
