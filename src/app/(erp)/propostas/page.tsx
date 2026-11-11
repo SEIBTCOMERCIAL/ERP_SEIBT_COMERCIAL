@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, Building2, CalendarClock, CircleDollarSign, Hash, Plus, Search, TrendingUp } from "lucide-react";
+import { AlertTriangle, Building2, CalendarClock, CircleDollarSign, Hash, Plus, Search, TrendingUp, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { KanbanBoard, type KanbanCard, type KanbanColuna } from "@/components/propostas/KanbanBoard";
-import { LayoutPropostas } from "@/components/propostas/LayoutPropostas";
-import { PainelPropostas } from "@/components/propostas/PainelPropostas";
+import { CabecalhoKanban } from "@/components/kanban/CabecalhoKanban";
+import { InfoBtn } from "@/components/kanban/InfoBtn";
 import { OrganizarPropostasBtn } from "@/components/propostas/OrganizarPropostasBtn";
 import { Button } from "@/components/ui/button";
 import {
@@ -286,160 +286,227 @@ export default async function PropostasPage({ searchParams }: { searchParams: Se
   const automaticas = noQuadro.filter((p) => posicaoNoFunil(p, etapas).automatica).length;
   const ehAdmin = usuario?.perfil === "admin";
 
+  const filtrosAtivos = FILTROS.filter((chave) => Boolean(searchParams[chave]));
+  const filtrosAvancadosQtd = filtrosAtivos.filter((chave) => chave !== "q").length;
+  const nomePorId = (lista: Array<{ id: string; nome: string }>, id?: string) => lista.find((x) => x.id === id)?.nome ?? "—";
+  const rotuloFiltro = (chave: (typeof FILTROS)[number]): string => {
+    const v = searchParams[chave] ?? "";
+    switch (chave) {
+      case "q": return `Busca: ${v}`;
+      case "status": return `Status: ${STATUS_LABELS[v] ?? v}`;
+      case "situacao": return `Situação: ${SITUACAO_LABELS[v] ?? v}`;
+      case "tipo": return `Tipo: ${TIPO_LABELS[v] ?? v}`;
+      case "mercado": return `Mercado: ${v === "exportacao" ? "Exportação" : "Nacional"}`;
+      case "responsavel": return `Usuário: ${nomePorId(vendedores, v)}`;
+      case "representante": return `Representante: ${nomePorId(representantesFiltro, v)}`;
+      case "temperatura": return `Temperatura: ${v.charAt(0).toUpperCase()}${v.slice(1)}`;
+      case "alerta": return `Alerta: ${ALERTA_LABELS[v] ?? v}`;
+    }
+  };
+  const hrefSem = (chave: string) => {
+    const params = new URLSearchParams();
+    for (const c of FILTROS) if (c !== chave && searchParams[c]) params.set(c, String(searchParams[c]));
+    const texto = params.toString();
+    return texto ? `/propostas?${texto}` : "/propostas";
+  };
+  const chips = filtrosAtivos.length > 0 ? (
+    <>
+      {filtrosAtivos.map((chave) => (
+        <Link key={chave} href={hrefSem(chave)} title="Remover este filtro"
+          className="inline-flex h-7 max-w-[260px] items-center gap-1.5 rounded-full border border-border bg-card px-2.5 text-xs text-foreground hover:bg-muted">
+          <span className="truncate">{rotuloFiltro(chave)}</span><X className="h-3 w-3 shrink-0 text-muted-foreground" />
+        </Link>
+      ))}
+      <Link href="/propostas" className="text-xs font-medium text-[#2074B9] hover:underline">Limpar tudo</Link>
+    </>
+  ) : null;
+
+  const infoApresentado = `O valor apresentado soma todas as propostas e alternativas, inclusive as complementares do mesmo negócio.${complementaresAbertas > 0 ? ` Há ${complementaresAbertas} ${complementaresAbertas === 1 ? "proposta complementar" : "propostas complementares"} em aberto.` : ""}`;
+  const infoFunil = `O funil ativo e os totais das colunas contam só a maior alternativa de cada negócio, para não duplicar valores.${complementaresAbertas > 0 ? ` Com todas as alternativas somadas: ${formatCurrency(ind.reais.funilComAlternativas)}.` : ""}`;
+
+  const aviso = "rounded-lg border px-3 py-2 text-xs";
+  const avisos = (
+    <>
+      {!estruturaFunil && (
+        <p className={`${aviso} border-amber-200 bg-amber-50 text-amber-800`}>
+          O funil configurável (etapas, arrastar e soltar, motivos e anexos) depende da atualização do banco de dados (arquivo 024), que ainda não foi aplicada. Enquanto isso, o quadro só mostra as propostas.
+        </p>
+      )}
+      {estruturaFunil && !etapas.length && (
+        <p className={`${aviso} border-amber-200 bg-amber-50 text-amber-800`}>
+          Nenhuma etapa de funil cadastrada. O administrador cria as etapas em <Link href="/configuracoes" className="font-semibold underline">Configurações</Link>.
+        </p>
+      )}
+      {ehAdmin && estruturaFunil && automaticas > 0 && <OrganizarPropostasBtn quantidade={automaticas} />}
+      {estruturaFunil && !ehAdmin && automaticas > 0 && (
+        <p className={`${aviso} border-border bg-card text-muted-foreground`}>
+          {automaticas} {automaticas === 1 ? "proposta antiga está" : "propostas antigas estão"} posicionada(s) automaticamente. O administrador pode organizá-las de forma definitiva.
+        </p>
+      )}
+    </>
+  );
+
   return (
-    <LayoutPropostas topo={
-      <>
-        <div className="flex flex-col gap-4 rounded-xl border border-border bg-card px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-foreground">Propostas</h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              Funil comercial · {noQuadro.length === (total ?? propostas.length) ? `${noQuadro.length} propostas` : `${noQuadro.length} de ${total ?? propostas.length} propostas`}
+    <div className="flex min-h-0 flex-col lg:h-[calc(100vh-3.5rem)] lg:overflow-hidden">
+      <CabecalhoKanban
+        chave="propostas"
+        titulo="Propostas"
+        contagem={noQuadro.length === (total ?? propostas.length) ? `${noQuadro.length} propostas` : `${noQuadro.length} de ${total ?? propostas.length} propostas`}
+        acoes={
+          <>
+            <Link href="/propostas/gerar-numero">
+              <Button variant="outline" className="h-9 gap-1.5 text-sm"><Hash className="h-4 w-4" />Gerar número</Button>
+            </Link>
+            <Link href="/propostas/nova">
+              <Button className="h-9 gap-1.5 bg-[#2C4F79] text-sm text-white hover:bg-[#1E3A5F]"><Plus className="h-4 w-4" />Nova proposta</Button>
+            </Link>
+          </>
+        }
+        busca={
+          <form method="get" role="search" className="relative">
+            {filtrosAtivos.filter((c) => c !== "q").map((c) => <input key={c} type="hidden" name={c} value={String(searchParams[c])} />)}
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input name="q" defaultValue={searchParams.q} aria-label="Buscar propostas" placeholder="Cliente, CNPJ, nº ou produto..."
+              className="h-9 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none focus:border-[#2074B9]" />
+          </form>
+        }
+        filtrosQtd={filtrosAvancadosQtd}
+        painelFiltros={<FiltrosPainel searchParams={searchParams} vendedores={vendedores} representantes={representantesFiltro} />}
+        chips={chips}
+        avisos={avisos}
+        resumo={
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+            <span>Funil ativo <strong className="text-foreground">{formatCurrency(ind.reais.funilAtivo)}</strong></span>
+            <span>Follow-ups atrasados <strong className={followupsAtrasados > 0 ? "text-red-600" : "text-foreground"}>{followupsAtrasados}</strong></span>
+            <span>Paradas <strong className={semMovimentacao > 0 ? "text-red-600" : "text-foreground"}>{semMovimentacao}</strong></span>
+          </p>
+        }
+        indicadores={
+          <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
+              <Kpi label="Valor apresentado" value={formatCurrency(ind.reais.valorApresentado)} hint={`todas as propostas e alternativas${extraUsd(ind.dolar.valorApresentado)}`} icon={CircleDollarSign} info={infoApresentado} />
+              <Kpi label="Funil ativo" value={formatCurrency(ind.reais.funilAtivo)} hint={`com todas as alternativas: ${formatCurrency(ind.reais.funilComAlternativas)}${extraUsd(ind.dolar.funilAtivo)}`} icon={CircleDollarSign} info={infoFunil} />
+              <Kpi label="Clientes ativos" value={String(clientesAtivos)} hint={`${ind.negociosAbertos} negócios em aberto`} icon={Building2} />
+              <Kpi label="Conversão" value={`${ind.conversao}%`} hint={`${ind.ganhos} ganhos · ${ind.perdidos} perdidos (por negócio)`} icon={TrendingUp} />
+              <Kpi label="Follow-ups atrasados" value={String(followupsAtrasados)} hint={semAcao ? `+ ${semAcao} sem próxima ação` : "precisam de ação"} icon={CalendarClock} alert={followupsAtrasados + semAcao > 0} />
+              <Kpi label="Sem movimentação" value={String(semMovimentacao)} hint={hintParado} icon={AlertTriangle} alert={semMovimentacao > 0} />
+              <Kpi label="Validade próxima" value={String(vencendo)} hint={`vence em até ${DIAS_ALERTA_VALIDADE} dias`} icon={CalendarClock} alert={vencendo > 0} />
+            </div>
+            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <span>Principais: <strong className="text-foreground">{contagem.principais}</strong></span>
+              <span>Complementares: <strong className="text-foreground">{contagem.complementares}</strong></span>
+              <span>Ganhas: <strong className="text-foreground">{contagem.ganhas}</strong></span>
+              <span>Perdidas: <strong className="text-foreground">{contagem.perdidas}</strong></span>
+              <span>Congeladas: <strong className="text-foreground">{contagem.congeladas}</strong></span>
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href="/propostas/gerar-numero" className="max-sm:flex-1">
-              <Button variant="outline" className="h-9 w-full gap-1.5 text-sm"><Hash className="h-4 w-4" />Gerar número</Button>
-            </Link>
-            <Link href="/propostas/nova" className="max-sm:flex-1">
-              <Button className="h-9 w-full gap-1.5 bg-[#2C4F79] text-sm text-white hover:bg-[#1E3A5F]"><Plus className="h-4 w-4" />Nova proposta</Button>
-            </Link>
-          </div>
-        </div>
-
-        {!estruturaFunil && (
-          <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[12px] text-amber-800">
-            O funil configurável (etapas, arrastar e soltar, motivos e anexos) depende da atualização do banco de dados (arquivo 024), que ainda não foi aplicada. Enquanto isso, o quadro só mostra as propostas.
-          </p>
-        )}
-        {estruturaFunil && !etapas.length && (
-          <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[12px] text-amber-800">
-            Nenhuma etapa de funil cadastrada. O administrador cria as etapas em <Link href="/configuracoes" className="font-semibold underline">Configurações</Link>.
-          </p>
-        )}
-        {ehAdmin && estruturaFunil && automaticas > 0 && (
-          <OrganizarPropostasBtn quantidade={automaticas} />
-        )}
-        {estruturaFunil && !ehAdmin && automaticas > 0 && (
-          <p className="rounded-xl border border-border bg-card p-3 text-[12px] text-muted-foreground">
-            {automaticas} {automaticas === 1 ? "proposta antiga está" : "propostas antigas estão"} posicionada(s) automaticamente. O administrador pode organizá-las de forma definitiva.
-          </p>
-        )}
-
-        <PainelPropostas
-          filtrosAtivos={FILTROS.some((chave) => Boolean(searchParams[chave]))}
-          indicadores={
-            <>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
-          <Kpi label="Valor apresentado" value={formatCurrency(ind.reais.valorApresentado)} hint={`todas as propostas e alternativas${extraUsd(ind.dolar.valorApresentado)}`} icon={CircleDollarSign} />
-          <Kpi label="Funil ativo" value={formatCurrency(ind.reais.funilAtivo)} hint={`com todas as alternativas: ${formatCurrency(ind.reais.funilComAlternativas)}${extraUsd(ind.dolar.funilAtivo)}`} icon={CircleDollarSign} />
-          <Kpi label="Clientes ativos" value={String(clientesAtivos)} hint={`${ind.negociosAbertos} negócios em aberto`} icon={Building2} />
-          <Kpi label="Conversão" value={`${ind.conversao}%`} hint={`${ind.ganhos} ganhos · ${ind.perdidos} perdidos (por negócio)`} icon={TrendingUp} />
-          <Kpi label="Follow-ups atrasados" value={String(followupsAtrasados)} hint={semAcao ? `+ ${semAcao} sem próxima ação` : "precisam de ação"} icon={CalendarClock} alert={followupsAtrasados + semAcao > 0} />
-          <Kpi label="Sem movimentação" value={String(semMovimentacao)} hint={hintParado} icon={AlertTriangle} alert={semMovimentacao > 0} />
-          <Kpi label="Validade próxima" value={String(vencendo)} hint={`vence em até ${DIAS_ALERTA_VALIDADE} dias`} icon={CalendarClock} alert={vencendo > 0} />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-border bg-card px-4 py-2.5 text-[11px] text-muted-foreground">
-          <span>Principais: <strong className="text-foreground">{contagem.principais}</strong></span>
-          <span>Complementares: <strong className="text-foreground">{contagem.complementares}</strong></span>
-          <span>Ganhas: <strong className="text-foreground">{contagem.ganhas}</strong></span>
-          <span>Perdidas: <strong className="text-foreground">{contagem.perdidas}</strong></span>
-          <span>Congeladas: <strong className="text-foreground">{contagem.congeladas}</strong></span>
-          {complementaresAbertas > 0 && (
-            <span className="basis-full text-purple-700">
-              Inclui {complementaresAbertas} {complementaresAbertas === 1 ? "proposta complementar" : "propostas complementares"} em aberto: o &quot;Valor apresentado&quot; soma todas as alternativas; o &quot;Funil ativo&quot; e os totais das colunas contam só a maior alternativa de cada negócio.
-            </span>
-          )}
-        </div>
-            </>
-          }
-          filtros={<Filtros searchParams={searchParams} vendedores={vendedores} representantes={representantesFiltro} />}
-        />
-      </>
-    }>
-      <KanbanBoard
-        colunas={colunasFinais}
-        etapas={etapas}
-        motivos={{ perda: motivos.ativos.perda, congelamento: motivos.ativos.congelamento }}
-        podeMover={estruturaFunil && etapas.length > 0}
+        }
       />
-    </LayoutPropostas>
-  );
-}
 
-function Kpi({ label, value, hint, icon: Icon, alert = false }: { label: string; value: string; hint: string; icon: typeof Building2; alert?: boolean }) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-3.5">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold text-muted-foreground">{label}</p>
-        <Icon className={`h-3.5 w-3.5 shrink-0 ${alert ? "text-red-500" : "text-[#2074B9]"}`} />
+      <div className="flex h-[75vh] min-h-[420px] flex-col pt-3 lg:h-auto lg:min-h-0 lg:flex-1">
+        <KanbanBoard
+          colunas={colunasFinais}
+          etapas={etapas}
+          motivos={{ perda: motivos.ativos.perda, congelamento: motivos.ativos.congelamento }}
+          podeMover={estruturaFunil && etapas.length > 0}
+        />
       </div>
-      <p className={`mt-2 text-[17px] font-bold sm:text-[18px] ${alert ? "text-red-600" : "text-foreground"}`}>{value}</p>
-      <p className="mt-1 text-[10px] leading-snug text-muted-foreground">{hint}</p>
     </div>
   );
 }
 
-const selectCls = "h-9 w-full min-w-0 rounded-lg border border-border bg-background px-2.5 text-[12px] text-foreground outline-none";
-
-function Filtros({ searchParams, vendedores, representantes }: { searchParams: SearchParams; vendedores: Array<{ id: string; nome: string }>; representantes: Array<{ id: string; nome: string }> }) {
-  const temFiltro = FILTROS.some((chave) => Boolean(searchParams[chave]));
+function Kpi({ label, value, hint, icon: Icon, alert = false, info }: { label: string; value: string; hint: string; icon: typeof Building2; alert?: boolean; info?: string }) {
   return (
-    <form method="get" className="grid grid-cols-2 gap-2 rounded-xl border border-border bg-card p-3 sm:grid-cols-3 lg:grid-cols-5">
-      <div className="relative col-span-2 sm:col-span-3 lg:col-span-2">
-        <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-        <input name="q" defaultValue={searchParams.q} placeholder="Cliente, CNPJ, nº ou produto..." className="h-9 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-[12px] outline-none focus:border-[#2074B9]" />
+    <div className="rounded-xl border border-border bg-card p-3">
+      <div className="flex items-center justify-between gap-1">
+        <p className="flex items-center gap-0.5 text-xs font-semibold text-muted-foreground">{label}{info && <InfoBtn texto={info} titulo={`Como é calculado: ${label}`} />}</p>
+        <Icon className={`h-4 w-4 shrink-0 ${alert ? "text-red-500" : "text-[#2074B9]"}`} />
       </div>
-      <select name="situacao" aria-label="Situação" defaultValue={searchParams.situacao ?? ""} className={selectCls}>
-        <option value="">Em aberto + encerradas recentes</option>
-        <option value="abertas">Somente em aberto</option>
-        <option value="negociacao">Em negociação</option>
-        <option value="congeladas">Congeladas</option>
-        <option value="complementares">Complementares</option>
-        <option value="vendidas">Vendidas</option>
-        <option value="perdidas">Perdidas / desistência</option>
-        <option value="encerradas">Todas encerradas</option>
-        <option value="todas">Todas (sem limite de data)</option>
-      </select>
-      <select name="status" aria-label="Status" defaultValue={searchParams.status ?? ""} className={selectCls}>
-        <option value="">Todos os status</option>
-        {STATUS_LISTA.map((status) => <option key={status} value={status}>{STATUS_LABELS[status]}</option>)}
-      </select>
-      <select name="tipo" aria-label="Tipo" defaultValue={searchParams.tipo ?? ""} className={selectCls}>
-        <option value="">Todos os tipos</option>
-        {TIPOS_PROPOSTA.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-        <option value="exportacao">{TIPO_LABELS.exportacao}</option>
-      </select>
-      <select name="mercado" aria-label="Mercado" defaultValue={searchParams.mercado ?? ""} className={selectCls}>
-        <option value="">Todos os mercados</option>
-        <option value="nacional">Nacional</option>
-        <option value="exportacao">Exportação</option>
-      </select>
-      <select name="responsavel" aria-label="Responsável" defaultValue={searchParams.responsavel ?? ""} className={selectCls}>
-        <option value="">Todos os usuários (responsável ou representante)</option>
-        {vendedores.map((v) => <option key={v.id} value={v.id}>{v.nome}</option>)}
-      </select>
-      <select name="representante" aria-label="Representante" defaultValue={searchParams.representante ?? ""} className={selectCls}>
-        <option value="">Todos representantes</option>
-        {representantes.map((r) => <option key={r.id} value={r.id}>{r.nome}</option>)}
-      </select>
-      <select name="temperatura" aria-label="Temperatura" defaultValue={searchParams.temperatura ?? ""} className={selectCls}>
-        <option value="">Todas temperaturas</option>
-        <option value="quente">Quente</option>
-        <option value="morna">Morna</option>
-        <option value="fria">Fria</option>
-      </select>
-      <select name="alerta" aria-label="Alertas" defaultValue={searchParams.alerta ?? ""} className={selectCls}>
-        <option value="">Sem filtro de alerta</option>
-        <option value="qualquer">Com qualquer alerta</option>
-        <option value="atrasado">Follow-up atrasado</option>
-        <option value="sem_acao">Sem próxima ação</option>
-        <option value="parado">Sem movimentação</option>
-        <option value="vencendo">Validade próxima</option>
-      </select>
-      <div className="col-span-2 flex gap-2 sm:col-span-1">
-        <button type="submit" className="h-9 flex-1 rounded-lg bg-[#2C4F79] px-4 text-[12px] font-medium text-white hover:bg-[#1E3A5F]">Filtrar</button>
-        {temFiltro && <Link href="/propostas" className="flex h-9 items-center rounded-lg border border-border px-3 text-[12px] text-muted-foreground hover:text-foreground">Limpar</Link>}
+      <p className={`mt-1 text-lg font-bold ${alert ? "text-red-600" : "text-foreground"}`}>{value}</p>
+      <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{hint}</p>
+    </div>
+  );
+}
+
+const SITUACAO_LABELS: Record<string, string> = {
+  abertas: "Somente em aberto", negociacao: "Em negociação", congeladas: "Congeladas", complementares: "Complementares",
+  vendidas: "Vendidas", perdidas: "Perdidas / desistência", encerradas: "Todas encerradas", todas: "Todas (sem limite de data)",
+};
+const ALERTA_LABELS: Record<string, string> = {
+  qualquer: "Qualquer alerta", atrasado: "Follow-up atrasado", sem_acao: "Sem próxima ação", parado: "Sem movimentação", vencendo: "Validade próxima",
+};
+
+const campoCls = "h-10 w-full min-w-0 rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-[#2074B9]";
+
+function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
+  return <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">{rotulo}{children}</label>;
+}
+
+function FiltrosPainel({ searchParams, vendedores, representantes }: { searchParams: SearchParams; vendedores: Array<{ id: string; nome: string }>; representantes: Array<{ id: string; nome: string }> }) {
+  return (
+    <form method="get" className="flex min-h-full flex-col">
+      {searchParams.q && <input type="hidden" name="q" value={searchParams.q} />}
+      <div className="flex flex-1 flex-col gap-4 p-4">
+        <Campo rotulo="Situação">
+          <select name="situacao" defaultValue={searchParams.situacao ?? ""} className={campoCls}>
+            <option value="">Em aberto + encerradas recentes</option>
+            {Object.entries(SITUACAO_LABELS).map(([v, n]) => <option key={v} value={v}>{n}</option>)}
+          </select>
+        </Campo>
+        <Campo rotulo="Status">
+          <select name="status" defaultValue={searchParams.status ?? ""} className={campoCls}>
+            <option value="">Todos os status</option>
+            {STATUS_LISTA.map((status) => <option key={status} value={status}>{STATUS_LABELS[status]}</option>)}
+          </select>
+        </Campo>
+        <div className="grid grid-cols-2 gap-3">
+          <Campo rotulo="Tipo">
+            <select name="tipo" defaultValue={searchParams.tipo ?? ""} className={campoCls}>
+              <option value="">Todos</option>
+              {TIPOS_PROPOSTA.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              <option value="exportacao">{TIPO_LABELS.exportacao}</option>
+            </select>
+          </Campo>
+          <Campo rotulo="Mercado">
+            <select name="mercado" defaultValue={searchParams.mercado ?? ""} className={campoCls}>
+              <option value="">Todos</option>
+              <option value="nacional">Nacional</option>
+              <option value="exportacao">Exportação</option>
+            </select>
+          </Campo>
+        </div>
+        <Campo rotulo="Usuário (responsável ou representante)">
+          <select name="responsavel" defaultValue={searchParams.responsavel ?? ""} className={campoCls}>
+            <option value="">Todos</option>
+            {vendedores.map((v) => <option key={v.id} value={v.id}>{v.nome}</option>)}
+          </select>
+        </Campo>
+        <Campo rotulo="Representante">
+          <select name="representante" defaultValue={searchParams.representante ?? ""} className={campoCls}>
+            <option value="">Todos</option>
+            {representantes.map((r) => <option key={r.id} value={r.id}>{r.nome}</option>)}
+          </select>
+        </Campo>
+        <div className="grid grid-cols-2 gap-3">
+          <Campo rotulo="Temperatura">
+            <select name="temperatura" defaultValue={searchParams.temperatura ?? ""} className={campoCls}>
+              <option value="">Todas</option>
+              <option value="quente">Quente</option>
+              <option value="morna">Morna</option>
+              <option value="fria">Fria</option>
+            </select>
+          </Campo>
+          <Campo rotulo="Alertas">
+            <select name="alerta" defaultValue={searchParams.alerta ?? ""} className={campoCls}>
+              <option value="">Sem filtro</option>
+              {Object.entries(ALERTA_LABELS).map(([v, n]) => <option key={v} value={v}>{n}</option>)}
+            </select>
+          </Campo>
+        </div>
+      </div>
+      <div className="sticky bottom-0 flex gap-2 border-t border-border bg-background p-4">
+        <button type="submit" className="h-10 flex-1 rounded-lg bg-[#2C4F79] px-4 text-sm font-medium text-white hover:bg-[#1E3A5F]">Aplicar</button>
+        <Link href="/propostas" className="flex h-10 items-center rounded-lg border border-border px-4 text-sm font-medium text-foreground hover:bg-muted">Limpar</Link>
       </div>
     </form>
   );
