@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
+import { buscarTodos } from "@/lib/supabase/buscar-todos";
 import { tamanhoModelo } from "@/lib/produto-titulo";
+import { CAMPOS_FORA_DO_CATALOGO, COLUNAS_CATALOGO, montarMaquinaCatalogo } from "./mapear";
 import type { CatalogoLinha, JogoNavalhas, MaquinaCatalogo, PecaCatalogo, SpecCampo } from "./tipos";
 
 export type { SpecCampo, ImagemProduto, MaquinaCatalogo, CatalogoLinha, PecaCatalogo, JogoNavalhas, ModoCatalogo } from "./tipos";
@@ -25,17 +27,17 @@ export async function carregarCatalogoLinha(
 ): Promise<CatalogoLinha | null> {
   const supabase: SupabaseAny = supabaseClient ?? createClient();
 
-  const [{ data: rawLinha }, { data: rawMaquinas }, { data: rawCampos }] = await Promise.all([
+  const [{ data: rawLinha }, rawMaquinas, { data: rawCampos }] = await Promise.all([
     supabase.from("linhas").select("id, nome, ordem, modo_catalogo").eq("id", linhaId).single(),
-    supabase
+    buscarTodos((de, ate) => supabase
       .from("produtos")
-      .select(
-        "id, codigo, potencia_motor, preco_brl, preco_painel_220, preco_painel_380, specs, foto_url, produto_arquivos(id, tipo, nome, url)"
-      )
+      .select(COLUNAS_CATALOGO)
       .eq("categoria", "maquina")
       .eq("linha_id", linhaId)
       .eq("status", "ativo")
-      .is("deleted_at", null),
+      .is("deleted_at", null)
+      .order("id")
+      .range(de, ate)),
     supabase
       .from("linha_spec_campos")
       .select("id, nome, ordem")
@@ -52,31 +54,9 @@ export async function carregarCatalogoLinha(
     modoCatalogo: (rawLinha.modo_catalogo ?? "completo") as "completo" | "lista",
   };
 
-  const precoPorVoltagem = LINHAS_PRECO_POR_VOLTAGEM.test(linha.nome);
-  const painelCompartilhado = LINHAS_PAINEL_COMPARTILHADO.test(linha.nome);
-
+  // Preços vigentes direto do cadastro (produtos): o catálogo não tem tabela de preços própria.
   const maquinas: MaquinaCatalogo[] = (rawMaquinas ?? [])
-    .map((p: SupabaseAny) => ({
-      id: p.id,
-      codigo: p.codigo,
-      nome: p.codigo,
-      potenciaMotor: p.potencia_motor ?? null,
-      precoMaquina: p.preco_brl,
-      precoPainel220: p.preco_painel_220,
-      precoPainel380: p.preco_painel_380,
-      tipoPreco: precoPorVoltagem
-        ? "por_voltagem"
-        : !((p.preco_painel_220 ?? 0) > 0 || (p.preco_painel_380 ?? 0) > 0)
-          ? "sem_painel"
-          : painelCompartilhado
-            ? "painel_compartilhado"
-            : "com_painel",
-      specs: (p.specs ?? {}) as Record<string, string>,
-      fotoUrl: p.foto_url ?? null,
-      imagensDisponiveis: (p.produto_arquivos ?? [])
-        .filter((a: SupabaseAny) => a.tipo === "imagem")
-        .map((a: SupabaseAny) => ({ id: a.id, url: a.url, nome: a.nome })),
-    }))
+    .map((p: SupabaseAny) => montarMaquinaCatalogo(p, linha.nome))
     .sort((a: MaquinaCatalogo, b: MaquinaCatalogo) => {
       const diff = tamanhoModelo(a.nome) - tamanhoModelo(b.nome);
       return diff !== 0 ? diff : a.nome.localeCompare(b.nome);
@@ -89,16 +69,6 @@ export async function carregarCatalogoLinha(
   return { linha, specCampos, maquinas };
 }
 
-/** Linhas em que o item tem um preço por voltagem (220V / 380V), sem painel à parte. */
-const LINHAS_PRECO_POR_VOLTAGEM = /soft\s*starter/i;
-
-/** Linhas em que os dois preços de painel são "compartilhado" e "dedicado" (Base de Preço 2026). */
-const LINHAS_PAINEL_COMPARTILHADO = /exaustor/i;
-
-/** Campos técnicos que continuam no cadastro, mas não saem no catálogo impresso:
- * "PENEIRA PADRÃO (Ømm)" (6 a 22) dos moinhos e "PENEIRA" do RCX — pedido do Lucas, 07/10/2026. */
-const CAMPOS_FORA_DO_CATALOGO = /^PENEIRA(\s+PADR|\s*$)/i;
-
 /**
  * Todas as linhas que têm pelo menos uma máquina ativa, cada uma já com
  * seus dados completos (mesma função de busca de cima) — usado na visão
@@ -109,13 +79,15 @@ export async function carregarCatalogoCompleto(
 ): Promise<CatalogoLinha[]> {
   const supabase: SupabaseAny = supabaseClient ?? createClient();
 
-  const { data: linhasComMaquina } = await supabase
+  const linhasComMaquina = await buscarTodos((de, ate) => supabase
     .from("produtos")
-    .select("linha_id")
+    .select("id, linha_id")
     .eq("categoria", "maquina")
     .eq("status", "ativo")
     .is("deleted_at", null)
-    .not("linha_id", "is", null);
+    .not("linha_id", "is", null)
+    .order("id")
+    .range(de, ate));
 
   const linhaIdsRaw: string[] = (linhasComMaquina ?? []).map((p: SupabaseAny) => p.linha_id as string);
   const linhaIds = Array.from(new Set(linhaIdsRaw));
@@ -137,13 +109,15 @@ export async function carregarPecasCatalogo(
 ): Promise<{ peneiras: PecaCatalogo[] }> {
   const supabase: SupabaseAny = supabaseClient ?? createClient();
 
-  const { data: rawPeneiras } = await supabase
+  const rawPeneiras = await buscarTodos((de, ate) => supabase
     .from("produtos")
     .select("id, codigo, descricao, preco_brl, ipi_pct")
     .eq("categoria", "peneira")
     .eq("status", "ativo")
     .is("deleted_at", null)
-    .order("descricao");
+    .order("descricao")
+    .order("id")
+    .range(de, ate));
 
   const peneiras: PecaCatalogo[] = (rawPeneiras ?? []).map((p: SupabaseAny) => ({
     id: p.id,
@@ -175,25 +149,28 @@ export async function carregarJogosNavalhas(
 ): Promise<JogoNavalhas[]> {
   const supabase: SupabaseAny = supabaseClient ?? createClient();
 
-  const { data: rawMaquinas } = await supabase
+  const rawMaquinas = await buscarTodos((de, ate) => supabase
     .from("produtos")
     .select(
       `id, codigo,
        linha:linhas(nome, ordem),
        compatibilidades_equip!compatibilidades_equip_equipamento_id_fkey(
          quantidade,
-         peca:produtos!compatibilidades_equip_peca_id_fkey(id, codigo, descricao, preco_brl, ipi_pct, categoria)
+         peca:produtos!compatibilidades_equip_peca_id_fkey(id, codigo, descricao, preco_brl, ipi_pct, categoria, status, deleted_at)
        )`
     )
     .eq("categoria", "maquina")
     .eq("status", "ativo")
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    .order("id")
+    .range(de, ate));
 
   const porChave = new Map<string, JogoNavalhas>();
 
   for (const maquina of rawMaquinas ?? []) {
     const vinculos = (maquina.compatibilidades_equip ?? []) as SupabaseAny[];
-    const navalhas = vinculos.filter((v) => v.peca && v.peca.categoria === "navalha");
+    // Navalha descontinuada ou excluída não sai no catálogo.
+    const navalhas = vinculos.filter((v) => v.peca && v.peca.categoria === "navalha" && v.peca.status === "ativo" && !v.peca.deleted_at);
 
     const vFixa = navalhas.find((v) => /^NAVALHA\s+FIXA\s+/i.test(v.peca.descricao));
     const vRotora = navalhas.find((v) => /^NAVALHA\s+ROT(ORA|ATIVA)\s+/i.test(v.peca.descricao));

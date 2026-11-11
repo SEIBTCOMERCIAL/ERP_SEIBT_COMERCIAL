@@ -1,105 +1,63 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { EquipamentoDetalhe } from "@/components/produtos/EquipamentoDetalhe";
+import { EquipamentoPagina } from "@/components/produtos/equipamento/EquipamentoPagina";
 import { carregarJogosDoEquipamento } from "@/lib/propostas/jogos-servidor";
+import { hojeSaoPaulo } from "@/lib/reajuste/regras";
+import { carregarArquivos, carregarEquipamento, contarVinculosPorCategoria } from "@/lib/produtos/servidor";
+import { ehUuid } from "@/lib/produtos/regras";
 
 export const dynamic = "force-dynamic";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export default async function EquipamentoPage({ params }: { params: any }) {
+/** Só aceita voltar para a lista de Produtos (query string simples), nunca para endereços arbitrários. */
+function voltarSeguro(v: string | string[] | undefined): string {
+  const t = Array.isArray(v) ? v[0] : v;
+  return t && /^\?[A-Za-z0-9=&%_.-]{0,400}$/.test(t) ? t : "";
+}
+
+export default async function EquipamentoPage({ params, searchParams }: {
+  params: { id: string; eqId: string }; searchParams: Record<string, string | string[] | undefined>;
+}) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient() as any;
+  if (!ehUuid(params.id) || !ehUuid(params.eqId)) notFound();
 
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: userRecord } = await supabase
-    .from("usuarios").select("perfil").eq("id", user?.id).single();
-  const isAdmin = userRecord?.perfil === "admin";
+  const { data: usuario } = user ? await supabase.from("usuarios").select("perfil").eq("id", user.id).single() : { data: null };
+  const admin = usuario?.perfil === "admin";
+  const de = voltarSeguro(searchParams.de);
 
-  const [
-    { data: linha },
-    { data: equip },
-    { data: arquivos },
-    { data: rawCampos },
-    { data: rawCategorias },
-    { data: rawVinculos },
-    { data: rawPecasCatalogo },
-  ] = await Promise.all([
-    supabase.from("linhas").select("id, nome").eq("id", params.id).single(),
-    supabase.from("produtos")
-      .select("id, codigo, descricao, descricao_painel, potencia_motor, preco_brl, preco_painel_220, preco_painel_380, ncm, specs, ativo, status, solicitar_engenharia")
-      .eq("id", params.eqId)
-      .is("deleted_at", null)
-      .single(),
-    supabase.from("produto_arquivos")
-      .select("id, tipo, nome, url, storage_path, ordem")
-      .eq("produto_id", params.eqId)
-      .order("ordem"),
-    supabase.from("linha_spec_campos")
-      .select("id, nome, ordem")
-      .eq("linha_id", params.id)
-      .order("ordem"),
-    supabase.from("categorias_peca")
-      .select("id, nome, ordem")
-      .order("ordem"),
-    supabase.from("compatibilidades_equip")
-      .select("id, quantidade, peca:peca_id(id, codigo, descricao, preco_brl, ipi_pct, ativo, categoria_peca_id, furo_diametro, observacao)")
-      .eq("equipamento_id", params.eqId),
-    supabase.from("produtos")
-      .select("id, codigo, descricao, preco_brl, ipi_pct, ativo, categoria_peca_id, furo_diametro, observacao")
-      .not("categoria_peca_id", "is", null)
-      .eq("ativo", true)
-      .is("deleted_at", null)
-      .order("codigo"),
+  const base = await carregarEquipamento(supabase, params.id, params.eqId).catch(() => null);
+  if (!base || base.tipo === "inexistente") notFound();
+  // O equipamento existe, mas em outra linha: leva para o endereço correto em vez de mostrar dados sob a linha errada.
+  if (base.tipo === "outra_linha") redirect(`/produtos/linhas/${base.linhaCorreta}/${params.eqId}${de ? `?de=${encodeURIComponent(de)}` : ""}`);
+
+  const [campos, categorias, linhaInfo, arquivos, contagem, jogosInfo, taxa] = await Promise.all([
+    supabase.from("linha_spec_campos").select("id, nome, ordem").eq("linha_id", base.linha.id).order("ordem"),
+    supabase.from("categorias_peca").select("id, nome, ordem").order("ordem"),
+    supabase.from("linhas").select("grupo").eq("id", base.linha.id).maybeSingle(),
+    carregarArquivos(supabase, params.eqId, base.equipamento.foto_url).catch(() => null),
+    contarVinculosPorCategoria(supabase, params.eqId).catch(() => null),
+    carregarJogosDoEquipamento(supabase, params.eqId),
+    supabase.from("taxas_cambio").select("taxa, vigente_desde").eq("moeda", "USD").order("vigente_desde", { ascending: false }).limit(1).maybeSingle(),
   ]);
 
-  if (!linha || !equip) notFound();
-
-  const { jogos, disponivel: jogosDisponivel } = await carregarJogosDoEquipamento(supabase, params.eqId);
-
-  const specCampos: { id: string; nome: string; ordem: number }[] = rawCampos ?? [];
-  const categorias: { id: string; nome: string; ordem: number }[] = rawCategorias ?? [];
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const vinculos = (rawVinculos ?? []).map((v: any) => ({
-    id: v.id as string,
-    quantidade: (v.quantidade ?? 1) as number,
-    peca: {
-      id: v.peca?.id as string,
-      codigo: v.peca?.codigo as string,
-      descricao: v.peca?.descricao as string,
-      preco_brl: v.peca?.preco_brl as number | null,
-      ipi_pct: (v.peca?.ipi_pct ?? 0) as number,
-      ativo: (v.peca?.ativo ?? true) as boolean,
-      categoria_peca_id: v.peca?.categoria_peca_id as string,
-      furo_diametro: (v.peca?.furo_diametro ?? null) as string | null,
-      observacao: (v.peca?.observacao ?? null) as string | null,
-    },
-  })).filter((v: { peca: { id: string } }) => !!v.peca?.id);
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pecasCatalogo = (rawPecasCatalogo ?? []).map((p: any) => ({
-    id: p.id as string,
-    codigo: p.codigo as string,
-    descricao: p.descricao as string,
-    preco_brl: p.preco_brl as number | null,
-    ipi_pct: (p.ipi_pct ?? 0) as number,
-    categoria_peca_id: p.categoria_peca_id as string,
-    furo_diametro: (p.furo_diametro ?? null) as string | null,
-    observacao: (p.observacao ?? null) as string | null,
-  }));
-
+  const secao = typeof searchParams.secao === "string" ? searchParams.secao : "geral";
   return (
-    <EquipamentoDetalhe
-      isAdmin={isAdmin}
-      linha={linha}
-      equip={{ ...equip, status: equip.status ?? "ativo" }}
+    <EquipamentoPagina
+      admin={admin}
+      linha={{ id: base.linha.id, nome: base.linha.nome, familia: linhaInfo.data?.grupo ?? null }}
+      equip={base.equipamento}
+      campos={(campos.data ?? []) as Array<{ id: string; nome: string; ordem: number }>}
+      categorias={(categorias.data ?? []) as Array<{ id: string; nome: string; ordem: number }>}
       arquivos={arquivos ?? []}
-      specCampos={specCampos}
-      categorias={categorias}
-      vinculos={vinculos}
-      pecasCatalogo={pecasCatalogo}
-      jogos={jogos}
-      jogosDisponivel={jogosDisponivel}
+      arquivosErro={arquivos === null}
+      contagemVinculos={contagem ?? {}}
+      jogos={jogosInfo.jogos}
+      jogosDisponivel={jogosInfo.disponivel}
+      hoje={hojeSaoPaulo()}
+      cambio={taxa.data ? { taxa: Number(taxa.data.taxa), desde: String(taxa.data.vigente_desde) } : null}
+      voltar={de}
+      secaoInicial={secao}
     />
   );
 }

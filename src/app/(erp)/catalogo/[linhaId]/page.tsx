@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { carregarCatalogoLinha } from "@/lib/catalogo/dados";
 import { CatalogoLinhaView } from "@/components/catalogo/CatalogoLinhaView";
+import { carregarReferenciaCatalogo } from "@/lib/catalogo/referencia";
 
 export const dynamic = "force-dynamic";
 
@@ -18,5 +19,6 @@ export default async function CatalogoLinhaPage({ params }: { params: any }) {
   const dados = await carregarCatalogoLinha(params.linhaId, supabase);
   if (!dados) notFound();
 
-  return <CatalogoLinhaView isAdmin={isAdmin} dados={dados} />;
+  const referencia = await carregarReferenciaCatalogo(supabase);
+  return <CatalogoLinhaView isAdmin={isAdmin} dados={dados} referencia={referencia} />;
 }

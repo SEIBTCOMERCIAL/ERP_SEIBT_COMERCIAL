@@ -117,15 +117,18 @@ export async function salvarItemJogoNavalha(
     const descricao = n.descricao.trim();
     if (!codigo || !descricao) return { error: "Informe o código e a descrição da nova navalha." };
     if (n.preco != null && n.preco < 0) return { error: "O preço não pode ser negativo." };
-    const { data: cat } = await auth.supabase.from("categorias_peca").select("id").ilike("nome", "navalha%").limit(1).maybeSingle();
-    const { data: nova, error: errNova } = await auth.supabase.from("produtos").insert({
-      codigo, descricao, categoria: "navalha", categoria_peca_id: cat?.id ?? null,
-      preco_brl: n.preco, ipi_pct: n.ipi, ativo: true, tem_variantes: false,
-    }).select("id").single();
+    const { data: cat } = await auth.supabase.from("categorias_peca").select("id").eq("categoria_produto", "navalha").order("ordem").limit(1).maybeSingle();
+    if (!cat) return { error: "A categoria de peças Navalhas não foi encontrada. Cadastre-a em Produtos antes de criar a navalha." };
+    // Cadastro pela função do banco: peça e preço inicial (com histórico) gravados juntos.
+    const { data: nova, error: errNova } = await auth.supabase.rpc("produto_criar_peca", {
+      p_categoria: cat.id,
+      p_dados: { codigo, descricao, preco_brl: n.preco ?? null, ipi_pct: n.ipi ?? 0 },
+      p_equipamento: null, p_quantidade: 1,
+    });
     if (errNova || !nova) {
-      return { error: errNova?.message?.includes("unique") ? `O código "${codigo}" já está cadastrado. Escolha a navalha na lista.` : msg(errNova ?? {}) };
+      return { error: /unique|duplicate/i.test(errNova?.message ?? "") ? `O código "${codigo}" já está cadastrado. Escolha a navalha na lista.` : /nao_aplicado|PGRST202|does not exist|schema cache/i.test(errNova?.message ?? "") ? "A atualização do banco de produtos (arquivo 034) ainda não foi aplicada." : msg(errNova ?? {}) };
     }
-    produtoId = nova.id;
+    produtoId = (nova as { id: string }).id;
     if (!codigoLinha) codigoLinha = codigo;
   }
   if (!produtoId) return { error: "Escolha a navalha do cadastro ou cadastre uma nova." };

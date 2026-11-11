@@ -5,6 +5,7 @@ import { useFormState, useFormStatus } from "react-dom";
 import { Search, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { reajustarPreco, type ReajusteFormState } from "@/app/actions/produtos";
+import { hojeSaoPaulo } from "@/lib/reajuste/regras";
 import type { ProdutoComDetalhes, Categoriaproduto, HistoricoPreco } from "@/types/database";
 
 interface Props {
@@ -153,11 +154,11 @@ function DetailPanel({ produto, taxaDolar }: { produto: ProdutoComDetalhes; taxa
               />
             </div>
             <div>
-              <label className="text-[10px] font-semibold text-[#6B7B8D] uppercase block mb-1">Data vigência</label>
+              <label className="text-[10px] font-semibold text-[#6B7B8D] uppercase block mb-1">Aplicado em</label>
               <input
                 name="data_vigencia"
                 type="date"
-                defaultValue={new Date().toISOString().split("T")[0]}
+                defaultValue={hojeSaoPaulo()} readOnly title="O reajuste é aplicado na hora"
                 className="w-full h-8 rounded-lg border border-[#E2E8F0] px-2 text-[12px] focus:border-[#2074B9] outline-none"
               />
             </div>

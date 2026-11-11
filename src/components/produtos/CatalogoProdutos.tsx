@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { Search, Eye, Pencil, Plus, Download, TrendingUp, TrendingDown, ChevronRight, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { hojeSaoPaulo } from "@/lib/reajuste/regras";
 import { reajustarPreco, criarProduto, type ReajusteFormState, type CriarProdutoState } from "@/app/actions/produtos";
 import type { ProdutoComDetalhes, Categoriaproduto, HistoricoPreco } from "@/types/database";
 
@@ -268,11 +269,11 @@ export function CatalogoProdutos({ produtos }: Props) {
             />
           </div>
           <div>
-            <p className="text-[10px] font-semibold text-[#6B7B8D] uppercase mb-1">Data vigência</p>
+            <p className="text-[10px] font-semibold text-[#6B7B8D] uppercase mb-1">Aplicado em</p>
             <input
               name="data_vigencia"
               type="date"
-              defaultValue={new Date().toISOString().split("T")[0]}
+              defaultValue={hojeSaoPaulo()} readOnly title="O reajuste é aplicado na hora"
               className="w-full h-8 rounded-lg border border-[#E2E8F0] px-2 text-[12px] focus:border-[#2074B9] outline-none"
             />
           </div>

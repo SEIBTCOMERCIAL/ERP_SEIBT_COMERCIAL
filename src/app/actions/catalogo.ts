@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { revalidarProdutos } from "@/lib/revalidar";
 
 export type CatalogoActionState = { error?: string; success?: boolean };
 
@@ -37,7 +38,7 @@ export async function definirModoCatalogoLinha(
   return { success: true };
 }
 
-/** Define qual foto já cadastrada do equipamento aparece no catálogo. */
+/** Define qual foto já cadastrada do equipamento aparece no catálogo (precisa ser uma imagem desse equipamento). */
 export async function definirFotoCapaProduto(
   produtoId: string,
   linhaId: string,
@@ -46,12 +47,22 @@ export async function definirFotoCapaProduto(
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
 
-  const { error } = await auth.supabase
+  if (fotoUrl) {
+    const { count } = await auth.supabase.from("produto_arquivos")
+      .select("id", { count: "exact", head: true }).eq("produto_id", produtoId).eq("tipo", "imagem").eq("url", fotoUrl);
+    if (!count) return { error: "Essa imagem não pertence a este equipamento." };
+  }
+
+  const { data, error } = await auth.supabase
     .from("produtos")
     .update({ foto_url: fotoUrl })
-    .eq("id", produtoId);
+    .eq("id", produtoId)
+    .eq("linha_id", linhaId)
+    .is("deleted_at", null)
+    .select("id");
 
   if (error) return { error: error.message };
-  revalidatePath(`/catalogo/${linhaId}`);
+  if (!data || data.length === 0) return { error: "Equipamento não encontrado nesta linha." };
+  revalidarProdutos();
   return { success: true };
 }

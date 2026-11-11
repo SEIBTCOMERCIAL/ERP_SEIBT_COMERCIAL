@@ -1,38 +1,39 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
-import { ProdutosMain } from "@/components/produtos/ProdutosMain";
+import { ProdutosExplorador } from "@/components/produtos/ProdutosExplorador";
+import { lerFiltros } from "@/lib/produtos/regras";
+import { carregarNavegacao, listarProdutos } from "@/lib/produtos/servidor";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = { title: "Produtos" };
 
-export default async function ProdutosPage() {
+export default async function ProdutosPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient() as any;
-
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: userRecord } = await supabase
-    .from("usuarios").select("perfil").eq("id", user?.id).single();
-  const isAdmin = userRecord?.perfil === "admin";
+  const { data: usuario } = user ? await supabase.from("usuarios").select("perfil").eq("id", user.id).single() : { data: null };
+  const admin = usuario?.perfil === "admin";
 
-  const { data: linhasRaw } = await supabase
-    .from("linhas").select("id, nome, ordem, grupo, grupo_ordem")
-    .order("grupo_ordem").order("ordem");
+  let filtros = lerFiltros(searchParams);
+  let nav;
+  try {
+    nav = await carregarNavegacao(supabase);
+  } catch {
+    return <div className="p-10 text-center text-sm text-muted-foreground">Não foi possível carregar os produtos. Atualize a página; se continuar, avise o responsável pelo sistema.</div>;
+  }
 
-  const { data: equipCounts } = await supabase
-    .from("produtos")
-    .select("linha_id")
-    .eq("categoria", "maquina")
-    .is("deleted_at", null)
-    .not("linha_id", "is", null);
+  // Seleção que não existe mais (grupo excluído, link antigo): volta para "todos" com um aviso.
+  let avisoEscopo: string | null = null;
+  const existe = filtros.escopo && (filtros.aba === "maquinas" ? nav.linhas.some((l) => l.id === filtros.escopo) : nav.categorias.some((c) => c.id === filtros.escopo));
+  if (filtros.escopo && !existe) {
+    avisoEscopo = "A linha ou categoria selecionada não existe mais. Mostrando todos.";
+    filtros = { ...filtros, escopo: null };
+  }
 
-  const equipByLinha = (equipCounts ?? []).reduce((acc: Record<string, number>, p: { linha_id: string }) => {
-    acc[p.linha_id] = (acc[p.linha_id] ?? 0) + 1;
-    return acc;
-  }, {});
+  const resposta = await listarProdutos(supabase, filtros);
+  const camposFicha = filtros.aba === "maquinas" && filtros.escopo
+    ? ((await supabase.from("linha_spec_campos").select("id, nome").eq("linha_id", filtros.escopo).order("ordem")).data ?? [])
+    : [];
 
-  const linhas = (linhasRaw ?? []).map(
-    (l: { id: string; nome: string; ordem: number; grupo: string | null; grupo_ordem: number | null }) => ({
-      ...l, count: equipByLinha[l.id] ?? 0,
-    })
-  );
-
-  return <ProdutosMain isAdmin={isAdmin} linhas={linhas} />;
+  return <ProdutosExplorador filtros={filtros} nav={nav} resposta={resposta} admin={admin} camposFicha={camposFicha} avisoEscopo={avisoEscopo} />;
 }

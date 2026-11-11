@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, Printer } from "lucide-react";
 import type { CatalogoLinha, MaquinaCatalogo } from "@/lib/catalogo/tipos";
+import { textoReferencia, type ReferenciaCatalogo } from "@/lib/catalogo/referencia";
 import { CatalogoPaginaA4 } from "./CatalogoPaginaA4";
 import { usePaginasCatalogo } from "./paginacao";
 import { FotoEditorModal } from "./FotoEditorModal";
@@ -17,9 +18,11 @@ const BORDER = "#E2E8F0";
 interface CatalogoLinhaViewProps {
   isAdmin: boolean;
   dados: CatalogoLinha;
+  referencia?: ReferenciaCatalogo;
 }
 
-export function CatalogoLinhaView({ isAdmin, dados }: CatalogoLinhaViewProps) {
+export function CatalogoLinhaView({ isAdmin, dados, referencia }: CatalogoLinhaViewProps) {
+  const textoRef = textoReferencia(referencia);
   const { linha, specCampos, maquinas } = dados;
   const { paginas, medidor } = usePaginasCatalogo([{ linhaId: linha.id, linhaNome: linha.nome, specCampos, maquinas }]);
   const [editando, setEditando] = useState<MaquinaCatalogo | null>(null);
@@ -40,6 +43,7 @@ export function CatalogoLinhaView({ isAdmin, dados }: CatalogoLinhaViewProps) {
         ) : (
           <span style={{ marginLeft: 12, fontSize: 12, color: "#6b7b8d" }}>Modo visualização — só o Administrador edita as fotos do catálogo</span>
         )}
+        {textoRef && <span style={{ marginLeft: 12, fontSize: 12, color: "#6b7b8d" }}>{textoRef}</span>}
         {maquinas.length > 0 && (
           <button
             onClick={() => window.print()}
@@ -64,6 +68,7 @@ export function CatalogoLinhaView({ isAdmin, dados }: CatalogoLinhaViewProps) {
                 maquinas={pagina.maquinas}
                 specCampos={specCampos}
                 numeroPagina={i + 1}
+                referencia={textoRef}
                 onEditarFoto={isAdmin ? (m) => setEditando(m) : undefined}
               />
             </div>

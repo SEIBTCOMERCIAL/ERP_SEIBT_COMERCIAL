@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, Printer } from "lucide-react";
 import type { CatalogoLinha, JogoNavalhas, MaquinaCatalogo, PecaCatalogo, SpecCampo } from "@/lib/catalogo/tipos";
+import { textoReferencia, type ReferenciaCatalogo } from "@/lib/catalogo/referencia";
 import { CatalogoPaginaA4 } from "./CatalogoPaginaA4";
 import { TabelaJogosNavalhas, TabelaPecas } from "./CatalogoPecasView";
 import { usePaginasCatalogo } from "./paginacao";
@@ -20,6 +21,7 @@ interface CatalogoCompletoViewProps {
   linhas: CatalogoLinha[];
   jogosNavalhas: JogoNavalhas[];
   peneiras: PecaCatalogo[];
+  referencia?: ReferenciaCatalogo;
 }
 
 interface PaginaComLinha {
@@ -29,7 +31,8 @@ interface PaginaComLinha {
   maquinasDaPagina: MaquinaCatalogo[];
 }
 
-export function CatalogoCompletoView({ isAdmin, linhas, jogosNavalhas, peneiras }: CatalogoCompletoViewProps) {
+export function CatalogoCompletoView({ isAdmin, linhas, jogosNavalhas, peneiras, referencia }: CatalogoCompletoViewProps) {
+  const textoRef = textoReferencia(referencia);
   const [editando, setEditando] = useState<{ maquina: MaquinaCatalogo; linhaId: string } | null>(null);
 
   const completos = linhas
@@ -66,6 +69,7 @@ export function CatalogoCompletoView({ isAdmin, linhas, jogosNavalhas, peneiras 
         <span style={{ fontSize: 12, color: "#6b7b8d" }}>
           {completos.length} em formato completo · {listas.length} em lista · {todasPaginas.length} páginas · navalhas e peneiras no final
         </span>
+        {textoRef && <span style={{ fontSize: 12, color: "#6b7b8d" }}>{textoRef}</span>}
         {totalItens > 0 && (
           <button
             onClick={() => window.print()}
@@ -92,6 +96,7 @@ export function CatalogoCompletoView({ isAdmin, linhas, jogosNavalhas, peneiras 
                     maquinas={p.maquinasDaPagina}
                     specCampos={p.specCampos}
                     numeroPagina={i + 1}
+                    referencia={textoRef}
                     onEditarFoto={isAdmin ? (m, lid) => setEditando({ maquina: m, linhaId: lid }) : undefined}
                   />
                 </div>

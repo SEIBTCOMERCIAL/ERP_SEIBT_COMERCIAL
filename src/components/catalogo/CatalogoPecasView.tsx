@@ -4,6 +4,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { ChevronLeft, Printer } from "lucide-react";
 import type { JogoNavalhas, PecaCatalogo } from "@/lib/catalogo/tipos";
+import { textoReferencia, type ReferenciaCatalogo } from "@/lib/catalogo/referencia";
 import { CATALOGO_CSS, combinarIpi, formatBRL, formatPercent } from "./catalogo-shared";
 import { archivo, ibmPlexSans } from "./catalogo-fonts";
 
@@ -14,9 +15,11 @@ const BORDER = "#E2E8F0";
 interface CatalogoPecasViewProps {
   jogosNavalhas: JogoNavalhas[];
   peneiras: PecaCatalogo[];
+  referencia?: ReferenciaCatalogo;
 }
 
-export function CatalogoPecasView({ jogosNavalhas, peneiras }: CatalogoPecasViewProps) {
+export function CatalogoPecasView({ jogosNavalhas, peneiras, referencia }: CatalogoPecasViewProps) {
+  const textoRef = textoReferencia(referencia);
   const total = jogosNavalhas.length + peneiras.length;
 
   return (
@@ -30,6 +33,7 @@ export function CatalogoPecasView({ jogosNavalhas, peneiras }: CatalogoPecasView
         <span style={{ color: BORDER }}>/</span>
         <span style={{ fontWeight: 700, color: NAV, fontSize: 14 }}>Navalhas e Peneiras</span>
         <span style={{ fontSize: 12, color: "#6b7b8d" }}>{jogosNavalhas.length} jogos de navalhas · {peneiras.length} peneiras</span>
+        {textoRef && <span style={{ fontSize: 12, color: "#6b7b8d" }}>{textoRef}</span>}
         {total > 0 && (
           <button
             onClick={() => window.print()}
@@ -53,6 +57,7 @@ export function CatalogoPecasView({ jogosNavalhas, peneiras }: CatalogoPecasView
           <TabelaJogosNavalhas jogos={jogosNavalhas} />
           <TabelaPecas titulo="Peneiras" itens={peneiras} />
 
+          {textoRef && <p style={{ marginTop: 16, fontSize: 10, color: "#9CA3AF" }}>{textoRef}</p>}
           {total === 0 && (
             <p style={{ color: "#6b7b8d", padding: "24px 0" }}>Nenhuma navalha ou peneira ativa cadastrada ainda.</p>
           )}

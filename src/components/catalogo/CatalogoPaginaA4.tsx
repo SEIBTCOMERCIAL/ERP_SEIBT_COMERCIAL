@@ -8,6 +8,8 @@ interface CatalogoPaginaA4Props {
   maquinas: MaquinaCatalogo[];
   specCampos: SpecCampo[];
   numeroPagina: number;
+  /** Texto "Gerado em … · preços vigentes …" no rodapé da folha. */
+  referencia?: string;
   /** Só usado na prévia em tela do Administrador — nunca no PDF. */
   onEditarFoto?: (maquina: MaquinaCatalogo, linhaId: string) => void;
 }
@@ -20,7 +22,7 @@ interface CatalogoPaginaA4Props {
  * `onEditarFoto` é a única exceção: quando não é passado (caso do PDF), a
  * página fica exatamente igual, sem nenhum comportamento clicável.
  */
-export function CatalogoPaginaA4({ linhaId, linhaNome, maquinas, specCampos, numeroPagina, onEditarFoto }: CatalogoPaginaA4Props) {
+export function CatalogoPaginaA4({ linhaId, linhaNome, maquinas, specCampos, numeroPagina, referencia, onEditarFoto }: CatalogoPaginaA4Props) {
   return (
     <div className="catalogo-a4">
       <div className="catalogo-header">
@@ -38,7 +40,7 @@ export function CatalogoPaginaA4({ linhaId, linhaNome, maquinas, specCampos, num
       </div>
 
       <div className="catalogo-footer">
-        <span>{linhaNome} · Catálogo de Preços 2026</span>
+        <span>{linhaNome} · Catálogo de Preços 2026{referencia ? ` · ${referencia}` : ""}</span>
         <span>www.seibt.com.br · pág. {numeroPagina}</span>
       </div>
     </div>

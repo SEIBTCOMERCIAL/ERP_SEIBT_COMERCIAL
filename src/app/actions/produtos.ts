@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { hojeSaoPaulo, parseMoeda } from "@/lib/reajuste/regras";
+import { revalidarPrecos } from "@/lib/revalidar";
+import { carregarProdutosParaPlano, exigirAdmin, gravarReajuste } from "@/lib/reajuste/servidor";
 
 const criarProdutoSchema = z.object({
   codigo:    z.string().min(1, "Código obrigatório"),
@@ -67,12 +70,11 @@ export async function criarProduto(
 }
 
 const reajusteSchema = z.object({
-  produto_id:   z.string().uuid(),
-  variante_id:  z.string().uuid().optional().nullable(),
-  novo_preco:   z.coerce.number().positive("Preço deve ser maior que zero"),
-  percentual:   z.coerce.number().optional().nullable(),
-  motivo:       z.enum(["Reajuste anual", "Variação cambial", "Custo matéria-prima", "Outro"]),
-  data_vigencia: z.string().min(1, "Data obrigatória"),
+  produto_id:    z.string().uuid(),
+  variante_id:   z.string().uuid().optional().nullable(),
+  novo_preco:    z.string().min(1, "Informe o novo preço"),
+  motivo:        z.enum(["Reajuste anual", "Variação cambial", "Custo matéria-prima", "Outro"]),
+  data_vigencia: z.string().optional().nullable(),
 });
 
 export type ReajusteFormState = {
@@ -81,67 +83,51 @@ export type ReajusteFormState = {
   success?: boolean;
 };
 
+/**
+ * Reajuste de um produto (tela de Preços). Usa o mesmo núcleo da tela de Reajuste: administrador,
+ * preço atual lido do banco, preço e histórico gravados juntos, tudo ou nada.
+ * O reajuste vale imediatamente: não aceita data futura nem retroativa.
+ */
 export async function reajustarPreco(
   _prev: ReajusteFormState,
   formData: FormData
 ): Promise<ReajusteFormState> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createClient() as any;
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { message: "Não autorizado" };
+  if (!(await exigirAdmin(supabase))) return { message: "Acesso restrito a administradores." };
 
-  const raw = {
+  const parsed = reajusteSchema.safeParse({
     produto_id:    formData.get("produto_id"),
     variante_id:   formData.get("variante_id") || null,
     novo_preco:    formData.get("novo_preco"),
-    percentual:    formData.get("percentual") || null,
     motivo:        formData.get("motivo"),
-    data_vigencia: formData.get("data_vigencia"),
-  };
-
-  const parsed = reajusteSchema.safeParse(raw);
+    data_vigencia: formData.get("data_vigencia") || null,
+  });
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
-
   const d = parsed.data;
 
-  const { data: produto, error: fetchErr } = await supabase
-    .from("produtos")
-    .select("preco_brl, preco_usd")
-    .eq("id", d.produto_id)
-    .single();
+  if (d.variante_id) return { message: "Reajuste de variantes não é suportado por esta tela." };
+  if (d.data_vigencia && d.data_vigencia !== hojeSaoPaulo()) {
+    return { errors: { data_vigencia: ["O reajuste é aplicado na hora. Use a data de hoje."] } };
+  }
+  const valor = parseMoeda(d.novo_preco);
+  if (valor.erro !== undefined) return { errors: { novo_preco: [valor.erro] } };
 
-  if (fetchErr || !produto) return { message: "Produto não encontrado." };
+  const produtos = await carregarProdutosParaPlano(supabase, [d.produto_id]);
+  const produto = produtos.get(d.produto_id);
+  if (!produto || produto.excluido) return { message: "Produto não encontrado." };
+  const componente = produto.tipo === "maquina" ? "moinho" : "peca";
+  const atual = produto.preco_brl;
+  if (atual === null) return { message: "Este produto não tem preço cadastrado." };
 
-  const preco_anterior_brl = produto.preco_brl as number | null;
-  const percentual_calc = preco_anterior_brl && preco_anterior_brl > 0
-    ? ((d.novo_preco - preco_anterior_brl) / preco_anterior_brl) * 100
-    : (d.percentual ?? null);
+  const r = await gravarReajuste(supabase, {
+    chave: crypto.randomUUID(),
+    motivo: d.motivo,
+    entradas: [{ produto_id: d.produto_id, componente, esperado: atual, novo: valor.valor }],
+  });
+  if (!r.ok) return { message: r.erro };
 
-  const { error: histError } = await supabase
-    .from("historico_precos")
-    .insert({
-      produto_id:          d.produto_id,
-      variante_id:         d.variante_id || null,
-      preco_anterior_brl,
-      preco_novo_brl:      d.novo_preco,
-      percentual_reajuste: percentual_calc ? Math.round(percentual_calc * 100) / 100 : null,
-      motivo:              d.motivo,
-      data_reajuste:       d.data_vigencia,
-      reajustado_por:      user.id,
-    });
-
-  if (histError) return { message: "Erro ao registrar histórico: " + histError.message };
-
-  const { error: updateErr } = await supabase
-    .from("produtos")
-    .update({ preco_brl: d.novo_preco, atualizado_em: new Date().toISOString() })
-    .eq("id", d.produto_id);
-
-  if (updateErr) return { message: "Erro ao atualizar preço: " + updateErr.message };
-
-  revalidatePath("/produtos");
-  revalidatePath("/reajuste");
-
+  revalidarPrecos();
   return { success: true };
 }
 
