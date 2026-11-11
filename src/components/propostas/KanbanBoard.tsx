@@ -199,8 +199,8 @@ export function KanbanBoard({
           {erro && <button type="button" onClick={limparErro} className="text-[11px] font-semibold text-muted-foreground">Fechar</button>}
         </div>
       )}
-      <div className="flex-1 overflow-x-auto overscroll-x-contain pb-4">
-        <div className="flex min-h-full items-stretch gap-3 px-4 sm:px-6" style={{ minWidth: "min-content" }}>
+      <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden overscroll-x-contain pb-2">
+        <div className="flex h-full min-h-[260px] items-stretch gap-3 px-4 sm:px-6" style={{ minWidth: "min-content" }}>
           {colunas.map((col) => {
             const brl = somar(col.cards, "BRL");
             const usd = somar(col.cards, "USD");
@@ -219,7 +219,7 @@ export function KanbanBoard({
                   if (aceita && card && col.etapa && !card.bloqueada) moverCard(card, col.etapa);
                   setArrastandoId(null);
                 }}
-                className="flex w-[272px] shrink-0 snap-start flex-col"
+                className="flex h-full min-h-0 w-[272px] shrink-0 snap-start flex-col"
               >
                 <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-white" style={{ backgroundColor: col.cor }}>
                   <p className="flex-1 truncate text-[12px] font-bold uppercase tracking-wide">{col.nome}</p>
@@ -228,7 +228,7 @@ export function KanbanBoard({
                 <div className="px-1 pt-1.5 text-[10px] font-mono text-muted-foreground">
                   {formatCurrency(brl)}{usd > 0 ? ` + ${formatCurrency(usd, "USD")}` : ""}
                 </div>
-                <div className={`mt-1 flex min-h-[55vh] flex-1 flex-col gap-2 rounded-xl border border-dashed p-1.5 transition-colors ${sobre === col.id ? "border-[#2074B9] bg-blue-50/40" : "border-transparent"}`}>
+                <div className={`mt-1 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain rounded-xl border border-dashed p-1.5 transition-colors ${sobre === col.id ? "border-[#2074B9] bg-blue-50/40" : "border-transparent"}`}>
                   {col.cards.map((card) => (
                     <Card key={card.id} card={card} etapaAtualId={col.etapa?.id ?? null} etapas={podeMover ? etapas : []} onMover={moverCard} arrastando={arrastandoId === card.id} aoArrastar={setArrastandoId} />
                   ))}

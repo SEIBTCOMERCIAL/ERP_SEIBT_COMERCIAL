@@ -4,6 +4,7 @@ import { AlertTriangle, Building2, CalendarClock, CircleDollarSign, Hash, Plus, 
 import { createClient } from "@/lib/supabase/server";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { KanbanBoard, type KanbanCard, type KanbanColuna } from "@/components/propostas/KanbanBoard";
+import { PainelPropostas } from "@/components/propostas/PainelPropostas";
 import { OrganizarPropostasBtn } from "@/components/propostas/OrganizarPropostasBtn";
 import { Button } from "@/components/ui/button";
 import {
@@ -285,8 +286,8 @@ export default async function PropostasPage({ searchParams }: { searchParams: Se
   const ehAdmin = usuario?.perfil === "admin";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 pb-2">
-      <div className="flex flex-col gap-4 px-4 pt-4 sm:px-6 sm:pt-6">
+    <div className="flex h-[calc(100vh-3.5rem)] min-h-0 flex-col gap-3 overflow-hidden pb-2">
+      <div className="flex max-h-[48vh] shrink-0 flex-col gap-3 overflow-y-auto px-4 pt-4 sm:px-6 sm:pt-6">
         <div className="flex flex-col gap-4 rounded-xl border border-border bg-card px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-xl font-bold tracking-tight text-foreground">Propostas</h1>
@@ -323,6 +324,10 @@ export default async function PropostasPage({ searchParams }: { searchParams: Se
           </p>
         )}
 
+        <PainelPropostas
+          filtrosAtivos={FILTROS.some((chave) => Boolean(searchParams[chave]))}
+          indicadores={
+            <>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
           <Kpi label="Valor apresentado" value={formatCurrency(ind.reais.valorApresentado)} hint={`todas as propostas e alternativas${extraUsd(ind.dolar.valorApresentado)}`} icon={CircleDollarSign} />
           <Kpi label="Funil ativo" value={formatCurrency(ind.reais.funilAtivo)} hint={`com todas as alternativas: ${formatCurrency(ind.reais.funilComAlternativas)}${extraUsd(ind.dolar.funilAtivo)}`} icon={CircleDollarSign} />
@@ -345,8 +350,10 @@ export default async function PropostasPage({ searchParams }: { searchParams: Se
             </span>
           )}
         </div>
-
-        <Filtros searchParams={searchParams} vendedores={vendedores} representantes={representantesFiltro} />
+            </>
+          }
+          filtros={<Filtros searchParams={searchParams} vendedores={vendedores} representantes={representantesFiltro} />}
+        />
       </div>
 
       <KanbanBoard
