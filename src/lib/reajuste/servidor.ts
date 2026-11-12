@@ -143,19 +143,18 @@ export async function listarItens(supabase: any, pedido: PedidoLista): Promise<R
       q = pedido.aba === "maquinas" ? q.eq("categoria", "maquina").eq("linha_id", pedido.escopoId) : q.eq("categoria_peca_id", pedido.escopoId);
       return q.order("codigo").order("id").range(de, ate);
     });
-  } else if (busca.length >= 2) {
-    // Busca que atravessa linhas/categorias: limitada às 300 primeiras correspondências do banco.
+  } else {
+    // "Todas as linhas/categorias": percorre tudo (em páginas) e, havendo busca, filtra já no banco.
     const termo = pedido.busca.trim().replace(/[,()%*\\"']/g, " ").replace(/\s+/g, " ");
-    let q = supabase.from("produtos").select(CAMPOS_ITEM).is("deleted_at", null);
-    q = pedido.aba === "maquinas" ? q.eq("categoria", "maquina").not("linha_id", "is", null) : q.not("categoria_peca_id", "is", null);
-    const { data, error } = await q.or(`codigo.ilike.%${termo}%,descricao.ilike.%${termo}%,modelo.ilike.%${termo}%`).order("codigo").limit(300);
-    if (error) return { ok: false, erro: "Não foi possível buscar. Tente novamente." };
-    brutos = data ?? [];
+    brutos = await buscarTodos((de, ate) => {
+      let q = supabase.from("produtos").select(CAMPOS_ITEM).is("deleted_at", null);
+      q = pedido.aba === "maquinas" ? q.eq("categoria", "maquina").not("linha_id", "is", null) : q.not("categoria_peca_id", "is", null);
+      if (termo.length >= 2) q = q.or(`codigo.ilike.%${termo}%,descricao.ilike.%${termo}%,modelo.ilike.%${termo}%`);
+      return q.order("codigo").order("id").range(de, ate);
+    });
     const tabela = pedido.aba === "maquinas" ? "linhas" : "categorias_peca";
     const { data: nomes } = await supabase.from(tabela).select("id, nome");
     nomesEscopo = new Map((nomes ?? []).map((n: any) => [n.id, n.nome]));
-  } else {
-    return { ok: true, itens: [], total: 0, pagina: 1, tamanho: TAMANHO_PAGINA, todosIds: [] };
   }
 
   const hist = await historicoDoPeriodo(supabase, brutos.map((b) => b.id), periodo.inicio, periodo.fim);
@@ -189,6 +188,7 @@ export async function listarItens(supabase: any, pedido: PedidoLista): Promise<R
       : { peca: precos.preco_brl },
     situacao, reajustados: s.reajustados, pendentes: s.pendentes, ultimo: ultimos.get(b.id) ?? null,
     escopo_nome: nomesEscopo.get(pedido.aba === "maquinas" ? b.linha_id : b.categoria_peca_id) ?? null,
+    navalha: b.categoria === "navalha",
   }));
   return { ok: true, itens, total, pagina, tamanho: TAMANHO_PAGINA, todosIds: avaliados.filter((x) => x.situacao !== "inativo").map((x) => x.b.id) };
 }

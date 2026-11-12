@@ -29,6 +29,7 @@ function itemDe(b: any, hist: Map<string, any[]>, ultimos: Map<string, any>, per
     id: b.id, codigo: b.codigo, descricao: b.descricao ?? "", modelo: b.modelo ?? null, tipo: "peca", ativo: b.ativo !== false,
     solicitar_engenharia: Boolean(b.solicitar_engenharia), ipi_pct: numeroOuNulo(b.ipi_pct), precos: { peca: precos.preco_brl },
     situacao, reajustados: s.reajustados, pendentes: s.pendentes, ultimo: ultimos.get(b.id) ?? null, escopo_nome: escopoNome,
+    navalha: b.categoria === "navalha",
   };
 }
 

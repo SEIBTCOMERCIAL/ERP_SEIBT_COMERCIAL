@@ -52,6 +52,8 @@ export interface ItemLista {
   escopo_nome: string | null;
   /** Peneiras: furo, dimensões e espessura lidos do cadastro. */
   atributos?: string | null;
+  /** Produto da categoria navalha: permite edição manual do IPI. */
+  navalha?: boolean;
 }
 
 export type FiltroSituacao = "todas" | SituacaoItem;

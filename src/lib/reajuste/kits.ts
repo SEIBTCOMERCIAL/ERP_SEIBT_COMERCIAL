@@ -44,6 +44,18 @@ export interface CalculoKit {
 }
 
 const emReais = (centavos: number) => centavos / 100;
+
+/** Total de uma linha com IPI, em centavos (mesmo arredondamento do total do conjunto). */
+export function totalLinhaCentavos(pecas: number, preco: number, ipi: number): number {
+  const linha = pecas * paraCentavos(preco);
+  return Math.round((linha * (10000 + Math.round(ipi * 100))) / 10000);
+}
+
+/** Total de uma linha do kit com IPI, em reais; null sem preço ou com quantidade inválida. */
+export function totalLinhaComIpi(pecas: number, preco: number | null, ipi: number): number | null {
+  if (preco === null || !Number.isInteger(pecas) || pecas < 1) return null;
+  return emReais(totalLinhaCentavos(pecas, preco, ipi));
+}
 const pecasValidas = (n: number) => Number.isInteger(n) && n >= 1;
 
 export function calcularKit(componentes: ComponenteEntrada[]): CalculoKit {
@@ -65,10 +77,9 @@ export function calcularKit(componentes: ComponenteEntrada[]): CalculoKit {
       problemas.add("preco_incompleto"); faltaPreco[c.grupo] = true; continue;
     }
     const linha = c.pecas * paraCentavos(c.preco);
-    const pontos = Math.round(c.ipi * 100); // 5,20% → 520 (centésimos de ponto percentual)
     sub[c.grupo] += linha;
     subtotalCentavos += linha;
-    totalCentavos += Math.round((linha * (10000 + pontos)) / 10000);
+    totalCentavos += totalLinhaCentavos(c.pecas, c.preco, c.ipi);
   }
 
   const completo = problemas.size === 0;
