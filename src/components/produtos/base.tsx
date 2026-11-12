@@ -45,15 +45,17 @@ export function Aviso({ tipo = "erro", children }: { tipo?: "erro" | "info" | "s
   );
 }
 
-const CLASSE_SITUACAO: Record<SituacaoProduto, string> = {
-  ativo: "border-green-300 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200",
-  descontinuado: "border-border bg-muted text-muted-foreground",
-  inativo: "border-border bg-muted text-muted-foreground",
-  excluido: "border-red-200 bg-red-50 text-red-800",
+const PONTO_SITUACAO: Record<SituacaoProduto, string> = {
+  ativo: "bg-green-600", descontinuado: "bg-amber-500", inativo: "bg-slate-400", excluido: "bg-red-500",
 };
 
+/** Situação discreta: marcador + texto curto (sem etiqueta colorida). */
 export function SituacaoPill({ situacao }: { situacao: SituacaoProduto }) {
-  return <span className={`inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium ${CLASSE_SITUACAO[situacao]}`}>{SITUACAO_PRODUTO_ROTULO[situacao]}</span>;
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground">
+      <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${PONTO_SITUACAO[situacao]}`} />{SITUACAO_PRODUTO_ROTULO[situacao]}
+    </span>
+  );
 }
 
 /** Janela de diálogo acessível: Esc fecha, o foco vai para o primeiro campo e volta ao botão de origem ao fechar. */

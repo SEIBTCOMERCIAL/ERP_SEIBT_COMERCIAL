@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, Copy, ImageOff, MoreVertical, Pencil, PauseCircle, PlayCircle, Tag, Trash2 } from "lucide-react";
+import { AlertTriangle, ChevronRight, Copy, ImageOff, MoreVertical, Pencil, PauseCircle, PlayCircle, Tag, Trash2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { tituloComSeparador } from "@/lib/produto-titulo";
-import { formatarData } from "@/lib/reajuste/regras";
 import type { ProdutoLista } from "@/lib/produtos/tipos";
 import { fmtBRL } from "@/components/reajuste/formatar";
 import { SituacaoPill } from "./base";
@@ -25,7 +24,7 @@ interface Props {
 }
 
 function Miniatura({ p, grande = false }: { p: ProdutoLista; grande?: boolean }) {
-  const tamanho = grande ? "h-40 w-full" : "h-10 w-12";
+  const tamanho = grande ? "h-40 w-full" : "h-9 w-11";
   return p.foto_url ? (
     // eslint-disable-next-line @next/next/no-img-element
     <img src={p.foto_url} alt="" loading="lazy" className={`${tamanho} shrink-0 rounded-md border border-border bg-white object-contain`} />
@@ -67,14 +66,14 @@ function Menu({ p, admin, aoAcao, ocupado }: { p: ProdutoLista; admin: boolean; 
   );
 }
 
-function Titulo({ p, href, aoAcao }: { p: ProdutoLista; href: string; aoAcao: Props["aoAcao"] }) {
+function Titulo({ p, href, aoAcao, compacto = false }: { p: ProdutoLista; href: string; aoAcao: Props["aoAcao"]; compacto?: boolean }) {
   const maquina = p.tipo === "maquina";
   const principal = maquina ? tituloComSeparador(p.codigo) : p.descricao || p.codigo;
   const secundario = maquina ? [p.potencia_motor, p.linha_nome].filter(Boolean).join(" · ") : p.codigo;
   const conteudo = (
     <>
-      <span className="block truncate font-semibold text-foreground group-hover:text-[#2074B9]" title={principal}>{principal}</span>
-      <span className={`block truncate text-xs text-muted-foreground ${maquina ? "" : "font-mono"}`}>{secundario || "—"}</span>
+      <span className="block truncate font-medium text-foreground hover:underline" title={principal}>{principal}</span>
+      {(!compacto || !maquina) && <span className={`block truncate text-xs text-muted-foreground ${maquina ? "" : "font-mono"}`}>{secundario || "—"}</span>}
     </>
   );
   return maquina
@@ -118,48 +117,60 @@ export function ListaProdutos(p: Props) {
   );
   if (p.visao === "cards") return cards;
 
+  const cab = "bg-muted px-3 py-2.5 text-xs font-medium text-muted-foreground";
   return (
     <>
-      <div className="hidden overflow-x-auto rounded-xl border border-border bg-card md:block">
-        <table className="w-full min-w-[760px] text-sm">
-          <thead className="bg-muted text-left text-xs text-muted-foreground">
+      <div className="hidden overflow-auto rounded-xl border border-border bg-card md:block md:max-h-[70vh]">
+        <table className="w-full min-w-[720px] text-sm" aria-label={maquinas ? "Máquinas" : "Peças"}>
+          <thead className="sticky top-0 z-10 text-left">
             <tr>
-              {maquinas && <th className="w-16 px-3 py-2 font-semibold"><span className="sr-only">Foto</span></th>}
-              <th className="px-3 py-2 font-semibold">{maquinas ? "Modelo" : "Peça"}</th>
-              {p.mostrarGrupo && <th className="px-3 py-2 font-semibold">{maquinas ? "Linha" : "Categoria"}</th>}
+              <th scope="col" className={`${cab} pl-4`}>{maquinas ? "Modelo" : "Peça"}</th>
+              {p.mostrarGrupo && <th scope="col" className={cab}>{maquinas ? "Linha" : "Categoria"}</th>}
               {maquinas ? (
-                <><th className="px-3 py-2 text-right font-semibold">Máquina</th><th className="px-3 py-2 text-right font-semibold">Painel 220 V</th><th className="px-3 py-2 text-right font-semibold">Painel 380 V</th></>
+                <><th scope="col" className={`${cab} text-right`}>Máquina</th><th scope="col" className={`${cab} text-right`}>Painel 220 V</th><th scope="col" className={`${cab} text-right`}>Painel 380 V</th></>
               ) : (
-                <><th className="px-3 py-2 text-right font-semibold">Preço</th><th className="px-3 py-2 text-right font-semibold">IPI</th></>
+                <><th scope="col" className={`${cab} text-right`}>Preço</th><th scope="col" className={`${cab} text-right`}>IPI</th></>
               )}
-              <th className="px-3 py-2 font-semibold">Situação</th>
-              <th className="px-3 py-2 font-semibold">Pendências</th>
-              <th className="px-3 py-2 font-semibold">Atualizado</th>
-              <th className="w-10 px-3 py-2"><span className="sr-only">Ações</span></th>
+              <th scope="col" className={cab}>Situação</th>
+              <th scope="col" className={`${cab} w-20`}><span className="sr-only">Detalhes e ações</span></th>
             </tr>
           </thead>
           <tbody>
             {p.itens.map((i) => (
-              <tr key={i.id} className={`border-t border-border ${i.situacao === "descontinuado" ? "opacity-70" : ""}`}>
-                {maquinas && <td className="px-3 py-2"><Miniatura p={i} /></td>}
-                <td className="max-w-[22rem] px-3 py-2"><Titulo p={i} href={p.hrefDetalhe(i)} aoAcao={p.aoAcao} /></td>
-                {p.mostrarGrupo && <td className="px-3 py-2 text-muted-foreground">{maquinas ? i.linha_nome ?? "—" : i.categoria_peca_nome ?? "—"}</td>}
+              <tr key={i.id} className={`group border-t border-border/70 hover:bg-muted/40 ${i.situacao === "descontinuado" ? "opacity-70" : ""}`}>
+                <td className="max-w-[26rem] py-3 pl-4 pr-3">
+                  <div className="flex items-center gap-3">
+                    {maquinas && <Miniatura p={i} />}
+                    <div className="min-w-0">
+                      <span className="flex items-center gap-1.5">
+                        <span className="min-w-0 flex-1"><Titulo p={i} href={p.hrefDetalhe(i)} aoAcao={p.aoAcao} compacto /></span>
+                        {i.pendencias.length > 0 && <span title={`Falta: ${i.pendencias.join(", ")}`} aria-label={`Pendências: ${i.pendencias.join(", ")}`} className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />}
+                      </span>
+                    </div>
+                  </div>
+                </td>
+                {p.mostrarGrupo && <td className="px-3 py-3 text-muted-foreground">{maquinas ? i.linha_nome ?? "—" : i.categoria_peca_nome ?? "—"}</td>}
                 {maquinas ? (
                   <>
-                    <td className="px-3 py-2 text-right">{i.solicitar_engenharia ? <span className="text-xs text-amber-700 dark:text-amber-300">Sob consulta</span> : preco(i.preco_brl, "Preço não cadastrado")}</td>
-                    <td className="px-3 py-2 text-right">{preco(i.preco_painel_220, "Sem painel 220 V")}</td>
-                    <td className="px-3 py-2 text-right">{preco(i.preco_painel_380, "Sem painel 380 V")}</td>
+                    <td className="px-3 py-3 text-right">{i.solicitar_engenharia ? <span className="text-xs text-amber-700 dark:text-amber-300">Sob consulta</span> : preco(i.preco_brl, "Preço não cadastrado")}</td>
+                    <td className="px-3 py-3 text-right">{preco(i.preco_painel_220, "Sem painel 220 V")}</td>
+                    <td className="px-3 py-3 text-right">{preco(i.preco_painel_380, "Sem painel 380 V")}</td>
                   </>
                 ) : (
                   <>
-                    <td className="px-3 py-2 text-right">{preco(i.preco_brl, "Preço não cadastrado")}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{i.ipi_pct ? `${i.ipi_pct.toLocaleString("pt-BR")}%` : "—"}</td>
+                    <td className="px-3 py-3 text-right">{preco(i.preco_brl, "Preço não cadastrado")}</td>
+                    <td className="px-3 py-3 text-right tabular-nums text-muted-foreground">{i.ipi_pct ? `${i.ipi_pct.toLocaleString("pt-BR")}%` : "—"}</td>
                   </>
                 )}
-                <td className="px-3 py-2"><SituacaoPill situacao={i.situacao} /></td>
-                <td className="px-3 py-2"><Pendencias p={i} /></td>
-                <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">{i.atualizado_em ? formatarData(i.atualizado_em) : "—"}</td>
-                <td className="px-3 py-2"><Menu p={i} admin={p.admin} aoAcao={p.aoAcao} ocupado={p.ocupado} /></td>
+                <td className="px-3 py-3"><SituacaoPill situacao={i.situacao} /></td>
+                <td className="py-3 pr-3">
+                  <span className="flex items-center justify-end gap-0.5">
+                    <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100"><Menu p={i} admin={p.admin} aoAcao={p.aoAcao} ocupado={p.ocupado} /></span>
+                    {maquinas
+                      ? <Link href={p.hrefDetalhe(i)} aria-label={`Abrir ${i.codigo}`} title="Abrir" className="flex h-8 w-8 items-center justify-center rounded-md text-[#2C4F79] hover:bg-muted dark:text-[#85acd9]"><ChevronRight className="h-4 w-4" aria-hidden /></Link>
+                      : <button type="button" onClick={() => p.aoAcao("abrir_peca", i)} aria-label={`Abrir ${i.codigo}`} title="Abrir" className="flex h-8 w-8 items-center justify-center rounded-md text-[#2C4F79] hover:bg-muted dark:text-[#85acd9]"><ChevronRight className="h-4 w-4" aria-hidden /></button>}
+                  </span>
+                </td>
               </tr>
             ))}
           </tbody>

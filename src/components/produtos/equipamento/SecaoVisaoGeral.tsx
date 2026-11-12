@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy, Pencil } from "lucide-react";
 import { editarEquipamento } from "@/app/actions/produtos-admin";
+import { fmtBRL } from "@/components/reajuste/formatar";
 import { rotulosPainel } from "@/lib/produtos/painel";
+import { totaisComPainel } from "@/lib/produtos/regras";
 import { Aviso, areaCls, botaoPrimario, botaoSecundario, Campo } from "../base";
 import { CampoTexto } from "../campos";
 import type { ContextoEquipamento } from "./EquipamentoPagina";
@@ -35,6 +37,7 @@ export function SecaoVisaoGeral({ ctx, faltando, totalPecas, totalArquivos, aoAb
   const [ok, setOk] = useState(false);
   const [pendente, iniciar] = useTransition();
   const alterado = JSON.stringify(f) !== JSON.stringify(original);
+  const totais = totaisComPainel(equip.preco_brl, equip.preco_painel_220, equip.preco_painel_380);
   const set = (k: keyof typeof f) => (v: string) => setF((a) => ({ ...a, [k]: v }));
 
   // Se os dados mudarem no servidor e não há edição em andamento, o formulário acompanha.
@@ -62,14 +65,14 @@ export function SecaoVisaoGeral({ ctx, faltando, totalPecas, totalArquivos, aoAb
   }
 
   const bloco = (titulo: string, texto: string | null, copiar = false) => (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <div className="mb-1 flex items-center justify-between gap-2"><h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{titulo}</h3>{copiar && texto && <Copiar texto={texto} />}</div>
+    <div className="rounded-xl bg-muted/50 p-4">
+      <div className="mb-1 flex items-center justify-between gap-2"><h3 className="text-xs font-medium text-muted-foreground">{titulo}</h3>{copiar && texto && <Copiar texto={texto} />}</div>
       {texto ? <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{texto}</p> : <p className="text-sm text-muted-foreground">Não cadastrado.</p>}
     </div>
   );
 
   return (
-    <div className="flex max-w-4xl flex-col gap-4">
+    <div className="flex max-w-5xl flex-col gap-4">
       {ok && <Aviso tipo="sucesso">Dados salvos.</Aviso>}
       {erro && <Aviso>{erro}</Aviso>}
 
@@ -83,15 +86,23 @@ export function SecaoVisaoGeral({ ctx, faltando, totalPecas, totalArquivos, aoAb
 
       {!editando ? (
         <>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {[["Máquina", equip.preco_brl], [`Com ${rot.p220}`, totais.com220], [`Com ${rot.p380}`, totais.com380]].map(([nome, valor]) => (
+              <div key={String(nome)} className="rounded-xl border border-border bg-card px-4 py-3">
+                <div className="text-xs text-muted-foreground">{nome}</div>
+                <div className="text-lg font-semibold tabular-nums text-foreground">{valor === null ? <span className="text-sm font-normal text-muted-foreground">não cadastrado</span> : fmtBRL(valor as number)}</div>
+              </div>
+            ))}
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             {bloco("Descrição (texto do orçamento)", equip.descricao, true)}
             {bloco(`Descrição do painel (${rot.usoDescricao})`, equip.descricao_painel, true)}
           </div>
-          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-xl border border-border bg-card p-3"><dt className="text-xs text-muted-foreground">Potência do motor</dt><dd className="text-sm font-medium">{equip.potencia_motor ?? "—"}</dd></div>
-            <div className="rounded-xl border border-border bg-card p-3"><dt className="text-xs text-muted-foreground">NCM</dt><dd className="text-sm font-medium">{equip.ncm ?? "—"}</dd></div>
-            <button type="button" onClick={() => aoAbrir("pecas")} className="rounded-xl border border-border bg-card p-3 text-left hover:bg-muted"><span className="block text-xs text-muted-foreground">Peças compatíveis</span><span className="text-sm font-medium">{totalPecas}</span></button>
-            <button type="button" onClick={() => aoAbrir("arquivos")} className="rounded-xl border border-border bg-card p-3 text-left hover:bg-muted"><span className="block text-xs text-muted-foreground">Arquivos</span><span className="text-sm font-medium">{totalArquivos}</span></button>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+            <div><dt className="text-xs text-muted-foreground">Potência do motor</dt><dd className="text-sm font-medium">{equip.potencia_motor ?? "—"}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">NCM</dt><dd className="text-sm font-medium">{equip.ncm ?? "—"}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Peças compatíveis</dt><dd><button type="button" onClick={() => aoAbrir("pecas")} className="text-sm font-medium text-[#2074B9] hover:underline">{totalPecas}</button></dd></div>
+            <div><dt className="text-xs text-muted-foreground">Arquivos</dt><dd><button type="button" onClick={() => aoAbrir("arquivos")} className="text-sm font-medium text-[#2074B9] hover:underline">{totalArquivos}</button></dd></div>
           </dl>
           {admin && <div><button type="button" className={botaoPrimario} onClick={() => { setEditando(true); setOk(false); }}><Pencil className="h-4 w-4" />Editar dados</button></div>}
         </>

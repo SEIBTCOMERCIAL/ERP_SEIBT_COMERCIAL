@@ -83,12 +83,11 @@ export function SecaoPrecos({ ctx, hoje, cambio }: { ctx: ContextoEquipamento; h
     <div className="flex max-w-3xl flex-col gap-4">
       {ok && <Aviso tipo="sucesso">{ok}</Aviso>}
       {erro && <Aviso>{erro}</Aviso>}
-      <Aviso tipo="info">Estes são os preços <strong>vigentes</strong>. Alterações de preço são feitas pelo Reajuste e ficam no histórico; o catálogo e as propostas novas usam estes valores.</Aviso>
-
       {equip.solicitar_engenharia && <Aviso tipo="alerta"><strong>Preço sob consulta:</strong> este equipamento aparece como “Solicitar com a Engenharia”. Os valores abaixo ficam guardados.</Aviso>}
 
       <div className="rounded-xl border border-border bg-card p-4">
         <h2 className="mb-1 text-sm font-semibold text-foreground">Valores vigentes</h2>
+        <p className="mb-1 text-xs text-muted-foreground">Alterações de preço são feitas pelo Reajuste e ficam no histórico; o catálogo e as propostas novas usam estes valores.</p>
         {linhaPreco("Máquina", equip.preco_brl)}
         {linhaPreco(rot.p220, equip.preco_painel_220)}
         {linhaPreco(rot.p380, equip.preco_painel_380)}

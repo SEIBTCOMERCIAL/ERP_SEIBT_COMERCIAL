@@ -108,7 +108,7 @@ export function EquipamentoPagina({ admin, linha, equip, campos, categorias, arq
   ];
 
   return (
-    <div className="flex flex-col gap-4 px-4 py-4 sm:px-6">
+    <div className="flex min-w-0 flex-col gap-5 px-4 py-5 sm:px-6">
       <nav aria-label="Navegação" className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
         <Link href={`/produtos${voltar}`} className="text-[#2074B9] hover:underline">Produtos</Link><ChevronRight className="h-3.5 w-3.5" aria-hidden />
         {linha.familia && <><span>{linha.familia}</span><ChevronRight className="h-3.5 w-3.5" aria-hidden /></>}
@@ -119,42 +119,40 @@ export function EquipamentoPagina({ admin, linha, equip, campos, categorias, arq
       {verComoUsuario && <Aviso tipo="alerta">Modo de visualização: você está vendo como um vendedor. Edições desativadas.</Aviso>}
       {mensagem && <Aviso tipo={mensagem.tipo === "erro" ? "erro" : "sucesso"}>{mensagem.texto}</Aviso>}
 
-      <header className="flex flex-wrap items-start gap-4 rounded-xl border border-border bg-card p-4">
+      <header className="flex flex-wrap items-center gap-4">
         <button type="button" onClick={() => trocarSecao("arquivos")} title={efetivoAdmin ? "Gerenciar fotos" : "Ver imagens"} aria-label="Ver imagens do equipamento"
-          className="flex h-28 w-36 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-white">
+          className="flex h-16 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-white">
           {principal
             // eslint-disable-next-line @next/next/no-img-element
             ? <img src={principal} alt={`Foto de ${equip.codigo}`} className="h-full w-full object-contain p-1" />
-            : <span className="flex flex-col items-center gap-1 text-xs text-muted-foreground"><ImageOff className="h-5 w-5" aria-hidden />Sem foto</span>}
+            : <ImageOff className="h-5 w-5 text-muted-foreground" aria-label="Sem foto" />}
         </button>
         <div className="min-w-0 flex-1">
-          <h1 className="break-words text-xl font-bold leading-snug text-foreground">{tituloComSeparador(equip.codigo)}</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">{[linha.familia, linha.nome].filter(Boolean).join(" · ")}{equip.potencia_motor ? ` · ${equip.potencia_motor}` : ""}</p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+          <h1 className="break-words text-2xl font-semibold leading-snug tracking-tight text-foreground">{tituloComSeparador(equip.codigo)}</h1>
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-3 text-sm text-muted-foreground">
+            <span>{[linha.familia, linha.nome].filter(Boolean).join(" · ")}{equip.potencia_motor ? ` · ${equip.potencia_motor}` : ""}</span>
             <SituacaoPill situacao={equip.situacao} />
-            {equip.solicitar_engenharia && <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">Preço sob consulta</span>}
-          </div>
+            {equip.solicitar_engenharia && <span className="text-xs font-medium text-amber-700 dark:text-amber-300">Preço sob consulta</span>}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {efetivoAdmin && <button type="button" className={botaoSecundario} disabled={pendente} onClick={() => acao("duplicar")}><Copy className="h-4 w-4" />Duplicar</button>}
           {admin && (
-            <button type="button" className={botaoSecundario} onClick={() => setVerComoUsuario((v) => !v)} aria-pressed={verComoUsuario}>
-              {verComoUsuario ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}{verComoUsuario ? "Sair do modo usuário" : "Ver como usuário"}
-            </button>
-          )}
-          {efetivoAdmin && (
-            <>
-              <button type="button" className={botaoSecundario} disabled={pendente} onClick={() => acao("duplicar")}><Copy className="h-4 w-4" />Duplicar</button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild><button type="button" aria-label="Mais ações" className="flex h-10 w-10 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted"><MoreVertical className="h-4 w-4" /></button></DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52">
-                  {equip.situacao === "descontinuado"
-                    ? <DropdownMenuItem className="cursor-pointer" onSelect={() => setTimeout(() => acao("reativar"), 0)}><PlayCircle className="text-green-600" /> Reativar</DropdownMenuItem>
-                    : <DropdownMenuItem className="cursor-pointer" onSelect={() => setTimeout(() => acao("descontinuar"), 0)}><PauseCircle className="text-amber-600" /> Descontinuar</DropdownMenuItem>}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700" onSelect={() => setTimeout(() => acao("excluir"), 0)}><Trash2 /> Excluir…</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><button type="button" aria-label="Mais ações" className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted"><MoreVertical className="h-4 w-4" /></button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem className="cursor-pointer" onSelect={() => setVerComoUsuario((v) => !v)}>{verComoUsuario ? <EyeOff /> : <Eye />}{verComoUsuario ? "Sair do modo usuário" : "Ver como usuário"}</DropdownMenuItem>
+                {efetivoAdmin && (
+                  <>
+                    <DropdownMenuSeparator />
+                    {equip.situacao === "descontinuado"
+                      ? <DropdownMenuItem className="cursor-pointer" onSelect={() => setTimeout(() => acao("reativar"), 0)}><PlayCircle className="text-green-600" /> Reativar</DropdownMenuItem>
+                      : <DropdownMenuItem className="cursor-pointer" onSelect={() => setTimeout(() => acao("descontinuar"), 0)}><PauseCircle className="text-amber-600" /> Descontinuar</DropdownMenuItem>}
+                    <DropdownMenuItem className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700" onSelect={() => setTimeout(() => acao("excluir"), 0)}><Trash2 /> Excluir…</DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </header>
@@ -162,9 +160,9 @@ export function EquipamentoPagina({ admin, linha, equip, campos, categorias, arq
       <div role="tablist" aria-label="Seções do equipamento" className="flex gap-1 overflow-x-auto border-b border-border">
         {abas.map((a) => (
           <button key={a.id} type="button" role="tab" id={`aba-${a.id}`} aria-selected={secao === a.id} aria-controls={`secao-${a.id}`} onClick={() => trocarSecao(a.id)}
-            className={`-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium ${secao === a.id ? "border-[#2C4F79] text-[#2C4F79] dark:text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            className={`-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm ${secao === a.id ? "border-[#2C4F79] font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             {a.nome}
-            {a.badge && <span className={`rounded-full px-1.5 text-xs font-semibold ${a.alerta ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200" : "bg-muted text-muted-foreground"}`}>{a.badge}</span>}
+            {a.badge && <span className={`text-xs font-normal ${a.alerta ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground"}`}>{a.badge}</span>}
             {sujas[a.id] && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" title="Alterações não salvas" aria-label="alterações não salvas" />}
           </button>
         ))}

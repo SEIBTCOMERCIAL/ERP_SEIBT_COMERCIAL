@@ -3,25 +3,23 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowDownUp, Camera, Download, LayoutGrid, ListChecks, Loader2, MoreVertical, Plus, Rows3, Search, Settings2, Trash2 } from "lucide-react";
+import { Camera, Download, ListChecks, Loader2, MoreVertical, Plus, Search, Settings2, Trash2 } from "lucide-react";
 import {
   alterarSituacao, criarCategoriaPeca, criarLinha, duplicarEquipamento, excluirCategoriaPeca, excluirLinha,
 } from "@/app/actions/produtos-admin";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { JanelaReajuste, type AlvoReajuste } from "@/components/reajuste/JanelaReajuste";
 import type { ItemLista } from "@/lib/reajuste/tipos";
 import { montarQuery, type FiltrosProdutos } from "@/lib/produtos/regras";
 import type { Navegacao, ProdutoLista, RespostaListaProdutos } from "@/lib/produtos/tipos";
-import { Aviso, botaoPrimario, botaoSecundario, campoCls } from "./base";
+import { Aviso, botaoPrimario, botaoSecundario, Campo, campoCls, Modal } from "./base";
+import { SeletorEscopo } from "@/components/reajuste/SeletorEscopo";
+import { MenuFiltros } from "./MenuFiltros";
 import { FormEquipamento } from "./FormEquipamento";
 import { FotoLinhaModal } from "./FotoLinhaModal";
 import { ListaProdutos, type AcaoLista } from "./ListaProdutos";
 import { ModeloFicha } from "./ModeloFicha";
-import { NavegacaoProdutos } from "./NavegacaoProdutos";
 import { PecaPainel, type AlvoPeca } from "./PecaPainel";
-
-const SITUACOES = [["ativos", "Ativos"], ["descontinuados", "Descontinuados"], ["todos", "Todos"]] as const;
-const ORDENS = [["padrao", "Ordem do cadastro"], ["nome", "Nome / descrição"], ["codigo", "Código"], ["preco", "Preço"], ["atualizado", "Última alteração"]] as const;
 
 function paraItemLista(p: ProdutoLista): ItemLista {
   return {
@@ -47,6 +45,7 @@ export function ProdutosExplorador({ filtros, nav, resposta, admin, camposFicha,
   const [alvoPeca, setAlvoPeca] = useState<AlvoPeca | null>(null);
   const [reajuste, setReajuste] = useState<AlvoReajuste | null>(null);
   const [novoGrupo, setNovoGrupo] = useState("");
+  const [novoGrupoAberto, setNovoGrupoAberto] = useState(false);
 
   const maquinas = filtros.aba === "maquinas";
   const linha = maquinas && filtros.escopo ? nav.linhas.find((l) => l.id === filtros.escopo) ?? null : null;
@@ -111,7 +110,7 @@ export function ProdutosExplorador({ filtros, nav, resposta, admin, camposFicha,
       const r = await (maquinas ? criarLinha(novoGrupo) : criarCategoriaPeca(novoGrupo)).catch(() => null);
       if (!r) setMensagem({ tipo: "erro", texto: "Não foi possível salvar. Tente novamente." });
       else if (!r.ok) setMensagem({ tipo: "erro", texto: r.erro });
-      else { setNovoGrupo(""); setMensagem({ tipo: "sucesso", texto: maquinas ? "Linha criada." : "Categoria criada." }); router.refresh(); }
+      else { setNovoGrupo(""); setNovoGrupoAberto(false); setMensagem({ tipo: "sucesso", texto: maquinas ? "Linha criada." : "Categoria criada." }); router.refresh(); }
     });
   }
 
@@ -125,29 +124,29 @@ export function ProdutosExplorador({ filtros, nav, resposta, admin, camposFicha,
     });
   }
 
-  const chip = (valor: FiltrosProdutos["pendencia"], nome: string, n: number) => (
-    <button key={valor} type="button" onClick={() => ir({ pendencia: filtros.pendencia === valor ? "" : valor })} aria-pressed={filtros.pendencia === valor}
-      className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium ${filtros.pendencia === valor ? "border-[#2C4F79] bg-[#2C4F79] text-white" : "border-border bg-card text-muted-foreground hover:bg-muted"}`}>
-      {nome}<span className={`font-semibold ${filtros.pendencia !== valor && n > 0 ? "text-amber-700 dark:text-amber-300" : ""}`}>{n}</span>
-    </button>
-  );
-
   const total = resposta.ok ? resposta.total : 0;
   const totalPaginas = resposta.ok ? Math.max(1, Math.ceil(resposta.total / resposta.tamanho)) : 1;
   const filtrando = Boolean(filtros.q || filtros.pendencia || filtros.situacao !== "ativos");
+  const escopos = (maquinas ? nav.linhas : nav.categorias).map((g) => ({
+    id: g.id, nome: g.nome, total: g.contagem.total, sem_reajuste: 0, parcial: 0, atualizado: 0, sem_preco: 0, inativos: 0,
+  }));
+  const pendenciasTexto = [
+    contagem.sem_preco > 0 ? `${contagem.sem_preco} sem preço` : null,
+    maquinas && contagem.sem_foto > 0 ? `${contagem.sem_foto} sem foto` : null,
+    maquinas && contagem.ficha_incompleta > 0 ? `${contagem.ficha_incompleta} com ficha incompleta` : null,
+    !maquinas && contagem.sem_vinculo > 0 ? `${contagem.sem_vinculo} sem equipamento` : null,
+  ].filter(Boolean).join(" · ");
+  const item = "cursor-pointer";
 
   return (
-    <div className="flex flex-col gap-4 px-4 py-4 sm:px-6">
+    <div className="flex min-w-0 flex-col gap-4 px-4 py-5 sm:px-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">Produtos</h1>
-          <p className="text-xs text-muted-foreground">Máquinas e peças. Os preços vêm do Reajuste e alimentam o catálogo e as propostas.</p>
-        </div>
-        <div role="tablist" aria-label="Tipo de produto" className="inline-flex overflow-hidden rounded-lg border border-border">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Produtos</h1>
+        <div role="tablist" aria-label="Tipo de produto" className="inline-flex gap-0.5 rounded-lg border border-border bg-card p-1">
           {(["maquinas", "pecas"] as const).map((a) => (
             <button key={a} type="button" role="tab" aria-selected={filtros.aba === a}
               onClick={() => iniciarNavegacao(() => router.push(`${pathname}${montarQuery({ aba: a, visao: filtros.visao })}`, { scroll: false }))}
-              className={`h-10 px-4 text-sm font-medium ${filtros.aba === a ? "bg-[#2C4F79] text-white" : "bg-card text-muted-foreground hover:bg-muted"}`}>{a === "maquinas" ? "Máquinas" : "Peças"}</button>
+              className={`h-9 rounded-md px-4 text-sm font-medium ${filtros.aba === a ? "bg-[#2C4F79] text-white" : "text-muted-foreground hover:text-foreground"}`}>{a === "maquinas" ? "Máquinas" : "Peças"}</button>
           ))}
         </div>
       </header>
@@ -155,100 +154,86 @@ export function ProdutosExplorador({ filtros, nav, resposta, admin, camposFicha,
       {mensagem && <Aviso tipo={mensagem.tipo === "erro" ? "erro" : "sucesso"}>{mensagem.texto}</Aviso>}
       {avisoEscopo && <Aviso tipo="info">{avisoEscopo}</Aviso>}
 
-      <div className="flex flex-col gap-4 md:flex-row md:items-start">
-        <div className="flex shrink-0 flex-col gap-3">
-          <NavegacaoProdutos aba={filtros.aba} nav={nav} escopo={filtros.escopo} aoSelecionar={(id) => ir({ escopo: id, pendencia: "" })} />
-          {admin && (
-            <form onSubmit={criarGrupo} className="flex gap-2 md:w-60">
-              <input value={novoGrupo} onChange={(e) => setNovoGrupo(e.target.value)} maxLength={80} aria-label={maquinas ? "Nome da nova linha" : "Nome da nova categoria"} placeholder={maquinas ? "Nova linha…" : "Nova categoria…"} className={`${campoCls} h-9`} />
-              <button type="submit" disabled={pendente || !novoGrupo.trim()} className={`${botaoSecundario} h-9 px-3`} aria-label="Criar"><Plus className="h-4 w-4" /></button>
-            </form>
-          )}
+      <div className="flex flex-wrap items-center gap-2.5">
+        <div className="relative min-w-[220px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <input value={busca} onChange={(e) => setBusca(e.target.value)} aria-label="Buscar produtos" className={`${campoCls} pl-9`}
+            placeholder={maquinas ? "Buscar por modelo, código, descrição ou linha" : "Buscar por código, descrição ou categoria"} />
         </div>
+        <div className="w-full sm:w-60">
+          <SeletorEscopo rotulo={maquinas ? "Linha" : "Categoria"} todos={maquinas ? "Todas as linhas" : "Todas as categorias"} escopos={escopos} selecionado={filtros.escopo}
+            aoSelecionar={(id) => ir({ escopo: id, pendencia: "" })} />
+        </div>
+        <MenuFiltros filtros={filtros} maquinas={maquinas} pendenciasDisponiveis={resposta.ok && resposta.pendenciasDisponiveis} contagem={contagem} aoMudar={(p) => ir(p)} />
+        {admin && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className="flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm text-foreground hover:bg-muted/50">Ações<MoreVertical className="h-4 w-4" aria-hidden /></button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              {linha && <DropdownMenuItem className={item} onSelect={() => setTimeout(() => setNovoEquip(true), 0)}><Plus /> Novo equipamento</DropdownMenuItem>}
+              {!maquinas && <DropdownMenuItem className={item} onSelect={() => setTimeout(() => setAlvoPeca({ modo: "criar", categoriaId: categoria?.id ?? null }), 0)}><Plus /> Nova peça</DropdownMenuItem>}
+              {linha && <DropdownMenuItem className={item} onSelect={() => setTimeout(() => setFotoLinha(true), 0)}><Camera /> Foto da linha</DropdownMenuItem>}
+              {linha && <DropdownMenuItem className={item} onSelect={() => setTimeout(() => setModelo(true), 0)}><Settings2 /> Modelo da ficha técnica</DropdownMenuItem>}
+              {linha && <DropdownMenuItem asChild className={item}><a href={`/api/produtos/linhas/${linha.id}/exportar`} target="_blank" rel="noreferrer"><Download /> Exportar .docx</a></DropdownMenuItem>}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className={item} onSelect={() => setTimeout(() => setNovoGrupoAberto(true), 0)}><Plus /> {maquinas ? "Nova linha" : "Nova categoria"}…</DropdownMenuItem>
+              {grupoAtual && <DropdownMenuItem className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700" onSelect={() => setTimeout(excluirGrupo, 0)}><Trash2 /> Excluir {maquinas ? "linha" : "categoria"}…</DropdownMenuItem>}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
 
-        <section className="flex min-w-0 flex-1 flex-col gap-3" aria-label="Lista de produtos">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[220px] flex-1 sm:max-w-md">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input value={busca} onChange={(e) => setBusca(e.target.value)} aria-label="Buscar produtos" className={`${campoCls} pl-9`}
-                placeholder={maquinas ? "Buscar por modelo, código, descrição ou linha" : "Buscar por código, descrição ou categoria"} />
-            </div>
-            <select value={filtros.situacao} onChange={(e) => ir({ situacao: e.target.value as FiltrosProdutos["situacao"] })} aria-label="Situação" className={`${campoCls} w-auto`}>
-              {SITUACOES.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
-            </select>
-            <select value={filtros.ordem} onChange={(e) => ir({ ordem: e.target.value as FiltrosProdutos["ordem"] })} aria-label="Ordenar por" className={`${campoCls} w-auto`}>
-              {ORDENS.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
-            </select>
-            {filtros.ordem !== "padrao" && (
-              <button type="button" className={botaoSecundario} onClick={() => ir({ dir: filtros.dir === "asc" ? "desc" : "asc" })} aria-label={`Ordem ${filtros.dir === "asc" ? "crescente" : "decrescente"}`} title="Inverter a ordem"><ArrowDownUp className="h-4 w-4" />{filtros.dir === "asc" ? "A→Z" : "Z→A"}</button>
-            )}
-            <div className="inline-flex overflow-hidden rounded-lg border border-border" role="group" aria-label="Visualização">
-              <button type="button" aria-pressed={filtros.visao === "tabela"} title="Tabela" onClick={() => ir({ visao: "tabela" }, false)} className={`flex h-10 w-10 items-center justify-center ${filtros.visao === "tabela" ? "bg-[#2C4F79] text-white" : "bg-card text-muted-foreground hover:bg-muted"}`}><Rows3 className="h-4 w-4" /></button>
-              <button type="button" aria-pressed={filtros.visao === "cards"} title="Cartões" onClick={() => ir({ visao: "cards" }, false)} className={`flex h-10 w-10 items-center justify-center ${filtros.visao === "cards" ? "bg-[#2C4F79] text-white" : "bg-card text-muted-foreground hover:bg-muted"}`}><LayoutGrid className="h-4 w-4" /></button>
-            </div>
-          </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <strong className="mr-auto text-base font-semibold text-foreground">{grupoAtual?.nome ?? (maquinas ? "Todas as linhas" : "Todas as categorias")}</strong>
+        <span className="flex items-center gap-1.5" aria-live="polite">
+          {(navegando || pendente) && <Loader2 className="h-3 w-3 animate-spin" aria-label="Carregando" />}
+          {resposta.ok ? `${total} ${total === 1 ? "item" : "itens"}` : ""}
+        </span>
+        {pendenciasTexto && resposta.ok && resposta.pendenciasDisponiveis && <span>{pendenciasTexto}</span>}
+        {filtrando && <Link className="font-medium text-[#2074B9] hover:underline" href={`${pathname}${montarQuery({ aba: filtros.aba, escopo: filtros.escopo, visao: filtros.visao })}`}>Limpar busca e filtros</Link>}
+        {grupoAtual && filtros.q && <button type="button" className="font-medium text-[#2074B9] hover:underline" onClick={() => ir({ escopo: null })}>Buscar em todas</button>}
+      </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {resposta.ok && resposta.pendenciasDisponiveis && (maquinas
-              ? <>{chip("sem_preco", "Sem preço", contagem.sem_preco)}{chip("sem_foto", "Sem foto", contagem.sem_foto)}{chip("ficha_incompleta", "Ficha incompleta", contagem.ficha_incompleta)}</>
-              : <>{chip("sem_preco", "Sem preço", contagem.sem_preco)}{chip("sem_vinculo", "Sem equipamento", contagem.sem_vinculo)}</>)}
-            {admin && grupoAtual && (
-              <div className="ml-auto flex flex-wrap items-center gap-2">
-                {linha && (
-                  <>
-                    <button type="button" className={botaoPrimario} onClick={() => setNovoEquip(true)}><Plus className="h-4 w-4" />Novo equipamento</button>
-                    <button type="button" className={botaoSecundario} onClick={() => setFotoLinha(true)}><Camera className="h-4 w-4" />Foto da linha</button>
-                  </>
-                )}
-                {categoria && <button type="button" className={botaoPrimario} onClick={() => setAlvoPeca({ modo: "criar", categoriaId: categoria.id })}><Plus className="h-4 w-4" />Nova peça</button>}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild><button type="button" aria-label="Mais opções do grupo" className="flex h-10 w-10 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted"><MoreVertical className="h-4 w-4" /></button></DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    {linha && <DropdownMenuItem className="cursor-pointer" onSelect={() => setTimeout(() => setModelo(true), 0)}><Settings2 /> Modelo da ficha técnica</DropdownMenuItem>}
-                    {linha && <DropdownMenuItem asChild className="cursor-pointer"><a href={`/api/produtos/linhas/${linha.id}/exportar`} target="_blank" rel="noreferrer"><Download /> Exportar .docx</a></DropdownMenuItem>}
-                    <DropdownMenuItem className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700" onSelect={() => setTimeout(excluirGrupo, 0)}><Trash2 /> Excluir {maquinas ? "linha" : "categoria"}…</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+      <section className="flex min-w-0 flex-col gap-3" aria-label="Lista de produtos">
+        {!resposta.ok ? <Aviso>{resposta.erro}</Aviso> : (
+          <>
+            {!resposta.pendenciasDisponiveis && <Aviso tipo="info">Os indicadores de pendência e a busca por linha dependem da atualização do banco de produtos (arquivo 034), ainda não aplicada.</Aviso>}
+            {resposta.itens.length > 0 ? (
+              <ListaProdutos itens={resposta.itens} aba={filtros.aba} visao="tabela" admin={admin} mostrarGrupo={!filtros.escopo}
+                hrefDetalhe={hrefDetalhe} aoAcao={acao} ocupado={pendente} />
+            ) : (
+              <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground">
+                <ListChecks className="h-6 w-6" aria-hidden />
+                {filtrando ? "Nenhum produto encontrado com esses filtros." : grupoAtual ? `Nada cadastrado em ${grupoAtual.nome} ainda.` : "Nenhum produto cadastrado."}
               </div>
             )}
-            {admin && !grupoAtual && !maquinas && <button type="button" className={`${botaoPrimario} ml-auto`} onClick={() => setAlvoPeca({ modo: "criar", categoriaId: null })}><Plus className="h-4 w-4" />Nova peça</button>}
-          </div>
+            {resposta.total > resposta.tamanho && (
+              <nav aria-label="Páginas" className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>{(resposta.pagina - 1) * resposta.tamanho + 1}–{Math.min(resposta.pagina * resposta.tamanho, resposta.total)} de {resposta.total}</span>
+                <span className="flex gap-2">
+                  <button type="button" disabled={resposta.pagina <= 1 || navegando} onClick={() => ir({ pagina: resposta.pagina - 1 }, false)} className={botaoSecundario}>Anterior</button>
+                  <button type="button" disabled={resposta.pagina >= totalPaginas || navegando} onClick={() => ir({ pagina: resposta.pagina + 1 }, false)} className={botaoSecundario}>Próxima</button>
+                </span>
+              </nav>
+            )}
+          </>
+        )}
+      </section>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-            <span className="flex items-center gap-2">
-              {(navegando || pendente) && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-label="Carregando" />}
-              {resposta.ok ? `${total} ${total === 1 ? "item" : "itens"}` : ""}
-              {grupoAtual ? ` em ${grupoAtual.nome}` : ""}
-              {grupoAtual && filtros.q && <button type="button" className="font-medium text-[#2074B9] hover:underline" onClick={() => ir({ escopo: null })}>Buscar em todas</button>}
-            </span>
-            {filtrando && <Link className="font-medium text-[#2074B9] hover:underline" href={`${pathname}${montarQuery({ aba: filtros.aba, escopo: filtros.escopo, visao: filtros.visao })}`}>Limpar busca e filtros</Link>}
-          </div>
-
-          {!resposta.ok ? <Aviso>{resposta.erro}</Aviso> : (
-            <>
-              {!resposta.pendenciasDisponiveis && <Aviso tipo="info">Os indicadores de pendência e a busca por linha dependem da atualização do banco de produtos (arquivo 034), ainda não aplicada.</Aviso>}
-              {resposta.itens.length > 0 ? (
-                <ListaProdutos itens={resposta.itens} aba={filtros.aba} visao={filtros.visao} admin={admin} mostrarGrupo={!filtros.escopo}
-                  hrefDetalhe={hrefDetalhe} aoAcao={acao} ocupado={pendente} />
-              ) : (
-                <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground">
-                  <ListChecks className="h-6 w-6" aria-hidden />
-                  {filtrando ? "Nenhum produto encontrado com esses filtros." : grupoAtual ? `Nada cadastrado em ${grupoAtual.nome} ainda.` : "Nenhum produto cadastrado."}
-                </div>
-              )}
-              {resposta.total > resposta.tamanho && (
-                <nav aria-label="Páginas" className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>{(resposta.pagina - 1) * resposta.tamanho + 1}–{Math.min(resposta.pagina * resposta.tamanho, resposta.total)} de {resposta.total}</span>
-                  <span className="flex gap-2">
-                    <button type="button" disabled={resposta.pagina <= 1 || navegando} onClick={() => ir({ pagina: resposta.pagina - 1 }, false)} className={botaoSecundario}>Anterior</button>
-                    <button type="button" disabled={resposta.pagina >= totalPaginas || navegando} onClick={() => ir({ pagina: resposta.pagina + 1 }, false)} className={botaoSecundario}>Próxima</button>
-                  </span>
-                </nav>
-              )}
-            </>
-          )}
-        </section>
-      </div>
+      {novoGrupoAberto && (
+        <Modal titulo={maquinas ? "Nova linha" : "Nova categoria"} aoFechar={() => setNovoGrupoAberto(false)} largura="max-w-md" bloqueado={pendente}>
+          <form onSubmit={criarGrupo} className="flex flex-col gap-4 p-5">
+            <Campo rotulo={maquinas ? "Nome da linha" : "Nome da categoria"} obrigatorio>
+              <input value={novoGrupo} onChange={(e) => setNovoGrupo(e.target.value)} maxLength={80} required className={campoCls} />
+            </Campo>
+            <div className="flex justify-end gap-2">
+              <button type="button" className={botaoSecundario} onClick={() => setNovoGrupoAberto(false)} disabled={pendente}>Cancelar</button>
+              <button type="submit" className={botaoPrimario} disabled={pendente || !novoGrupo.trim()}>{pendente ? "Salvando…" : "Criar"}</button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {novoEquip && linha && (
         <FormEquipamento linha={{ id: linha.id, nome: linha.nome }} camposFicha={camposFicha.map((c) => c.nome)} aoFechar={() => setNovoEquip(false)}
