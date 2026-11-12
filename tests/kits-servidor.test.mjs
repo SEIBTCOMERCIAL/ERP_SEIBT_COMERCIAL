@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { listarKits, listarPeneiras, definirIpiNavalhas } from "../src/lib/reajuste/kits-servidor.ts";
 import { carregarJogosNavalhas } from "../src/lib/catalogo/dados.ts";
+import { tipoDaCategoria } from "../src/lib/reajuste/servidor.ts";
 import { totalJogo } from "../src/lib/propostas/jogos-navalha.ts";
 
 const U = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
@@ -150,4 +151,12 @@ test("IPI manual no servidor: só navalhas, validação e tradução dos erros d
   assert.equal((await definirIpiNavalhas(db(), { produtoIds: ["x"], ipi: "5", motivo: "motivo" })).tipo, "validacao");
   assert.equal((await definirIpiNavalhas(db(() => ({ data: null, error: { message: "SEM_PERMISSAO" } })), { produtoIds: [U(1)], ipi: "5", motivo: "motivo" })).tipo, "permissao");
   assert.equal((await definirIpiNavalhas(db(() => ({ data: null, error: { message: "Could not find the function public.produto_definir_ipi" } })), { produtoIds: [U(1)], ipi: "5", motivo: "motivo" })).tipo, "nao_aplicado");
+});
+
+test("as categorias Navalhas e Peneiras ativam a visão própria no Reajuste (e as demais não)", () => {
+  assert.equal(tipoDaCategoria("Navalhas"), "navalha");
+  assert.equal(tipoDaCategoria("Peneiras"), "peneira");
+  assert.equal(tipoDaCategoria("Parafusos"), null);
+  assert.equal(tipoDaCategoria("Dutos e Curvas"), null);
+  assert.equal(tipoDaCategoria(null), null);
 });

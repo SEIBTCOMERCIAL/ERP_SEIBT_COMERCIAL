@@ -45,7 +45,7 @@ function agruparHistorico(linhas: Array<{ produto_id: string; componente: string
 /** Navalhas e peneiras têm visão própria no Reajuste (kits / por modelo). */
 export function tipoDaCategoria(nome: string | null | undefined): "navalha" | "peneira" | null {
   const t = (nome ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-  return /navalhas?/.test(t) ? "navalha" : /peneiras?/.test(t) ? "peneira" : null;
+  return /navalhas?/.test(t) ? "navalha" : /peneiras?/.test(t) ? "peneira" : null;
 }
 
 function novoResumo(id: string, nome: string): ResumoEscopo {
