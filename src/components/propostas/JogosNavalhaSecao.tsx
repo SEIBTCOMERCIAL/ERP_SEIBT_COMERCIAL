@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import type { CartItemInput } from "@/app/actions/propostas-pecas";
-import { chaveItem, itensDoJogo, totalJogo, type Jogo } from "@/lib/propostas/jogos-navalha";
+import { chaveItem, itensDoJogo, textoTotalJogo, type Jogo } from "@/lib/propostas/jogos-navalha";
 
 const NAV = "#2C4F79";
 const BORDER = "#E2E8F0";
@@ -99,7 +99,7 @@ export function JogosNavalhaSecao({
                     {j.material && <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 600, color: "#1d4ed8", background: "#dbeafe", borderRadius: 4, padding: "1px 6px" }}>{j.material}</span>}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 13, color: NAV }}>{brl(totalJogo(j))}</span>
+                    <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 13, color: NAV }}>{textoTotalJogo(j, brl)}</span>
                     <button type="button" onClick={() => adicionar(j)} style={{ padding: "6px 12px", background: jaTem ? "#fff" : NAV, color: jaTem ? NAV : "#fff", border: `1px solid ${NAV}`, borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                       {jaTem ? "+ Mais um jogo" : "+ Adicionar jogo"}
                     </button>

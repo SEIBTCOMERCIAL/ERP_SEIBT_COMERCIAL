@@ -17,6 +17,8 @@ export interface AlvoReajuste {
   titulo: string;
   /** Presente quando é um item só: mostra os preços atuais e permite digitar o novo valor. */
   item?: ItemLista;
+  /** Alertas da seleção (ex.: peça compartilhada com kits fora da seleção). */
+  avisos?: string[];
 }
 
 type Modo = "mesmo" | "componente" | "valor";
@@ -139,6 +141,10 @@ export function JanelaReajuste({ alvo, aoFechar, aoConcluir }: { alvo: AlvoReaju
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span>{erro}</span>
             </div>
           )}
+
+          {(alvo.avisos ?? []).map((a) => (
+            <p key={a} className="mb-4 flex gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span>{a}</span></p>
+          ))}
 
           {passo === "config" && (
             <div className="flex flex-col gap-5">

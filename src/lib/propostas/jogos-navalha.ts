@@ -1,6 +1,7 @@
 // Jogos de navalhas: regras que valem no navegador e no servidor (sem consulta ao banco).
 
 import type { CartItemInput } from "@/app/actions/propostas-pecas";
+import { calcularKit, classificarComponente, PROBLEMA_ROTULO, type CalculoKit } from "@/lib/reajuste/kits";
 
 export interface JogoItem {
   id: string;
@@ -37,9 +38,20 @@ export function descricaoLinhaJogo(item: Pick<JogoItem, "titulo" | "pecas" | "co
   return `${titulo} (COMPOSTO POR ${doisDigitos(item.pecas)} ${item.pecas === 1 ? "PEÇA" : "PEÇAS"})${codigo}`;
 }
 
-/** Valor do jogo com IPI, em reais. */
-export function totalJogo(jogo: Pick<Jogo, "itens">): number {
-  return jogo.itens.reduce((s, i) => s + i.pecas * (i.preco ?? 0) * (1 + i.ipi / 100), 0);
+/** Cálculo central do conjunto (o mesmo da tela de Reajuste e do catálogo): arredondamento por linha, IPI de cada peça. */
+export function calculoDoJogo(jogo: Pick<Jogo, "itens">): CalculoKit {
+  return calcularKit(jogo.itens.map((i) => ({ pecas: i.pecas, preco: i.preco, ipi: i.ipi, grupo: classificarComponente(i.titulo) })));
+}
+
+/** Valor do jogo com IPI, em reais; null quando o jogo está incompleto (nunca um total parcial). */
+export function totalJogo(jogo: Pick<Jogo, "itens">): number | null {
+  return calculoDoJogo(jogo).total;
+}
+
+/** Texto do total para telas: valor formatado ou o motivo de não haver total. */
+export function textoTotalJogo(jogo: Pick<Jogo, "itens">, formatar: (v: number) => string): string {
+  const c = calculoDoJogo(jogo);
+  return c.total !== null ? formatar(c.total) : PROBLEMA_ROTULO[c.problemas[0] ?? "sem_componentes"];
 }
 
 /** Chave única da linha no carrinho (linhas de jogo podem repetir a mesma peça). */

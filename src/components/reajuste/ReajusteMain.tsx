@@ -8,7 +8,9 @@ import { SITUACAO_ROTULO } from "@/lib/reajuste/regras";
 import type { Aba, FiltroSituacao, ItemLista, RespostaLista, ResumoEscopo, ResumoReajuste } from "@/lib/reajuste/tipos";
 import { DetalheItem, type Cambio } from "./DetalheItem";
 import { JanelaReajuste, type AlvoReajuste } from "./JanelaReajuste";
+import { KitsNavalha } from "./KitsNavalha";
 import { ListaEscopos } from "./ListaEscopos";
+import { PeneirasPorModelo } from "./PeneirasPorModelo";
 import { TabelaItens, type Visao } from "./TabelaItens";
 
 const campo = "h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-[#2074B9]";
@@ -45,6 +47,8 @@ export function ReajusteMain({ resumo, cambio }: { resumo: ResumoReajuste; cambi
   const escopoId = escopoPorAba[aba];
   const escopoAtual = escopos.find((e) => e.id === escopoId) ?? null;
   const totais = useMemo(() => somar(escopos), [escopos]);
+  // Navalhas (por kit) e peneiras (por modelo) têm visão própria, com busca e indicadores próprios.
+  const visaoEspecial = aba === "pecas" ? escopoAtual?.tipo_categoria ?? null : null;
 
   useEffect(() => {
     const t = setTimeout(() => { setBuscaAplicada(busca); setPagina(1); }, 300);
@@ -52,6 +56,7 @@ export function ReajusteMain({ resumo, cambio }: { resumo: ResumoReajuste; cambi
   }, [busca]);
 
   useEffect(() => {
+    if (visaoEspecial) return;
     let cancelado = false;
     setCarregando(true);
     listarItensReajuste({ aba, escopoId, busca: buscaAplicada, situacao, pagina })
@@ -62,7 +67,7 @@ export function ReajusteMain({ resumo, cambio }: { resumo: ResumoReajuste; cambi
       })
       .catch(() => { if (!cancelado) { setCarregando(false); setErroLista("Não foi possível carregar os itens. Tente novamente."); } });
     return () => { cancelado = true; };
-  }, [aba, escopoId, buscaAplicada, situacao, pagina, versao]);
+  }, [aba, escopoId, buscaAplicada, situacao, pagina, versao, visaoEspecial]);
 
   function trocarAba(nova: Aba) {
     if (nova === aba) return;
@@ -113,20 +118,22 @@ export function ReajusteMain({ resumo, cambio }: { resumo: ResumoReajuste; cambi
             ))}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2" aria-label="Resumo e filtro por situação">
+        {!visaoEspecial && <div className="flex flex-wrap items-center gap-2" aria-label="Resumo e filtro por situação">
           {chip("todas", "Todos", totais.total)}
           {chip("sem_reajuste", SITUACAO_ROTULO.sem_reajuste, totais.sem_reajuste, true)}
           {chip("parcial", SITUACAO_ROTULO.parcial, totais.parcial, true)}
           {chip("atualizado", SITUACAO_ROTULO.atualizado, totais.atualizado)}
           {chip("sem_preco", SITUACAO_ROTULO.sem_preco, totais.sem_preco)}
           {totais.inativos > 0 && chip("inativo", SITUACAO_ROTULO.inativo, totais.inativos)}
-        </div>
+        </div>}
       </header>
 
       <div className="flex flex-col gap-4 md:flex-row md:items-start">
         <ListaEscopos rotulo={aba === "maquinas" ? "Linhas" : "Categorias"} escopos={escopos} selecionado={escopoId} aoSelecionar={trocarEscopo} />
 
-        <section className="flex min-w-0 flex-1 flex-col gap-3" aria-label="Itens">
+        {visaoEspecial === "navalha" && <KitsNavalha hoje={resumo.hoje} cambio={cambio} />}
+        {visaoEspecial === "peneira" && <PeneirasPorModelo hoje={resumo.hoje} cambio={cambio} />}
+        {!visaoEspecial && <section className="flex min-w-0 flex-1 flex-col gap-3" aria-label="Itens">
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-[220px] flex-1 sm:max-w-md">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -181,7 +188,7 @@ export function ReajusteMain({ resumo, cambio }: { resumo: ResumoReajuste; cambi
               </span>
             </nav>
           )}
-        </section>
+        </section>}
       </div>
 
       <DetalheItem item={detalhe} hoje={resumo.hoje} cambio={cambio} aoFechar={() => setDetalhe(null)} aoReajustar={(i) => { setDetalhe(null); reajustarItem(i); }} />

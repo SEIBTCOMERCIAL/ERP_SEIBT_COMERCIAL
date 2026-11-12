@@ -14,5 +14,6 @@ export async function resolve(especificador, contexto, proximo) {
       if (existsSync(alvo + ext)) return proximo(pathToFileURL(alvo + ext).href, contexto);
     }
   }
+  if (especificador === "next/headers" || especificador === "next/cache") return proximo(especificador + ".js", contexto);
   return proximo(especificador, contexto);
 }

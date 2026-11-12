@@ -1,4 +1,5 @@
 // Tipos compartilhados entre a tela de Reajuste (navegador) e as ações do servidor.
+import type { CalculoKit, GrupoComponente, SituacaoKit, UltimoDoKit } from "./kits";
 import type {
   ComponenteId, ItemPlanejado, MotivoIgnorado, SituacaoItem, TipoProduto,
 } from "./regras";
@@ -14,6 +15,8 @@ export interface ResumoEscopo {
   atualizado: number;
   sem_preco: number;
   inativos: number;
+  /** Só em categorias de peças: navalhas e peneiras têm visão própria. */
+  tipo_categoria?: "navalha" | "peneira" | null;
 }
 
 export interface ResumoReajuste {
@@ -47,6 +50,8 @@ export interface ItemLista {
   ultimo: UltimoReajuste | null;
   /** Nome da linha/categoria (útil em buscas que cruzam várias). */
   escopo_nome: string | null;
+  /** Peneiras: furo, dimensões e espessura lidos do cadastro. */
+  atributos?: string | null;
 }
 
 export type FiltroSituacao = "todas" | SituacaoItem;
@@ -137,3 +142,69 @@ export type RespostaHistorico =
       serie: Array<{ data: string; preco: number }>;
     }
   | { ok: false; erro: string };
+
+// ─── Navalhas por kit e peneiras por modelo ─────────────────────────────────────────────────
+
+export interface ComponenteKit {
+  linhaId: string;
+  produtoId: string;
+  titulo: string;
+  /** Código mostrado no orçamento (pode ser parte do código do cadastro). */
+  codigo: string;
+  codigoProduto: string;
+  grupo: GrupoComponente;
+  pecas: number;
+  precoUnit: number | null;
+  ipi: number;
+  /** Quantidade × unitário, sem IPI; null quando falta preço. */
+  subtotal: number | null;
+  ativo: boolean;
+  item: ItemLista;
+  /** Outros kits que usam a mesma peça (reajustar a peça muda todos eles). */
+  compartilhadoCom: Array<{ kitId: string; rotulo: string }>;
+}
+
+export interface KitLista {
+  id: string;
+  equipamentoId: string;
+  modelo: string;
+  variante: string | null;
+  ativo: boolean;
+  componentes: ComponenteKit[];
+  calculo: CalculoKit;
+  situacao: SituacaoKit;
+  ultimo: UltimoDoKit | null;
+  pecasUnicas: number;
+}
+
+export interface ResumoKits {
+  kits: number;
+  pecas: number;
+  sem_reajuste: number;
+  parcial: number;
+  atualizado: number;
+  sem_preco: number;
+  inativos: number;
+  incompletos: number;
+  sem_kit: number;
+}
+
+export interface RevisaoNavalha { produtoId: string; codigo: string; descricao: string; motivo: string }
+
+export interface PedidoKits { busca: string; situacao: FiltroSituacao; pagina: number }
+
+export type RespostaKits =
+  | { ok: true; kits: KitLista[]; total: number; pagina: number; tamanho: number; resumo: ResumoKits; semKit: ItemLista[]; revisao: RevisaoNavalha[]; hoje: string }
+  | { ok: false; erro: string };
+
+export interface GrupoPeneiras { modelo: string | null; itens: ItemLista[] }
+
+export type RespostaPeneiras =
+  | { ok: true; grupos: GrupoPeneiras[]; total: number; produtos: number; pagina: number; tamanho: number; sem_modelo: number }
+  | { ok: false; erro: string };
+
+export interface PedidoIpi { produtoIds: string[]; ipi: string; motivo: string }
+
+export type RespostaIpi =
+  | { ok: true; produtos: number; alterados: number; semMudanca: number }
+  | { ok: false; erro: string; tipo: "validacao" | "permissao" | "nao_aplicado" | "banco" };

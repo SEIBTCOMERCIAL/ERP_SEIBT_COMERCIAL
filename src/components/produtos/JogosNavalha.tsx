@@ -6,7 +6,7 @@ import { ChevronDown, Copy, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   atualizarJogoNavalha, criarJogoNavalha, duplicarJogoNavalha, excluirItemJogoNavalha, excluirJogoNavalha, salvarItemJogoNavalha,
 } from "@/app/actions/jogos-navalha";
-import { totalJogo, type Jogo, type JogoItem } from "@/lib/propostas/jogos-navalha";
+import { textoTotalJogo, type Jogo, type JogoItem } from "@/lib/propostas/jogos-navalha";
 import { formatCurrency } from "@/lib/utils";
 
 export interface NavalhaCadastro {
@@ -143,7 +143,7 @@ function CartaoJogo({ jogo, navalhas, isAdmin, aberto }: { jogo: Jogo; navalhas:
   const [formItem, setFormItem] = useState<{ item?: JogoItem } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [pendente, startTransition] = useTransition();
-  const total = totalJogo(jogo);
+  const total = textoTotalJogo(jogo, formatCurrency);
 
   function executar(fn: () => Promise<{ error?: string }>, aoTerminar?: () => void) {
     setErro(null);
@@ -167,7 +167,7 @@ function CartaoJogo({ jogo, navalhas, isAdmin, aberto }: { jogo: Jogo; navalhas:
         </div>
         <div className="text-right">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Total do jogo com IPI</p>
-          <p className="font-mono text-[15px] font-bold text-foreground">{formatCurrency(total)}</p>
+          <p className="font-mono text-[15px] font-bold text-foreground">{total}</p>
         </div>
         <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
       </summary>

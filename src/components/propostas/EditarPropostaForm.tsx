@@ -10,7 +10,7 @@ import { ROTULOS_MOAGEM } from "@/lib/propostas/checklist";
 import { numeroComRevisao, precoComAjuste, proximaRevisao } from "@/lib/propostas/revisao";
 import { salvarEdicaoProposta, type ItemEdicao } from "@/app/actions/propostas-editar";
 import type { ChecklistInput } from "@/app/actions/propostas-pecas";
-import { descricaoLinhaJogo, idsNavalhasEmJogos, totalJogo, type Jogo } from "@/lib/propostas/jogos-navalha";
+import { descricaoLinhaJogo, idsNavalhasEmJogos, textoTotalJogo, type Jogo } from "@/lib/propostas/jogos-navalha";
 import { rotulosPainel } from "@/lib/produtos/painel";
 import { moverParaPosicao } from "@/lib/propostas/ordem";
 import { ControleOrdem, useArrastarLinhas } from "./useArrastarLinhas";
@@ -403,7 +403,7 @@ export function EditarPropostaForm(p: Props) {
                         <Plus className="h-3.5 w-3.5 text-[#2074B9] shrink-0" />
                         <span className="truncate"><strong>{j.equipamentoCodigo}</strong> · jogo {j.nome}{j.material ? ` (${j.material})` : ""} · {j.itens.length} linhas</span>
                       </span>
-                      <span className="font-mono font-semibold shrink-0">{formatCurrency(totalJogo(j))}</span>
+                      <span className="font-mono font-semibold shrink-0">{textoTotalJogo(j, formatCurrency)}</span>
                     </button>
                   ))}
                 </div>

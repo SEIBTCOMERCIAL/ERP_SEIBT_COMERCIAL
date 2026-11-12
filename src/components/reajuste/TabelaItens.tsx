@@ -59,7 +59,7 @@ export function TabelaItens(p: Props) {
   const titulo = (i: ItemLista) => (
     <span className="flex min-w-0 flex-col leading-tight">
       <span className="truncate font-medium text-foreground" title={i.descricao}>{i.modelo ? `${i.modelo} · ` : ""}{i.descricao || i.codigo}</span>
-      <span className="font-mono text-xs text-muted-foreground">{i.codigo}{p.mostrarEscopo && i.escopo_nome ? ` · ${i.escopo_nome}` : ""}{!i.ativo ? " · inativo" : ""}</span>
+      <span className="font-mono text-xs text-muted-foreground">{i.codigo}{i.atributos ? ` · ${i.atributos}` : ""}{p.mostrarEscopo && i.escopo_nome ? ` · ${i.escopo_nome}` : ""}{!i.ativo ? " · inativo" : ""}</span>
     </span>
   );
 

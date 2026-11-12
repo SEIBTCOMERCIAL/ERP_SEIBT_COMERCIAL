@@ -18,8 +18,8 @@ export const TAMANHO_PAGINA = 50;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const ehUuid = (v: unknown): v is string => typeof v === "string" && UUID.test(v);
-const tipoDe = (categoria: string): TipoProduto => (categoria === "maquina" ? "maquina" : "peca");
-const numeroOuNulo = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
+export const tipoDe = (categoria: string): TipoProduto => (categoria === "maquina" ? "maquina" : "peca");
+export const numeroOuNulo = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
 
 /** Administrador ativo (a mesma regra que o banco usa em get_my_perfil). */
 export async function exigirAdmin(supabase: any): Promise<{ id: string } | null> {
@@ -40,6 +40,12 @@ function agruparHistorico(linhas: Array<{ produto_id: string; componente: string
     mapa.set(h.produto_id, lista);
   }
   return mapa;
+}
+
+/** Navalhas e peneiras têm visão própria no Reajuste (kits / por modelo). */
+export function tipoDaCategoria(nome: string | null | undefined): "navalha" | "peneira" | null {
+  const t = (nome ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  return /navalhas?/.test(t) ? "navalha" : /peneiras?/.test(t) ? "peneira" : null;
 }
 
 function novoResumo(id: string, nome: string): ResumoEscopo {
@@ -69,7 +75,7 @@ export async function carregarResumo(supabase: any): Promise<ResumoReajuste> {
 
   const hist = agruparHistorico(historico as any[]);
   const resumoMaq = new Map<string, ResumoEscopo>((linhas.data ?? []).map((l: any) => [l.id, novoResumo(l.id, l.nome)]));
-  const resumoPec = new Map<string, ResumoEscopo>((categorias.data ?? []).map((c: any) => [c.id, novoResumo(c.id, c.nome)]));
+  const resumoPec = new Map<string, ResumoEscopo>((categorias.data ?? []).map((c: any) => [c.id, { ...novoResumo(c.id, c.nome), tipo_categoria: tipoDaCategoria(c.nome) }]));
 
   const contar = (r: ResumoEscopo | undefined, item: PrecosDoItem & { ativo: boolean }, id: string) => {
     if (!r) return;
@@ -93,11 +99,11 @@ export async function carregarResumo(supabase: any): Promise<ResumoReajuste> {
 
 // ─── Listagem paginada ──────────────────────────────────────────────────────────
 
-const normalizar = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+export const normalizar = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-const CAMPOS_ITEM = "id, codigo, descricao, modelo, categoria, linha_id, categoria_peca_id, preco_brl, preco_painel_220, preco_painel_380, ipi_pct, ativo, solicitar_engenharia";
+export const CAMPOS_ITEM = "id, codigo, descricao, modelo, categoria, linha_id, categoria_peca_id, preco_brl, preco_painel_220, preco_painel_380, ipi_pct, ativo, solicitar_engenharia";
 
-async function historicoDoPeriodo(supabase: any, ids: string[], inicio: string, fim: string) {
+export async function historicoDoPeriodo(supabase: any, ids: string[], inicio: string, fim: string) {
   const linhas: any[] = [];
   for (const parte of emPartes(ids, 100)) {
     const dados = await buscarTodos((de, ate) => supabase.from("historico_precos")
@@ -108,7 +114,7 @@ async function historicoDoPeriodo(supabase: any, ids: string[], inicio: string, 
   return agruparHistorico(linhas);
 }
 
-async function ultimosReajustes(supabase: any, ids: string[]) {
+export async function ultimosReajustes(supabase: any, ids: string[]) {
   const mapa = new Map<string, UltimoReajuste>();
   for (const parte of emPartes(ids, 100)) {
     // Percorre todas as páginas (o banco limita cada consulta a 1.000 linhas) do mais recente ao mais antigo.

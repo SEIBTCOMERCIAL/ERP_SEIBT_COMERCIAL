@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { buscarTodos } from "@/lib/supabase/buscar-todos";
 import { tamanhoModelo } from "@/lib/produto-titulo";
 import { CAMPOS_FORA_DO_CATALOGO, COLUNAS_CATALOGO, montarMaquinaCatalogo } from "./mapear";
+import { calcularKit, classificarComponente, compararNatural, compararModelos } from "@/lib/reajuste/kits";
 import type { CatalogoLinha, JogoNavalhas, MaquinaCatalogo, PecaCatalogo, SpecCampo } from "./tipos";
 
 export type { SpecCampo, ImagemProduto, MaquinaCatalogo, CatalogoLinha, PecaCatalogo, JogoNavalhas, ModoCatalogo } from "./tipos";
@@ -144,7 +145,7 @@ function extrairModeloNavalha(descricao: string): string {
  * das especificações técnicas. Máquinas "irmãs" (mesmo jogo de navalhas,
  * motor diferente) viram uma linha só.
  */
-export async function carregarJogosNavalhas(
+async function carregarJogosNavalhasPorVinculo(
   supabaseClient?: SupabaseAny
 ): Promise<JogoNavalhas[]> {
   const supabase: SupabaseAny = supabaseClient ?? createClient();
@@ -194,11 +195,11 @@ export async function carregarJogosNavalhas(
       continue;
     }
 
-    const subtotalFixa = fixa && qtdFixa ? qtdFixa * fixa.preco_brl : 0;
-    const subtotalRotora = rotora && qtdRotora ? qtdRotora * rotora.preco_brl : 0;
-    const ipiValorFixa = fixa && qtdFixa ? subtotalFixa * ((fixa.ipi_pct ?? 0) / 100) : 0;
-    const ipiValorRotora = rotora && qtdRotora ? subtotalRotora * ((rotora.ipi_pct ?? 0) / 100) : 0;
-    const temValor = (fixa && qtdFixa) || (rotora && qtdRotora);
+    // Mesmo cálculo do Reajuste e das propostas (centavos, IPI por linha); sem preço, não há total.
+    const calculo = calcularKit([
+      ...(fixa && qtdFixa ? [{ pecas: qtdFixa, preco: fixa.preco_brl ?? null, ipi: fixa.ipi_pct ?? 0, grupo: "fixa" as const }] : []),
+      ...(rotora && qtdRotora ? [{ pecas: qtdRotora, preco: rotora.preco_brl ?? null, ipi: rotora.ipi_pct ?? 0, grupo: "rotora" as const }] : []),
+    ]);
 
     porChave.set(chave, {
       chave,
@@ -213,7 +214,7 @@ export async function carregarJogosNavalhas(
       qtdRotora,
       precoRotora: rotora?.preco_brl ?? null,
       ipiRotora: rotora?.ipi_pct ?? null,
-      valorTotalComIpi: temValor ? subtotalFixa + subtotalRotora + ipiValorFixa + ipiValorRotora : null,
+      valorTotalComIpi: calculo.total,
     });
   }
 
@@ -225,4 +226,65 @@ export async function carregarJogosNavalhas(
     const diff = tamanhoModelo(a.modelo) - tamanhoModelo(b.modelo);
     return diff !== 0 ? diff : a.modelo.localeCompare(b.modelo);
   });
+}
+
+/**
+ * Jogos de navalhas do catálogo. A fonte principal são os jogos cadastrados (os mesmos da tela de Reajuste e das
+ * propostas), com preço, IPI e quantidade vigentes; sem jogos cadastrados, usa os vínculos de cada equipamento.
+ * O total usa o cálculo central (calcularKit), igual ao da listagem de Reajuste e ao das propostas novas.
+ */
+export async function carregarJogosNavalhas(supabaseClient?: SupabaseAny): Promise<JogoNavalhas[]> {
+  const supabase: SupabaseAny = supabaseClient ?? createClient();
+  let jogos: SupabaseAny[] = [];
+  try {
+    jogos = await buscarTodos((de, ate) => supabase.from("jogos_navalha")
+      .select(`id, nome, material, ativo,
+        equipamento:produtos!jogos_navalha_equipamento_id_fkey(id, codigo, status, deleted_at, linha:linhas(nome, ordem)),
+        itens:jogos_navalha_itens(titulo, pecas, codigo, ordem, produto:produtos!jogos_navalha_itens_produto_id_fkey(id, codigo, descricao, preco_brl, ipi_pct, status, ativo, deleted_at))`)
+      .eq("ativo", true).order("id").range(de, ate));
+  } catch {
+    jogos = []; // tabela ainda não existe (arquivo 026 não aplicado)
+  }
+  const vivos = jogos.filter((j) => j.equipamento && j.equipamento.status === "ativo" && !j.equipamento.deleted_at && (j.itens ?? []).length > 0);
+  if (vivos.length === 0) return carregarJogosNavalhasPorVinculo(supabase);
+
+  const porChave = new Map<string, JogoNavalhas>();
+  for (const j of vivos) {
+    const itens = (j.itens as SupabaseAny[])
+      .filter((i) => i.produto && i.produto.status === "ativo" && i.produto.ativo !== false && !i.produto.deleted_at)
+      .sort((a, b) => a.ordem - b.ordem)
+      .map((i) => ({ ...i, grupo: classificarComponente(i.titulo, i.produto.descricao) }));
+    if (itens.length === 0) continue;
+    const grupo = (g: "fixa" | "rotora") => {
+      const doGrupo = itens.filter((i) => i.grupo === g);
+      const produtos = Array.from(new Map(doGrupo.map((i) => [i.produto.id, i.produto])).values());
+      return {
+        produtos, qtd: doGrupo.length ? doGrupo.reduce((s: number, i) => s + Number(i.pecas), 0) : null,
+        codigo: produtos.length ? produtos.map((p) => p.codigo).join(" / ") : null,
+        preco: produtos.length === 1 ? (produtos[0].preco_brl ?? null) : null,
+        ipi: produtos.length === 1 ? (produtos[0].ipi_pct ?? null) : null,
+      };
+    };
+    const fixa = grupo("fixa"), rotora = grupo("rotora");
+    const calculo = calcularKit(itens.map((i) => ({ pecas: Number(i.pecas), preco: i.produto.preco_brl ?? null, ipi: Number(i.produto.ipi_pct ?? 0), grupo: i.grupo })));
+    const variante = [j.nome && String(j.nome).trim().toLowerCase() !== "padrão" ? String(j.nome).trim() : null, j.material?.trim() || null].filter(Boolean).join(" · ");
+    const base = extrairModeloNavalha(fixa.produtos[0]?.descricao ?? rotora.produtos[0]?.descricao ?? j.equipamento.codigo);
+    const modelo = variante ? `${base} – ${variante}` : base;
+    const chave = `${itens.map((i) => `${i.produto.id}x${i.pecas}`).join("|")}|${variante}`;
+    const existente = porChave.get(chave);
+    const ordem = j.equipamento.linha?.ordem ?? Number.MAX_SAFE_INTEGER;
+    if (existente) {
+      if (ordem < existente.familiaOrdem) { existente.familia = j.equipamento.linha?.nome ?? existente.familia; existente.familiaOrdem = ordem; }
+      continue; // mesmo jogo em equipamentos irmãos: uma linha só
+    }
+    porChave.set(chave, {
+      chave, familia: j.equipamento.linha?.nome ?? "Outros", familiaOrdem: ordem, modelo,
+      codigoFixa: fixa.codigo, qtdFixa: fixa.qtd, precoFixa: fixa.preco, ipiFixa: fixa.ipi,
+      codigoRotora: rotora.codigo, qtdRotora: rotora.qtd, precoRotora: rotora.preco, ipiRotora: rotora.ipi,
+      valorTotalComIpi: calculo.total,
+    });
+  }
+  // Família (ordem das linhas) → número do modelo em ordem natural → variante.
+  return Array.from(porChave.values()).sort((a, b) =>
+    a.familiaOrdem - b.familiaOrdem || compararNatural(a.familia, b.familia) || compararModelos(a.modelo, b.modelo) || compararNatural(a.modelo, b.modelo));
 }
